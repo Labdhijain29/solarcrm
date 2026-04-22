@@ -1,5 +1,5 @@
-// ─── LeadsPage.jsx ────────────────────────────────────────────
 import { useState, useEffect } from 'react'
+import { FaClipboardList } from 'react-icons/fa'
 import { leadsAPI } from '../../services/api'
 import { PageHeader } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
@@ -18,8 +18,8 @@ export function LeadsPage() {
   useEffect(fetch, [])
 
   return (
-    <div style={{ animation:'fadeIn .4s ease' }}>
-      <PageHeader icon="📋" title="All Leads" subtitle={`${leads.length} total leads in the system`} />
+    <div style={{ animation: 'fadeIn .4s ease' }}>
+      <PageHeader icon={<FaClipboardList />} title="All Leads" subtitle={`${leads.length} total leads in the system`} />
       <div className="crm-card">
         <LeadsTable leads={leads} loading={loading} onView={setSelected} />
       </div>

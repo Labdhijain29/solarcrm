@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { FaBell } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { EmptyState, PageHeader, Spinner } from '../../components/common'
 import { enquiriesAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
+import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
@@ -27,6 +29,8 @@ export default function EnquiriesPage() {
   const [editing, setEditing] = useState(null)
   const [editForm, setEditForm] = useState(emptyEditForm)
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('latest')
 
   const canEdit = user?.role === 'Admin'
   const canConvert = ['Admin', 'Manager', 'Sales Manager'].includes(user?.role)
@@ -81,7 +85,12 @@ export default function EnquiriesPage() {
     setEditForm(emptyEditForm)
   }
 
-  const updateField = (key, value) => setEditForm(prev => ({ ...prev, [key]: value }))
+  const updateField = (key, value) => setEditForm(prev => {
+    if (key === 'state') return { ...prev, state: value, city: '' }
+    if (key === 'contact') return { ...prev, contact: String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10) }
+    if (key === 'pincode') return { ...prev, pincode: String(value || '').replace(/\D/g, '').slice(0, 6) }
+    return { ...prev, [key]: value }
+  })
 
   const saveEdit = async () => {
     if (!editing) return
@@ -98,11 +107,40 @@ export default function EnquiriesPage() {
     }
   }
 
+  const filteredEnquiries = enquiries
+    .filter((enquiry) => {
+      const q = search.toLowerCase()
+      if (!q) return true
+      return enquiry.name?.toLowerCase().includes(q) || String(enquiry.contact || enquiry.phone || '').includes(q)
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '')
+      if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '')
+      if (sortBy === 'number-asc') return String(a.contact || a.phone || '').localeCompare(String(b.contact || b.phone || ''))
+      if (sortBy === 'number-desc') return String(b.contact || b.phone || '').localeCompare(String(a.contact || a.phone || ''))
+      if (sortBy === 'oldest') return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    })
+
   if (loading) return <Spinner />
 
   return (
     <div className="dashboard-page">
-      <PageHeader icon="📩" title="Website Enquiries" subtitle={`${enquiries.length} enquiries visible for ${user?.role || 'your role'}`} />
+      <PageHeader icon={<FaBell />} title="Website Enquiries" subtitle={`${enquiries.length} enquiries visible for ${user?.role || 'your role'}`} />
+
+      <div className="dashboard-table-filters" style={{ marginBottom:16 }}>
+        <div className="dashboard-search">
+          <input className="crm-input" placeholder="Search by name or number..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select className="crm-input" style={{ width:'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="latest">Latest</option>
+          <option value="oldest">Oldest</option>
+          <option value="name-asc">Name A-Z</option>
+          <option value="name-desc">Name Z-A</option>
+          <option value="number-asc">Number 0-9</option>
+          <option value="number-desc">Number 9-0</option>
+        </select>
+      </div>
 
       {error && (
         <div className="crm-card" style={{ marginBottom:16, borderColor:'var(--red)', color:'var(--red)' }}>
@@ -118,7 +156,7 @@ export default function EnquiriesPage() {
             </tr>
           </thead>
           <tbody>
-            {enquiries.map(enquiry => (
+            {filteredEnquiries.map(enquiry => (
               <tr key={enquiry._id}>
                 <td style={{ fontWeight:500 }}>{enquiry.name}</td>
                 <td style={{ fontSize:12 }}>{enquiry.contact || enquiry.phone || '-'}</td>
@@ -156,7 +194,7 @@ export default function EnquiriesPage() {
         </table>
 
         <div className="crm-mobile-cards">
-          {enquiries.map(enquiry => (
+          {filteredEnquiries.map(enquiry => (
             <div key={enquiry._id} className="crm-mobile-card">
               <div className="dashboard-split-row" style={{ marginBottom:10 }}>
                 <div>
@@ -196,8 +234,8 @@ export default function EnquiriesPage() {
           ))}
         </div>
 
-        {!error && enquiries.length === 0 && (
-          <EmptyState icon="📩" title="No enquiries yet" subtitle="Website enquiries will appear here as soon as customers submit the form." />
+        {!error && filteredEnquiries.length === 0 && (
+          <EmptyState icon={<FaBell />} title="No enquiries yet" subtitle="Website enquiries will appear here as soon as customers submit the form." />
         )}
       </div>
 
@@ -216,7 +254,7 @@ export default function EnquiriesPage() {
               </div>
               <div>
                 <label className="form-label">Contact</label>
-                <input className="crm-input" value={editForm.contact} onChange={e => updateField('contact', e.target.value)} />
+                <input className="crm-input" value={editForm.contact} onChange={e => updateField('contact', e.target.value)} maxLength={10} />
               </div>
               <div>
                 <label className="form-label">Email</label>
@@ -231,15 +269,21 @@ export default function EnquiriesPage() {
               </div>
               <div>
                 <label className="form-label">State</label>
-                <input className="crm-input" value={editForm.state} onChange={e => updateField('state', e.target.value)} />
+                <select className="crm-input" value={editForm.state} onChange={e => updateField('state', e.target.value)}>
+                  <option value="">Select state...</option>
+                  {STATE_OPTIONS.map((state) => <option key={state} value={state}>{state}</option>)}
+                </select>
               </div>
               <div>
                 <label className="form-label">City</label>
-                <input className="crm-input" value={editForm.city} onChange={e => updateField('city', e.target.value)} />
+                <select className="crm-input" value={editForm.city} onChange={e => updateField('city', e.target.value)} disabled={!editForm.state}>
+                  <option value="">{editForm.state ? 'Select city...' : 'Select state first'}</option>
+                  {getCitiesForState(editForm.state).map((city) => <option key={city} value={city}>{city}</option>)}
+                </select>
               </div>
               <div>
                 <label className="form-label">Pincode</label>
-                <input className="crm-input" value={editForm.pincode} onChange={e => updateField('pincode', e.target.value)} />
+                <input className="crm-input" value={editForm.pincode} onChange={e => updateField('pincode', e.target.value)} maxLength={6} />
               </div>
               <div>
                 <label className="form-label">Status</label>

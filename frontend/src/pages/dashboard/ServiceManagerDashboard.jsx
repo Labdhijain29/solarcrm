@@ -57,6 +57,7 @@ export default function ServiceManagerDashboard() {
   const highPriority = tickets.filter(ticket => ticket.service.priority === 'High').length
   const scheduled = tickets.filter(ticket => ticket.service.status === 'Scheduled').length
   const resolved = tickets.filter(ticket => ticket.service.status === 'Resolved').length
+  const completedLeads = leads.filter((lead) => lead.status === 'completed').length
 
   return (
     <div className="dashboard-page">
@@ -68,6 +69,7 @@ export default function ServiceManagerDashboard() {
 
       <div className="dashboard-grid-metrics">
         <MetricCard icon={<FaTools />} label="Service Enquiries" value={serviceEnquiries.length} changeColor="var(--sun)" />
+        <MetricCard icon={<FaCheckCircle />} label="Completed Leads" value={completedLeads} changeColor="var(--green)" />
         <MetricCard icon={<FaExclamationTriangle />} label="High Priority" value={highPriority} changeColor="var(--red)" />
         <MetricCard icon={<FaSolarPanel />} label="Scheduled Visits" value={scheduled} changeColor="var(--blue)" />
         <MetricCard icon={<FaCheckCircle />} label="Resolved" value={resolved} changeColor="var(--green)" />

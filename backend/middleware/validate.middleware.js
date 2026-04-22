@@ -28,13 +28,27 @@ const validateRegister = [
     'Installation Manager', 'Net Metering Officer', 'Subsidy Officer',
     'Service Manager'
   ]).withMessage('Valid role required'),
-  body('phone').trim().notEmpty().withMessage('Contact required'),
-  body('alternateContact').optional({ checkFalsy: true }).trim(),
+  body('phone')
+    .trim()
+    .notEmpty().withMessage('Contact required')
+    .bail()
+    .customSanitizer((value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, ''))
+    .matches(/^[6-9]\d{9}$/).withMessage('Valid 10-digit contact number required'),
+  body('alternateContact')
+    .optional({ checkFalsy: true })
+    .trim()
+    .customSanitizer((value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, ''))
+    .matches(/^[6-9]\d{9}$/).withMessage('Alternate contact must be a valid 10-digit number'),
   body('permanentAddress').optional({ checkFalsy: true }).trim(),
   body('address').optional({ checkFalsy: true }).trim(),
   body('state').optional({ checkFalsy: true }).trim(),
   body('city').optional({ checkFalsy: true }).trim(),
   body('pincode').optional({ checkFalsy: true }).trim(),
+  body('franchiseEnabled').optional().isBoolean().withMessage('Franchise flag must be true or false'),
+  body('franchiseName').optional({ checkFalsy: true }).trim(),
+  body('franchiseState').optional({ checkFalsy: true }).trim(),
+  body('franchiseCity').optional({ checkFalsy: true }).trim(),
+  body('franchiseSubDistrict').optional({ checkFalsy: true }).trim(),
   body('jobTitle').optional({ checkFalsy: true }).trim(),
   body('resume').optional({ checkFalsy: true }).trim(),
   body('documents').optional({ checkFalsy: true }).trim(),
@@ -54,6 +68,7 @@ const validateLead = [
     })
     .matches(/^[6-9]\d{9}$/).withMessage('Valid 10-digit Indian mobile number required'),
   body('source').optional().isIn(['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads','Other']),
+  body('generatedThrough').optional().trim(),
   handleValidation
 ];
 
@@ -63,8 +78,8 @@ const validateEnquiry = [
     .notEmpty().withMessage('Contact required')
     .bail()
     .trim()
-    .customSanitizer((value) => String(value || '').replace(/\D/g, ''))
-    .matches(/^(91)?[6-9]\d{9}$/).withMessage('Valid contact number required'),
+    .customSanitizer((value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, ''))
+    .matches(/^[6-9]\d{9}$/).withMessage('Valid 10-digit contact number required'),
   body('email').optional({ checkFalsy: true }).isEmail().withMessage('Valid email required'),
   body('address').optional({ checkFalsy: true }).trim(),
   body('enquiryType').notEmpty().trim().withMessage('Enquiry type required'),

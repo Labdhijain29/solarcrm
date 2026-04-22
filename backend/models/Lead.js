@@ -30,6 +30,7 @@ const leadSchema = new mongoose.Schema({
     enum: ['Website', 'Social Media', 'Referral', 'Cold Call', 'Exhibition', 'Google Ads', 'Other'],
     default: 'Website'
   },
+  generatedThrough: { type: String, trim: true, default: '' },
   capacity: { type: String, default: '3kW' }, // e.g. 3kW, 5kW
   roofType: { type: String, enum: ['Concrete', 'Metal Sheet', 'RCC', 'Tin', 'Other'], default: 'Concrete' },
   monthlyBill: { type: Number, default: 0 }, // Monthly electricity bill in INR

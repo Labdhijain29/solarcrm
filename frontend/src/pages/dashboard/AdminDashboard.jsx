@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { FaBell, FaChartLine, FaCheckCircle, FaClipboardList, FaCog, FaRegBuilding, FaTasks, FaUsers, FaWrench } from 'react-icons/fa'
 import { Link } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dashboardAPI, enquiriesAPI, leadsAPI, usersAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
-import { ROLE_ICONS, ROLE_STAGE_MAP, STAGES, STAGE_COLORS, stageColor } from '../../utils/constants'
+import { getCitiesForState, ROLE_ICONS, ROLE_STAGE_MAP, STAGES, STAGE_COLORS, stageColor, STATE_OPTIONS } from '../../utils/constants'
 
 const TT_STYLE = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, color:'var(--text)' }
 const SERVICE_READY_STAGES = ['Installation', 'Net Metering', 'Subsidy', 'Completed']
@@ -37,7 +38,9 @@ function MiniMetric({ label, value, tone = 'var(--text)' }) {
 
 function StageQueueCard({ role, stage, leads }) {
   const activeLeads = leads.filter(lead => lead.currentStage === stage && lead.status === 'active')
-  const completedLeads = leads.filter(lead => lead.currentStage === stage && lead.status === 'completed')
+  const completedLeads = leads.filter((lead) =>
+    (lead.history || []).some((item) => item.stage === stage && ['Approved', 'Completed'].includes(item.action))
+  )
   const recentLeads = activeLeads.slice(0, 3)
 
   return (
@@ -202,6 +205,13 @@ export default function AdminDashboard() {
     setEditingEnquiry(null)
   }
 
+  const updateEnquiryField = (key, value) => {
+    setEditForm((prev) => {
+      if (key === 'state') return { ...prev, state: value, city: '' }
+      return { ...prev, [key]: value }
+    })
+  }
+
   const registrationStats = useMemo(() => {
     const pending = users.filter(user => user.approvalStatus === 'pending')
 
@@ -215,7 +225,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader icon="📑" title="Admin Dashboard" subtitle="System overview plus every role dashboard snapshot in one place" />
+      <PageHeader icon={<FaCog />} title="Admin Dashboard" subtitle="System overview plus every role dashboard snapshot in one place" />
 
       <div className="crm-tabs">
         {[
@@ -233,15 +243,15 @@ export default function AdminDashboard() {
       {tab === 'all' && (
         <div style={{ animation:'fadeIn .3s ease', display:'grid', gap:16 }}>
           <div className="dashboard-grid-metrics">
-            <MetricCard icon="📋" label="Total Leads" value={summary?.total ?? leads.length} change="+ all role dashboards synced" changeColor="var(--sun)" />
-            <MetricCard icon="⚡" label="Active Pipeline" value={summary?.active ?? managerStats.active} change="Across every stage" changeColor="var(--blue)" />
-            <MetricCard icon="✅" label="Completed" value={summary?.completed ?? managerStats.completed} change={`${summary?.conversionRate ?? managerStats.conversion}% conversion`} changeColor="var(--green)" />
-            <MetricCard icon="📩" label="Open Enquiries" value={enquiryStats.fresh} change={`${enquiryStats.pending.length} need action`} changeColor="var(--indigo)" />
-            <MetricCard icon="👥" label="Pending Registrations" value={registrationStats.pendingCount} change={registrationStats.pendingCount ? 'Waiting for admin approval' : 'No pending signups'} changeColor="var(--red)" />
+            <MetricCard icon={<FaClipboardList />} label="Total Leads" value={summary?.total ?? leads.length} change="+ all role dashboards synced" changeColor="var(--sun)" />
+            <MetricCard icon={<FaTasks />} label="Active Pipeline" value={summary?.active ?? managerStats.active} change="Across every stage" changeColor="var(--blue)" />
+            <MetricCard icon={<FaCheckCircle />} label="Completed" value={summary?.completed ?? managerStats.completed} change={`${summary?.conversionRate ?? managerStats.conversion}% conversion`} changeColor="var(--green)" />
+            <MetricCard icon={<FaBell />} label="Open Enquiries" value={enquiryStats.fresh} change={`${enquiryStats.pending.length} need action`} changeColor="var(--indigo)" />
+            <MetricCard icon={<FaUsers />} label="Pending Registrations" value={registrationStats.pendingCount} change={registrationStats.pendingCount ? 'Waiting for admin approval' : 'No pending signups'} changeColor="var(--red)" />
           </div>
 
           <div className="dashboard-grid-auto">
-            <DashboardPanel icon="🏢" title="Manager Dashboard" subtitle="Lead generation and full-pipeline supervision" accent="var(--sun)">
+            <DashboardPanel icon={<FaRegBuilding />} title="Manager Dashboard" subtitle="Lead generation and full-pipeline supervision" accent="var(--sun)">
               <div className="dashboard-mini-grid-4" style={{ marginBottom:12 }}>
                 <MiniMetric label="Total" value={managerStats.total} />
                 <MiniMetric label="Active" value={managerStats.active} tone="var(--blue)" />
@@ -261,7 +271,7 @@ export default function AdminDashboard() {
               </div>
             </DashboardPanel>
 
-            <DashboardPanel icon="📊" title="Sales Manager Dashboard" subtitle="Pipeline depth, closures, and high-stage opportunities" accent="var(--blue)">
+            <DashboardPanel icon={<FaUsers />} title="Sales Manager Dashboard" subtitle="Pipeline depth, closures, and high-stage opportunities" accent="var(--blue)">
               <div className="dashboard-mini-grid-4" style={{ marginBottom:12 }}>
                 <MiniMetric label="Active" value={salesStats.active} tone="var(--blue)" />
                 <MiniMetric label="Closed" value={salesStats.completed} tone="var(--green)" />
@@ -285,7 +295,7 @@ export default function AdminDashboard() {
               </div>
             </DashboardPanel>
 
-            <DashboardPanel icon="SV" title="Service Manager Dashboard" subtitle="Installed systems, visit load, and service priorities" accent="var(--green)">
+            <DashboardPanel icon={<FaWrench />} title="Service Manager Dashboard" subtitle="Installed systems, visit load, and service priorities" accent="var(--green)">
               <div className="dashboard-mini-grid-4" style={{ marginBottom:12 }}>
                 <MiniMetric label="Tickets" value={serviceStats.total} />
                 <MiniMetric label="High" value={serviceStats.highPriority} tone="var(--red)" />
@@ -308,7 +318,7 @@ export default function AdminDashboard() {
             </DashboardPanel>
           </div>
 
-          <DashboardPanel icon="⚙️" title="Stage Dashboards" subtitle="Admin can monitor every single-stage team's queue from here" accent="var(--indigo)">
+          <DashboardPanel icon={<FaCog />} title="Stage Dashboards" subtitle="Admin can monitor every single-stage team's queue from here" accent="var(--indigo)">
             <div className="dashboard-grid-cards">
               {stageQueues.map(({ role, stage }) => (
                 <StageQueueCard key={role} role={role} stage={stage} leads={leads} />
@@ -317,9 +327,9 @@ export default function AdminDashboard() {
           </DashboardPanel>
 
           <div className="dashboard-grid-auto">
-            <DashboardPanel icon="📩" title="Enquiry Queue" subtitle="Fresh website enquiries that still need conversion" accent="var(--indigo)">
+            <DashboardPanel icon={<FaBell />} title="Enquiry Queue" subtitle="Fresh website enquiries that still need conversion" accent="var(--indigo)">
               {enquiryStats.pending.length === 0 ? (
-                <EmptyState icon="📩" title="All enquiries handled" subtitle="No pending website enquiries for the admin team." />
+                <EmptyState icon={<FaBell />} title="All enquiries handled" subtitle="No pending website enquiries for the admin team." />
               ) : (
                 <div className="dashboard-stack">
                   {enquiryStats.pending.map(enquiry => (
@@ -339,9 +349,9 @@ export default function AdminDashboard() {
               )}
             </DashboardPanel>
 
-            <DashboardPanel icon="👥" title="New Registrations" subtitle="Fresh signup requests waiting for admin approval" accent="var(--red)">
+            <DashboardPanel icon={<FaUsers />} title="New Registrations" subtitle="Fresh signup requests waiting for admin approval" accent="var(--red)">
               {registrationStats.pendingCount === 0 ? (
-                <EmptyState icon="👥" title="No pending registrations" subtitle="New signup requests will appear here automatically." />
+                <EmptyState icon={<FaUsers />} title="No pending registrations" subtitle="New signup requests will appear here automatically." />
               ) : (
                 <div className="dashboard-stack" style={{ gap:10 }}>
                   {registrationStats.recentPending.map(person => (
@@ -372,7 +382,7 @@ export default function AdminDashboard() {
               )}
             </DashboardPanel>
 
-            <DashboardPanel icon="🕒" title="Recent Activity" subtitle="Latest approvals and stage movements" accent="var(--text)">
+            <DashboardPanel icon={<FaChartLine />} title="Recent Activity" subtitle="Latest approvals and stage movements" accent="var(--text)">
               <div className="dashboard-stack" style={{ gap:10 }}>
                 {activity.slice(0, 6).map((item, index) => (
                   <div key={`${item.leadName}-${index}`} style={{ display:'flex', gap:10, alignItems:'center' }}>
@@ -394,11 +404,11 @@ export default function AdminDashboard() {
       {tab === 'overview' && (
         <div style={{ animation:'fadeIn .3s ease' }}>
           <div className="dashboard-grid-metrics">
-            <MetricCard icon="📋" label="Total Leads" value={summary?.total} change="+12 this week" changeColor="var(--sun)" />
-            <MetricCard icon="⚡" label="Active" value={summary?.active} change="In pipeline" changeColor="var(--blue)" />
-            <MetricCard icon="✅" label="Completed" value={summary?.completed} change={`${summary?.conversionRate}% conversion`} changeColor="var(--green)" />
-            <MetricCard icon="📩" label="Enquiries" value={summary?.enquiries} change="Website forms" changeColor="var(--indigo)" />
-            <MetricCard icon="👥" label="Pending Registrations" value={registrationStats.pendingCount} change="Admin approval queue" changeColor="var(--red)" />
+            <MetricCard icon={<FaClipboardList />} label="Total Leads" value={summary?.total} change="+12 this week" changeColor="var(--sun)" />
+            <MetricCard icon={<FaTasks />} label="Active" value={summary?.active} change="In pipeline" changeColor="var(--blue)" />
+            <MetricCard icon={<FaCheckCircle />} label="Completed" value={summary?.completed} change={`${summary?.conversionRate}% conversion`} changeColor="var(--green)" />
+            <MetricCard icon={<FaBell />} label="Enquiries" value={summary?.enquiries} change="Website forms" changeColor="var(--indigo)" />
+            <MetricCard icon={<FaUsers />} label="Pending Registrations" value={registrationStats.pendingCount} change="Admin approval queue" changeColor="var(--red)" />
           </div>
 
           <div className="dashboard-grid-two" style={{ marginBottom:24 }}>
@@ -518,19 +528,33 @@ export default function AdminDashboard() {
             </div>
 
             <div className="dashboard-form-grid">
-              {[['Name', 'name'], ['Contact', 'contact'], ['Email', 'email'], ['State', 'state'], ['City', 'city'], ['Pincode', 'pincode']].map(([label, key]) => (
+              {[['Name', 'name'], ['Contact', 'contact'], ['Email', 'email'], ['Pincode', 'pincode']].map(([label, key]) => (
                 <div key={key}>
                   <label className="form-label">{label}</label>
-                  <input className="crm-input" value={editForm[key]} onChange={e => setEditForm(prev => ({ ...prev, [key]: e.target.value }))} />
+                  <input className="crm-input" value={editForm[key]} onChange={e => updateEnquiryField(key, e.target.value)} />
                 </div>
               ))}
               <div>
+                <label className="form-label">State</label>
+                <select className="crm-input" value={editForm.state} onChange={e => updateEnquiryField('state', e.target.value)}>
+                  <option value="">Select state...</option>
+                  {STATE_OPTIONS.map((state) => <option key={state} value={state}>{state}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">City</label>
+                <select className="crm-input" value={editForm.city} onChange={e => updateEnquiryField('city', e.target.value)} disabled={!editForm.state}>
+                  <option value="">{editForm.state ? 'Select city...' : 'Select state first'}</option>
+                  {getCitiesForState(editForm.state).map((city) => <option key={city} value={city}>{city}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="form-label">Enquiry Type</label>
-                <input className="crm-input" value={editForm.enquiryType} onChange={e => setEditForm(prev => ({ ...prev, enquiryType: e.target.value }))} />
+                <input className="crm-input" value={editForm.enquiryType} onChange={e => updateEnquiryField('enquiryType', e.target.value)} />
               </div>
               <div>
                 <label className="form-label">Status</label>
-                <select className="crm-input" value={editForm.status} onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}>
+                <select className="crm-input" value={editForm.status} onChange={e => updateEnquiryField('status', e.target.value)}>
                   {['new', 'contacted', 'converted', 'closed'].map(status => <option key={status} value={status}>{status}</option>)}
                 </select>
               </div>
@@ -538,12 +562,12 @@ export default function AdminDashboard() {
 
             <div style={{ marginTop:14 }}>
               <label className="form-label">Address</label>
-              <textarea className="crm-input" rows={3} value={editForm.address} onChange={e => setEditForm(prev => ({ ...prev, address: e.target.value }))} />
+              <textarea className="crm-input" rows={3} value={editForm.address} onChange={e => updateEnquiryField('address', e.target.value)} />
             </div>
 
             <div style={{ marginTop:14 }}>
               <label className="form-label">Notes</label>
-              <textarea className="crm-input" rows={3} value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} />
+              <textarea className="crm-input" rows={3} value={editForm.notes} onChange={e => updateEnquiryField('notes', e.target.value)} />
             </div>
 
             <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:18 }} onClick={saveEnquiryEdit}>

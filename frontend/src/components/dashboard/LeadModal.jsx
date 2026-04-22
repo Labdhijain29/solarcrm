@@ -63,6 +63,7 @@ export default function LeadModal({ lead, onClose, onUpdated, currentUser }) {
     ['Phone', lead.phone],
     ['City', lead.city || '-'],
     ['Source', lead.source || '-'],
+    ['By / Through', lead.generatedThrough || '-'],
     ['Capacity', lead.capacity || '-'],
     ['Assigned', lead.assignedTo?.name || lead.assignedTo || '-'],
     ['Created', formatDate(lead.createdAt)],
@@ -135,7 +136,7 @@ export default function LeadModal({ lead, onClose, onUpdated, currentUser }) {
         <div className="dashboard-inline-actions">
           {canApprove && (
             <button className="btn btn-success" style={{ flex:1 }} disabled={loading} onClick={doApprove}>
-              Approve -> {STAGES[currentIndex + 1]}
+              Approve {'->'} {STAGES[currentIndex + 1]}
             </button>
           )}
           {canAct && lead.status === 'active' && (

@@ -1,27 +1,42 @@
 import { Outlet, useNavigate, NavLink } from 'react-router-dom'
+import { FaBell, FaBriefcase, FaClipboardList, FaCog, FaExchangeAlt, FaFileInvoice, FaHome, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTachometerAlt, FaUser, FaUsers, FaUserTie, FaWrench } from 'react-icons/fa'
 import { useAuthStore, useAppStore } from '../../store'
 import { ROLE_STAGE_MAP, ROLE_ICONS, stageColor } from '../../utils/constants'
 
 const ADMIN_DASHBOARD_ITEMS = [
-  { to: '/dashboard/admin', icon: 'AD', label: 'Admin Dashboard' },
-  { to: '/dashboard/manager', icon: 'MN', label: 'Manager Dashboard' },
-  { to: '/dashboard/sales', icon: 'SL', label: 'Sales Dashboard' },
-  { to: '/dashboard/service', icon: 'SV', label: 'Service Dashboard' },
-  { to: '/dashboard/stage/registration-executive', icon: 'RG', label: 'Registration Dashboard' },
-  { to: '/dashboard/stage/bank-finance-executive', icon: 'BK', label: 'Bank Dashboard' },
-  { to: '/dashboard/stage/loan-officer', icon: 'LN', label: 'Loan Dashboard' },
-  { to: '/dashboard/stage/dispatch-manager', icon: 'DP', label: 'Dispatch Dashboard' },
-  { to: '/dashboard/stage/installation-manager', icon: 'IN', label: 'Installation Dashboard' },
-  { to: '/dashboard/stage/net-metering-officer', icon: 'NM', label: 'Net Metering Dashboard' },
-  { to: '/dashboard/stage/subsidy-officer', icon: 'SB', label: 'Subsidy Dashboard' },
+  { to: '/dashboard/admin', icon: FaTachometerAlt, label: 'Admin Dashboard' },
+  { to: '/dashboard/manager', icon: FaRegBuilding, label: 'Manager Dashboard' },
+  { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard' },
+  { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
+  { to: '/dashboard/stage/registration-executive', icon: FaClipboardList, label: 'Registration Dashboard' },
+  { to: '/dashboard/stage/bank-finance-executive', icon: FaBriefcase, label: 'Bank Dashboard' },
+  { to: '/dashboard/stage/loan-officer', icon: FaMoneyBillWave, label: 'Loan Dashboard' },
+  { to: '/dashboard/stage/dispatch-manager', icon: FaExchangeAlt, label: 'Dispatch Dashboard' },
+  { to: '/dashboard/stage/installation-manager', icon: FaSolarPanel, label: 'Installation Dashboard' },
+  { to: '/dashboard/stage/net-metering-officer', icon: FaBell, label: 'Net Metering Dashboard' },
+  { to: '/dashboard/stage/subsidy-officer', icon: FaFileInvoice, label: 'Subsidy Dashboard' },
 ]
 
 const COMMON_NAV_ITEMS = [
-  { to: '/dashboard/leads', icon: 'LD', label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Manager'] },
-  { to: '/dashboard/enquiries', icon: 'EN', label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Manager', 'Service Manager'] },
-  { to: '/dashboard/users', icon: 'US', label: 'Users', roles: ['Admin'] },
-  { to: '/dashboard/profile', icon: 'PR', label: 'Profile', roles: null },
+  { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Manager'] },
+  { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Manager', 'Service Manager'] },
+  { to: '/dashboard/users', icon: FaUsers, label: 'Users', roles: ['Admin'] },
+  { to: '/dashboard/profile', icon: FaUser, label: 'Profile', roles: null },
 ]
+
+const ROLE_ICON_MAP = {
+  Admin: FaUserTie,
+  Manager: FaRegBuilding,
+  'Sales Manager': FaUsers,
+  'Registration Executive': FaClipboardList,
+  'Bank/Finance Executive': FaBriefcase,
+  'Loan Officer': FaMoneyBillWave,
+  'Dispatch Manager': FaExchangeAlt,
+  'Installation Manager': FaSolarPanel,
+  'Net Metering Officer': FaBell,
+  'Subsidy Officer': FaFileInvoice,
+  'Service Manager': FaWrench,
+}
 
 function SidebarLogo() {
   return (
@@ -38,11 +53,12 @@ function SidebarLogo() {
 }
 
 function UserBadge({ user }) {
+  const Icon = ROLE_ICON_MAP[user.role] || FaUser
   return (
     <div style={{ padding:'12px 8px' }}>
       <div style={{ background:'linear-gradient(135deg,rgba(245,158,11,.1),rgba(249,115,22,.05))', border:'1px solid rgba(245,158,11,.15)', borderRadius:10, padding:'10px 12px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:18 }}>{ROLE_ICONS[user.role] || 'U'}</span>
+          <span style={{ fontSize:18, display:'flex' }}><Icon /></span>
           <div>
             <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{user.name.split(' ')[0]}</div>
             <div style={{ fontSize:10, color:'var(--muted)' }}>{user.role}</div>
@@ -81,7 +97,7 @@ export default function DashboardLayout() {
             <div style={{ fontSize:10, fontWeight:600, color:'var(--dim)', textTransform:'uppercase', letterSpacing:.8, padding:'10px 16px 6px' }}>All Dashboards</div>
             {ADMIN_DASHBOARD_ITEMS.map(item => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={closeSidebar}>
-                <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700 }}>{item.icon}</span>
+                <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700, display:'flex', justifyContent:'center' }}><item.icon /></span>
                 <span>{item.label}</span>
               </NavLink>
             ))}
@@ -92,7 +108,7 @@ export default function DashboardLayout() {
           <div style={{ fontSize:10, fontWeight:600, color:'var(--dim)', textTransform:'uppercase', letterSpacing:.8, padding:'10px 16px 6px' }}>Navigation</div>
           {visibleNav.map(item => (
             <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={closeSidebar}>
-              <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700 }}>{item.icon}</span>
+              <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700, display:'flex', justifyContent:'center' }}><item.icon /></span>
               <span>{item.label}</span>
             </NavLink>
           ))}
@@ -102,7 +118,7 @@ export default function DashboardLayout() {
           <div style={{ padding:'8px 0' }}>
             <div style={{ fontSize:10, fontWeight:600, color:'var(--dim)', textTransform:'uppercase', letterSpacing:.8, padding:'10px 16px 6px' }}>My Stage</div>
             <div className="nav-item active">
-              <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700 }}>ST</span>
+              <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700, display:'flex', justifyContent:'center' }}><FaCog /></span>
               <span>{stageAccess}</span>
               <div style={{ marginLeft:'auto', width:8, height:8, borderRadius:'50%', background:stageColor(stageAccess) }} />
             </div>
@@ -136,7 +152,7 @@ export default function DashboardLayout() {
               {theme === 'dark' ? 'LT' : 'DK'}
             </button>
             <button className="btn btn-ghost btn-sm" style={{ display:'flex', alignItems:'center', gap:6 }} onClick={handleLogout}>
-              <span>{ROLE_ICONS[user?.role]}</span>
+              <span style={{ display:'flex' }}>{(() => { const TopIcon = ROLE_ICON_MAP[user?.role] || FaUser; return <TopIcon /> })()}</span>
               <span>{user?.name?.split(' ')[0]}</span>
               <span style={{ fontSize:10, color:'var(--dim)' }}>| {user?.role?.split(' ')[0]}</span>
             </button>

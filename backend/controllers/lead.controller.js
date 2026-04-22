@@ -12,6 +12,16 @@ const buildQuery = (query, user) => {
   const q = {};
   const role = user.role;
   const stageAccess = ROLE_STAGE_MAP[role];
+  const completedStage = query.completedStage;
+  const personalHistoryFilter = {
+    performedBy: user._id,
+    stage: completedStage || stageAccess,
+    action: { $in: ['Approved', 'Completed'] }
+  };
+
+  if (role !== 'Admin' && isSingleStageRole(role)) {
+    q.assignedTo = user._id;
+  }
 
   if (role !== 'Admin' && !isSingleStageRole(role)) {
     q.$or = [
@@ -20,13 +30,25 @@ const buildQuery = (query, user) => {
     ];
   }
 
-  if (stageAccess && role !== 'Admin') {
+  if (stageAccess && role !== 'Admin' && !completedStage) {
     q.currentStage = stageAccess;
   }
 
-  if (query.stage) q.currentStage = query.stage;
+  if (query.stage && !completedStage) q.currentStage = query.stage;
+  if (completedStage) {
+    q.history = {
+      $elemMatch: role === 'Admin'
+        ? {
+            stage: completedStage,
+            action: { $in: ['Approved', 'Completed'] }
+          }
+        : personalHistoryFilter
+    };
+    delete q.assignedTo;
+  }
   if (query.status) q.status = query.status;
   if (query.source) q.source = query.source;
+  if (query.generatedThrough) q.generatedThrough = new RegExp(query.generatedThrough, 'i');
   if (query.city) q.city = new RegExp(query.city, 'i');
   if (query.assignedTo) q.assignedTo = query.assignedTo;
   if (query.priority) q.priority = query.priority;
@@ -36,6 +58,7 @@ const buildQuery = (query, user) => {
       { name: new RegExp(query.search, 'i') },
       { phone: new RegExp(query.search, 'i') },
       { city: new RegExp(query.search, 'i') },
+      { generatedThrough: new RegExp(query.search, 'i') },
     ];
   }
 
@@ -87,11 +110,11 @@ exports.getLead = async (req, res) => {
 // @route   POST /api/leads
 exports.createLead = async (req, res) => {
   try {
-    const { name, phone, email, address, city, state, pincode, source, capacity, roofType, monthlyBill, notes, assignedTo, priority } = req.body;
+    const { name, phone, email, address, city, state, pincode, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, priority } = req.body;
 
     const lead = await Lead.create({
       name, phone, email, address, city, state, pincode,
-      source, capacity, roofType, monthlyBill, notes, priority,
+      source, generatedThrough, capacity, roofType, monthlyBill, notes, priority,
       assignedTo: assignedTo || req.user._id,
       createdBy: req.user._id,
       currentStage: 'Lead',
@@ -127,7 +150,7 @@ exports.updateLead = async (req, res) => {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
 
-    const allowed = ['name','phone','email','address','city','state','pincode','source','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags'];
+    const allowed = ['name','phone','email','address','city','state','pincode','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags'];
     allowed.forEach(field => { if (req.body[field] !== undefined) lead[field] = req.body[field]; });
 
     lead.history.push({

@@ -13,7 +13,9 @@ const isSingleStageRole = (role) => {
 const buildPersonalLeadQuery = (user) => {
   if (user.role === 'Admin') return {};
   const query = {};
-  if (!isSingleStageRole(user.role)) {
+  if (isSingleStageRole(user.role)) {
+    query.assignedTo = user._id;
+  } else {
     query.$or = [
       { assignedTo: user._id },
       { createdBy: user._id }

@@ -64,6 +64,7 @@ img { max-width: 100%; height: auto; display: block; }
 /* ─── Layout ─────────────────────────────────────────────────── */
 .app-sidebar {
   width: var(--sidebar);
+  max-width: min(86vw, 320px);
   background: var(--bg2);
   border-right: 1px solid var(--border);
   position: fixed;
@@ -81,6 +82,7 @@ img { max-width: 100%; height: auto; display: block; }
 
 .app-topbar {
   height: 60px;
+  min-height: 60px;
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -90,6 +92,7 @@ img { max-width: 100%; height: auto; display: block; }
   position: sticky;
   top: 0;
   z-index: 50;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 900px) {
@@ -302,6 +305,7 @@ textarea.crm-input { resize: vertical; }
   max-height: 90vh;
   overflow-y: auto;
   animation: fadeIn 0.2s ease;
+  box-shadow: 0 24px 80px rgba(0,0,0,.35);
 }
 
 /* ─── Stage Progress ─────────────────────────────────────────── */
@@ -547,6 +551,7 @@ textarea.crm-input { resize: vertical; }
 
 .dashboard-page {
   animation: fadeIn .4s ease;
+  min-width: 0;
 }
 
 .dashboard-grid-metrics {
@@ -648,6 +653,7 @@ textarea.crm-input { resize: vertical; }
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px;
+  min-width: 0;
 }
 
 .crm-mobile-row {
@@ -760,6 +766,101 @@ textarea.crm-input { resize: vertical; }
 
   .app-topbar {
     padding: 0 12px;
+    min-height: 64px;
+  }
+
+  .app-main > div {
+    padding: 18px !important;
+  }
+
+  .dashboard-table-filters {
+    align-items: stretch;
+  }
+
+  .dashboard-table-filters > * {
+    flex: 1 1 180px;
+  }
+
+  .dashboard-inline-actions .btn {
+    flex: 1 1 140px;
+  }
+
+  .history-item {
+    flex-wrap: wrap;
+  }
+
+  .history-item > div:last-child {
+    width: 100%;
+    text-align: left;
+    padding-left: 44px;
+  }
+
+  .kanban-wrap {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .crm-table {
+    display: none;
+  }
+
+  .crm-table-wrap {
+    border: none;
+    overflow: visible;
+  }
+
+  .crm-mobile-cards {
+    display: grid;
+    gap: 12px;
+  }
+
+  .dashboard-grid-metrics,
+  .dashboard-grid-auto,
+  .dashboard-grid-cards,
+  .dashboard-form-grid,
+  .dashboard-mini-grid-2,
+  .dashboard-mini-grid-4,
+  .dashboard-grid-two,
+  .dashboard-grid-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-split-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .dashboard-funnel {
+    gap: 14px;
+  }
+
+  .dashboard-search {
+    min-width: 100%;
+  }
+
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .modal-box {
+    max-height: 94vh;
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .crm-table th,
+  .crm-table td {
+    padding: 10px 10px;
+  }
+
+  .app-topbar {
+    gap: 10px;
+  }
+
+  .app-topbar > span {
+    order: 2;
+    width: 100%;
   }
 }
 
@@ -768,6 +869,7 @@ textarea.crm-input { resize: vertical; }
     white-space: normal;
     text-align: center;
     justify-content: center;
+    width: 100%;
   }
 
   .site-nav-actions {
@@ -796,32 +898,36 @@ textarea.crm-input { resize: vertical; }
     gap: 24px;
   }
 
-  .dashboard-grid-metrics,
-  .dashboard-grid-auto,
-  .dashboard-grid-cards,
-  .dashboard-form-grid,
-  .dashboard-mini-grid-2,
-  .dashboard-mini-grid-4 {
-    grid-template-columns: 1fr;
+  .app-main > div {
+    padding: 14px !important;
   }
 
-  .dashboard-split-row {
-    flex-wrap: wrap;
-    align-items: flex-start;
+  .app-topbar {
+    padding: 8px 10px;
+    height: auto;
   }
 
-  .crm-table {
-    display: none;
+  .app-topbar .btn-icon,
+  .app-topbar .btn-sm {
+    min-height: 38px;
   }
 
-  .crm-table-wrap {
-    border: none;
-    overflow: visible;
+  .nav-item {
+    padding: 10px 14px;
   }
 
-  .crm-mobile-cards {
-    display: grid;
-    gap: 12px;
+  .metric-card {
+    padding: 16px;
+  }
+
+  .metric-card > div:nth-child(3) {
+    font-size: 24px !important;
+  }
+
+  .crm-mobile-card,
+  .crm-card,
+  .service-card {
+    padding: 14px;
   }
 
   .crm-table th,
@@ -829,12 +935,56 @@ textarea.crm-input { resize: vertical; }
     padding: 10px 10px;
   }
 
-  .modal-backdrop {
-    padding: 10px;
+  .modal-box {
+    padding: 14px;
+    max-width: 100%;
   }
 
-  .modal-box {
-    max-height: 94vh;
-    border-radius: 16px;
+  .dashboard-inline-actions,
+  .site-nav-actions {
+    width: 100%;
+  }
+
+  .dashboard-inline-actions .btn {
+    flex: 1 1 100%;
+  }
+
+  .kanban-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .kanban-col {
+    min-width: 0;
+  }
+
+  .history-item > div:last-child {
+    padding-left: 0;
+  }
+
+  .site-page {
+    padding-top: 96px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-sidebar {
+    max-width: 92vw;
+  }
+
+  .btn,
+  .crm-input,
+  .badge {
+    font-size: 12px;
+  }
+
+  .page-title,
+  .dashboard-page h1 {
+    word-break: break-word;
+  }
+
+  .site-section,
+  .hero-section {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }

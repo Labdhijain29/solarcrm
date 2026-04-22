@@ -9,15 +9,25 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
   const [srcFilter, setSrc] = useState('All')
   const [statusFilter, setStatus] = useState('All')
   const [stageFilter, setStage] = useState('All')
+  const [sortBy, setSortBy] = useState('latest')
 
-  const filtered = leads.filter((lead) => {
-    const q = search.toLowerCase()
-    if (q && !lead.name?.toLowerCase().includes(q) && !lead.phone?.includes(q) && !lead.city?.toLowerCase().includes(q)) return false
-    if (srcFilter !== 'All' && lead.source !== srcFilter) return false
-    if (statusFilter !== 'All' && lead.status !== statusFilter) return false
-    if (stageFilter !== 'All' && lead.currentStage !== stageFilter) return false
-    return true
-  })
+  const filtered = leads
+    .filter((lead) => {
+      const q = search.toLowerCase()
+      if (q && !lead.name?.toLowerCase().includes(q) && !lead.phone?.includes(q) && !lead.city?.toLowerCase().includes(q) && !lead.generatedThrough?.toLowerCase().includes(q)) return false
+      if (srcFilter !== 'All' && lead.source !== srcFilter) return false
+      if (statusFilter !== 'All' && lead.status !== statusFilter) return false
+      if (stageFilter !== 'All' && lead.currentStage !== stageFilter) return false
+      return true
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '')
+      if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '')
+      if (sortBy === 'phone-asc') return (a.phone || '').localeCompare(b.phone || '')
+      if (sortBy === 'phone-desc') return (b.phone || '').localeCompare(a.phone || '')
+      if (sortBy === 'oldest') return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    })
 
   const handleView = (lead) => {
     if (onView) {
@@ -57,6 +67,14 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
         <select className="crm-input" style={{ width:'auto' }} value={statusFilter} onChange={(e) => setStatus(e.target.value)}>
           {['All', 'active', 'completed', 'rejected', 'on-hold'].map((item) => <option key={item}>{item}</option>)}
         </select>
+        <select className="crm-input" style={{ width:'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="latest">Latest</option>
+          <option value="oldest">Oldest</option>
+          <option value="name-asc">Name A-Z</option>
+          <option value="name-desc">Name Z-A</option>
+          <option value="phone-asc">Number 0-9</option>
+          <option value="phone-desc">Number 9-0</option>
+        </select>
         <span style={{ fontSize:12, color:'var(--muted)', whiteSpace:'nowrap' }}>{filtered.length} leads</span>
       </div>
 
@@ -64,7 +82,7 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
         <table className="crm-table">
           <thead>
             <tr>
-              {['ID', 'Customer', 'City', 'Source', 'kW', 'Stage', 'Status', 'Progress', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}
+              {['ID', 'Customer', 'City', 'Source', 'By / Through', 'kW', 'Stage', 'Status', 'Progress', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -82,6 +100,7 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
                 </td>
                 <td><span className="badge badge-gray">{lead.city || '-'}</span></td>
                 <td><span className="badge badge-blue">{lead.source}</span></td>
+                <td style={{ fontSize:12 }}>{lead.generatedThrough || '-'}</td>
                 <td><span style={{ fontWeight:600, color:'var(--sun)' }}>{lead.capacity}</span></td>
                 <td><StageBadge stage={lead.currentStage} /></td>
                 <td><StatusBadge status={lead.status} /></td>
@@ -114,6 +133,7 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
               {[
                 ['City', lead.city || '-'],
                 ['Source', lead.source || '-'],
+                ['By / Through', lead.generatedThrough || '-'],
                 ['Capacity', lead.capacity || '-'],
               ].map(([label, value]) => (
                 <div key={label} className="crm-mobile-row">
