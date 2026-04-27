@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
+// const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -17,12 +17,12 @@ app.use(cors(
 ));
 
 // ─── Rate Limiting ─────────────────────────────────────────────
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
-  message: { success: false, message: 'Too many requests, please try again later.' }
-});
-app.use('/api', limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 200,
+//   message: { success: false, message: 'Too many requests, please try again later.' }
+// });
+// app.use('/api', limiter);
 
 // ─── Body Parser ──────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
