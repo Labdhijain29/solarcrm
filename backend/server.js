@@ -10,10 +10,10 @@ const app = express();
 
 // ─── Security Middleware ───────────────────────────────────────
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
-}));
+app.use(cors(
+  // origin: process.env.CLIENT_URL,
+  // credentials: true,
+));
 
 // ─── Rate Limiting ─────────────────────────────────────────────
 const limiter = rateLimit({
@@ -34,6 +34,11 @@ if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/solarcrm')
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => { console.error('❌ MongoDB connection error:', err); process.exit(1); });
+
+app.get('/api', (req, res) => res.json({
+  success: true, message: 'Welcome to Mahavir Solar APIs 🌞',
+  version: '1.0.0', timestamp: new Date().toISOString()
+}));
 
 // ─── Routes ──────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth.routes'));
@@ -70,3 +75,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
