@@ -42,10 +42,12 @@ const authorize = (...roles) => (req, res, next) => {
 const ROLE_STAGE_MAP = {
   'Admin': null,
   'Manager': 'Lead',
+  'Sales Executive': 'Lead',
   'Sales Manager': 'Lead',
   'Registration Executive': 'Registration',
   'Bank/Finance Executive': 'Bank Approval',
   'Loan Officer': 'Loan Disbursement',
+  'Stock Manager': null,
   'Dispatch Manager': 'Dispatch',
   'Installation Manager': 'Installation',
   'Net Metering Officer': 'Net Metering',

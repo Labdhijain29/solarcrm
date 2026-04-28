@@ -1,94 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FaBell, FaChartLine, FaCheckCircle, FaClipboardList, FaCog, FaRegBuilding, FaTasks, FaUsers, FaWrench } from 'react-icons/fa'
+import { FaBell, FaCheckCircle, FaClipboardList, FaCog, FaTasks, FaUsers, FaWarehouse } from 'react-icons/fa'
 import { Link } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dashboardAPI, enquiriesAPI, leadsAPI, usersAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
-import { getCitiesForState, ROLE_ICONS, ROLE_STAGE_MAP, STAGES, STAGE_COLORS, stageColor, STATE_OPTIONS } from '../../utils/constants'
+import { getCitiesForState, STAGE_COLORS, STATE_OPTIONS } from '../../utils/constants'
 
 const TT_STYLE = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, color:'var(--text)' }
-const SERVICE_READY_STAGES = ['Installation', 'Net Metering', 'Subsidy', 'Completed']
-
-function DashboardPanel({ icon, title, subtitle, children, accent = 'var(--sun)' }) {
-  return (
-    <div className="crm-card" style={{ borderTop:`3px solid ${accent}` }}>
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, marginBottom:16 }}>
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-            <span style={{ fontSize:20 }}>{icon}</span>
-            <h3 style={{ fontSize:16, fontWeight:700 }}>{title}</h3>
-          </div>
-          {subtitle && <p style={{ fontSize:12, color:'var(--muted)' }}>{subtitle}</p>}
-        </div>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function MiniMetric({ label, value, tone = 'var(--text)' }) {
-  return (
-    <div style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 12px' }}>
-      <div style={{ fontSize:11, color:'var(--muted)', marginBottom:4 }}>{label}</div>
-      <div style={{ fontSize:20, fontWeight:700, color:tone }}>{value}</div>
-    </div>
-  )
-}
-
-function StageQueueCard({ role, stage, leads }) {
-  const activeLeads = leads.filter(lead => lead.currentStage === stage && lead.status === 'active')
-  const completedLeads = leads.filter((lead) =>
-    (lead.history || []).some((item) => item.stage === stage && ['Approved', 'Completed'].includes(item.action))
-  )
-  const recentLeads = activeLeads.slice(0, 3)
-
-  return (
-    <div style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:12, padding:14 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:10 }}>
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:18 }}>{ROLE_ICONS[role] || '>'}</span>
-            <div style={{ fontSize:13, fontWeight:700 }}>{role}</div>
-          </div>
-          <div style={{ fontSize:11, color:stageColor(stage), marginTop:3 }}>{stage}</div>
-        </div>
-        <span className="badge" style={{ background:`${stageColor(stage)}18`, color:stageColor(stage), border:`1px solid ${stageColor(stage)}30` }}>
-          {activeLeads.length} pending
-        </span>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
-        <MiniMetric label="Pending" value={activeLeads.length} tone="var(--sun)" />
-        <MiniMetric label="Closed Here" value={completedLeads.length} tone="var(--green)" />
-      </div>
-
-      {recentLeads.length === 0 ? (
-        <div style={{ fontSize:12, color:'var(--muted)' }}>No active leads waiting at this stage.</div>
-      ) : (
-        <div style={{ display:'grid', gap:8 }}>
-          {recentLeads.map(lead => (
-            <div key={lead._id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'8px 10px', background:'var(--card)', border:'1px solid var(--border)', borderRadius:8 }}>
-              <div>
-                <div style={{ fontSize:12, fontWeight:600 }}>{lead.name}</div>
-                <div style={{ fontSize:11, color:'var(--muted)' }}>{lead.city || 'City not set'} | {lead.capacity || '-'}</div>
-              </div>
-              <span className="badge badge-gray">{lead.source || 'Lead'}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [activity, setActivity] = useState([])
   const [leads, setLeads] = useState([])
   const [enquiries, setEnquiries] = useState([])
   const [users, setUsers] = useState([])
-  const [tab, setTab] = useState('all')
+  const [tab, setTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [editingEnquiry, setEditingEnquiry] = useState(null)
   const [editForm, setEditForm] = useState({
@@ -104,7 +30,8 @@ export default function AdminDashboard() {
     notes: '',
   })
 
-  useEffect(() => {
+  const loadDashboard = () => {
+    setLoading(true)
     Promise.all([
       dashboardAPI.getStats(),
       dashboardAPI.getActivity(),
@@ -121,58 +48,13 @@ export default function AdminDashboard() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadDashboard()
   }, [])
 
   const { summary, stageData, sourceData, monthlyData } = stats || {}
-
-  const managerStats = useMemo(() => {
-    const active = leads.filter(lead => lead.status === 'active').length
-    const completed = leads.filter(lead => lead.status === 'completed').length
-    return {
-      total: leads.length,
-      active,
-      completed,
-      conversion: leads.length ? Math.round((completed / leads.length) * 100) : 0,
-      recent: leads.slice(0, 5),
-    }
-  }, [leads])
-
-  const salesStats = useMemo(() => {
-    const active = leads.filter(lead => lead.status === 'active').length
-    const completed = leads.filter(lead => lead.status === 'completed').length
-    const rejected = leads.filter(lead => lead.status === 'rejected').length
-    const topStages = [...leads]
-      .filter(lead => lead.status === 'active')
-      .sort((a, b) => STAGES.indexOf(b.currentStage) - STAGES.indexOf(a.currentStage))
-      .slice(0, 5)
-
-    return {
-      active,
-      completed,
-      rejected,
-      conversion: leads.length ? Math.round((completed / leads.length) * 100) : 0,
-      topStages,
-    }
-  }, [leads])
-
-  const serviceStats = useMemo(() => {
-    const serviceReady = leads.filter(lead => SERVICE_READY_STAGES.includes(lead.currentStage))
-    const scheduled = serviceReady.filter((_, index) => index % 4 === 1).length
-    const resolved = serviceReady.filter((_, index) => index % 4 === 3).length
-    return {
-      total: serviceReady.length,
-      highPriority: serviceReady.slice(0, 8).filter((_, index) => index % 3 === 0).length,
-      scheduled,
-      resolved,
-      recent: serviceReady.slice(0, 5),
-    }
-  }, [leads])
-
-  const stageQueues = useMemo(() => (
-    Object.entries(ROLE_STAGE_MAP)
-      .filter(([role, stage]) => stage && !['Manager', 'Sales Manager'].includes(role))
-      .map(([role, stage]) => ({ role, stage }))
-  ), [])
 
   const enquiryStats = useMemo(() => ({
     total: enquiries.length,
@@ -225,11 +107,10 @@ export default function AdminDashboard() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader icon={<FaCog />} title="Admin Dashboard" subtitle="System overview plus every role dashboard snapshot in one place" />
+      <PageHeader icon={<FaCog />} title="Admin Dashboard" subtitle="System overview only. Open other dashboards from the sidebar." />
 
       <div className="crm-tabs">
         {[
-          ['all', 'All Dashboards'],
           ['overview', 'Overview'],
           ['leads', 'Leads'],
           ['analytics', 'Analytics'],
@@ -240,167 +121,6 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {tab === 'all' && (
-        <div style={{ animation:'fadeIn .3s ease', display:'grid', gap:16 }}>
-          <div className="dashboard-grid-metrics">
-            <MetricCard icon={<FaClipboardList />} label="Total Leads" value={summary?.total ?? leads.length} change="+ all role dashboards synced" changeColor="var(--sun)" />
-            <MetricCard icon={<FaTasks />} label="Active Pipeline" value={summary?.active ?? managerStats.active} change="Across every stage" changeColor="var(--blue)" />
-            <MetricCard icon={<FaCheckCircle />} label="Completed" value={summary?.completed ?? managerStats.completed} change={`${summary?.conversionRate ?? managerStats.conversion}% conversion`} changeColor="var(--green)" />
-            <MetricCard icon={<FaBell />} label="Open Enquiries" value={enquiryStats.fresh} change={`${enquiryStats.pending.length} need action`} changeColor="var(--indigo)" />
-            <MetricCard icon={<FaUsers />} label="Pending Registrations" value={registrationStats.pendingCount} change={registrationStats.pendingCount ? 'Waiting for admin approval' : 'No pending signups'} changeColor="var(--red)" />
-          </div>
-
-          <div className="dashboard-grid-auto">
-            <DashboardPanel icon={<FaRegBuilding />} title="Manager Dashboard" subtitle="Lead generation and full-pipeline supervision" accent="var(--sun)">
-              <div className="dashboard-mini-grid-4" style={{ marginBottom:12 }}>
-                <MiniMetric label="Total" value={managerStats.total} />
-                <MiniMetric label="Active" value={managerStats.active} tone="var(--blue)" />
-                <MiniMetric label="Completed" value={managerStats.completed} tone="var(--green)" />
-                <MiniMetric label="Conv." value={`${managerStats.conversion}%`} tone="var(--indigo)" />
-              </div>
-              <div className="dashboard-stack">
-                {managerStats.recent.map(lead => (
-                  <div key={lead._id} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'8px 10px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:8 }}>
-                    <div>
-                      <div style={{ fontSize:12, fontWeight:600 }}>{lead.name}</div>
-                      <div style={{ fontSize:11, color:'var(--muted)' }}>{lead.city || 'City not set'} | {lead.phone}</div>
-                    </div>
-                    <span className="badge badge-blue">{lead.currentStage}</span>
-                  </div>
-                ))}
-              </div>
-            </DashboardPanel>
-
-            <DashboardPanel icon={<FaUsers />} title="Sales Manager Dashboard" subtitle="Pipeline depth, closures, and high-stage opportunities" accent="var(--blue)">
-              <div className="dashboard-mini-grid-4" style={{ marginBottom:12 }}>
-                <MiniMetric label="Active" value={salesStats.active} tone="var(--blue)" />
-                <MiniMetric label="Closed" value={salesStats.completed} tone="var(--green)" />
-                <MiniMetric label="Rejected" value={salesStats.rejected} tone="var(--red)" />
-                <MiniMetric label="Conv." value={`${salesStats.conversion}%`} tone="var(--indigo)" />
-              </div>
-              <div className="dashboard-stack">
-                {salesStats.topStages.length === 0 ? (
-                  <div style={{ fontSize:12, color:'var(--muted)' }}>No active opportunities right now.</div>
-                ) : salesStats.topStages.map(lead => (
-                  <div key={lead._id} style={{ padding:'8px 10px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:8 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
-                      <div style={{ fontSize:12, fontWeight:600 }}>{lead.name}</div>
-                      <span className="badge" style={{ background:`${stageColor(lead.currentStage)}18`, color:stageColor(lead.currentStage), border:`1px solid ${stageColor(lead.currentStage)}30` }}>
-                        {lead.currentStage}
-                      </span>
-                    </div>
-                    <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{lead.city || 'City not set'} | {lead.source || 'Lead source not set'}</div>
-                  </div>
-                ))}
-              </div>
-            </DashboardPanel>
-
-            <DashboardPanel icon={<FaWrench />} title="Service Manager Dashboard" subtitle="Installed systems, visit load, and service priorities" accent="var(--green)">
-              <div className="dashboard-mini-grid-4" style={{ marginBottom:12 }}>
-                <MiniMetric label="Tickets" value={serviceStats.total} />
-                <MiniMetric label="High" value={serviceStats.highPriority} tone="var(--red)" />
-                <MiniMetric label="Scheduled" value={serviceStats.scheduled} tone="var(--blue)" />
-                <MiniMetric label="Resolved" value={serviceStats.resolved} tone="var(--green)" />
-              </div>
-              <div className="dashboard-stack">
-                {serviceStats.recent.length === 0 ? (
-                  <div style={{ fontSize:12, color:'var(--muted)' }}>No installation-ready leads available for service view.</div>
-                ) : serviceStats.recent.map(lead => (
-                  <div key={lead._id} style={{ padding:'8px 10px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:8 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
-                      <div style={{ fontSize:12, fontWeight:600 }}>{lead.name}</div>
-                      <span className="badge badge-green">{lead.currentStage}</span>
-                    </div>
-                    <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{lead.capacity || '-'} | {lead.city || 'Site not set'}</div>
-                  </div>
-                ))}
-              </div>
-            </DashboardPanel>
-          </div>
-
-          <DashboardPanel icon={<FaCog />} title="Stage Dashboards" subtitle="Admin can monitor every single-stage team's queue from here" accent="var(--indigo)">
-            <div className="dashboard-grid-cards">
-              {stageQueues.map(({ role, stage }) => (
-                <StageQueueCard key={role} role={role} stage={stage} leads={leads} />
-              ))}
-            </div>
-          </DashboardPanel>
-
-          <div className="dashboard-grid-auto">
-            <DashboardPanel icon={<FaBell />} title="Enquiry Queue" subtitle="Fresh website enquiries that still need conversion" accent="var(--indigo)">
-              {enquiryStats.pending.length === 0 ? (
-                <EmptyState icon={<FaBell />} title="All enquiries handled" subtitle="No pending website enquiries for the admin team." />
-              ) : (
-                <div className="dashboard-stack">
-                  {enquiryStats.pending.map(enquiry => (
-                    <div key={enquiry._id} style={{ display:'flex', justifyContent:'space-between', gap:10, padding:'10px 12px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:10 }}>
-                      <div>
-                        <div style={{ fontSize:12, fontWeight:700 }}>{enquiry.name}</div>
-                        <div style={{ fontSize:11, color:'var(--muted)' }}>{enquiry.contact || enquiry.phone} | {enquiry.city || 'City not set'}</div>
-                        <div style={{ fontSize:11, color:'var(--dim)', marginTop:4 }}>{enquiry.enquiryType || 'General Enquiry'}</div>
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
-                        <span className={`badge ${enquiry.status === 'new' ? 'badge-sun' : 'badge-blue'}`}>{enquiry.status}</span>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEditEnquiry(enquiry)}>Edit</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </DashboardPanel>
-
-            <DashboardPanel icon={<FaUsers />} title="New Registrations" subtitle="Fresh signup requests waiting for admin approval" accent="var(--red)">
-              {registrationStats.pendingCount === 0 ? (
-                <EmptyState icon={<FaUsers />} title="No pending registrations" subtitle="New signup requests will appear here automatically." />
-              ) : (
-                <div className="dashboard-stack" style={{ gap:10 }}>
-                  {registrationStats.recentPending.map(person => (
-                    <div key={person._id} style={{ padding:'10px 12px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:10 }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'flex-start' }}>
-                        <div>
-                          <div style={{ fontSize:12, fontWeight:700 }}>{person.name}</div>
-                          <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{person.email}</div>
-                          <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{person.phone || 'Phone not set'} | {person.role}</div>
-                        </div>
-                        <span className="badge badge-sun">Pending</span>
-                      </div>
-                      <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'center', marginTop:10 }}>
-                        <div style={{ fontSize:11, color:'var(--dim)' }}>
-                          Joined {new Date(person.createdAt).toLocaleDateString('en-IN')}
-                        </div>
-                        <Link to="/dashboard/users" className="btn btn-ghost btn-sm">
-                          Review
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-
-                  <Link to="/dashboard/users" className="btn btn-secondary" style={{ justifyContent:'center' }}>
-                    Open User Management
-                  </Link>
-                </div>
-              )}
-            </DashboardPanel>
-
-            <DashboardPanel icon={<FaChartLine />} title="Recent Activity" subtitle="Latest approvals and stage movements" accent="var(--text)">
-              <div className="dashboard-stack" style={{ gap:10 }}>
-                {activity.slice(0, 6).map((item, index) => (
-                  <div key={`${item.leadName}-${index}`} style={{ display:'flex', gap:10, alignItems:'center' }}>
-                    <div style={{ width:32, height:32, borderRadius:8, flexShrink:0, background:item.action === 'Rejected' ? 'rgba(239,68,68,.12)' : item.action === 'Approved' || item.action === 'Completed' ? 'rgba(16,185,129,.12)' : 'rgba(245,158,11,.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
-                      {item.action === 'Rejected' ? 'X' : item.action === 'Approved' || item.action === 'Completed' ? 'OK' : '...'}
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:12, fontWeight:600 }}>{item.leadName}</div>
-                      <div style={{ fontSize:11, color:'var(--muted)' }}>{item.action} at {item.stage} by {item.by}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </DashboardPanel>
-          </div>
-        </div>
-      )}
-
       {tab === 'overview' && (
         <div style={{ animation:'fadeIn .3s ease' }}>
           <div className="dashboard-grid-metrics">
@@ -409,6 +129,9 @@ export default function AdminDashboard() {
             <MetricCard icon={<FaCheckCircle />} label="Completed" value={summary?.completed} change={`${summary?.conversionRate}% conversion`} changeColor="var(--green)" />
             <MetricCard icon={<FaBell />} label="Enquiries" value={summary?.enquiries} change="Website forms" changeColor="var(--indigo)" />
             <MetricCard icon={<FaUsers />} label="Pending Registrations" value={registrationStats.pendingCount} change="Admin approval queue" changeColor="var(--red)" />
+            <Link to="/dashboard/stock-manager" style={{ textDecoration:'none' }}>
+              <MetricCard icon={<FaWarehouse />} label="Stock Manager Dashboard" value="Open" change="Inventory & dispatch ERP" changeColor="var(--green)" />
+            </Link>
           </div>
 
           <div className="dashboard-grid-two" style={{ marginBottom:24 }}>
@@ -456,6 +179,65 @@ export default function AdminDashboard() {
                 <div style={{ fontSize:11, color:'var(--dim)' }}>{new Date(item.timestamp).toLocaleDateString('en-IN')}</div>
               </div>
             ))}
+          </div>
+
+          <div className="dashboard-grid-auto" style={{ marginTop:24 }}>
+            <div className="crm-card">
+              <h3 style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Pending Enquiries</h3>
+              {enquiryStats.pending.length === 0 ? (
+                <EmptyState icon={<FaBell />} title="All enquiries handled" subtitle="No pending website enquiries for the admin team." />
+              ) : (
+                <div className="dashboard-stack">
+                  {enquiryStats.pending.map(enquiry => (
+                    <div key={enquiry._id} style={{ display:'flex', justifyContent:'space-between', gap:10, padding:'10px 12px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:10 }}>
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700 }}>{enquiry.name}</div>
+                        <div style={{ fontSize:11, color:'var(--muted)' }}>{enquiry.contact || enquiry.phone} | {enquiry.city || 'City not set'}</div>
+                        <div style={{ fontSize:11, color:'var(--dim)', marginTop:4 }}>{enquiry.enquiryType || 'General Enquiry'}</div>
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8 }}>
+                        <span className={`badge ${enquiry.status === 'new' ? 'badge-sun' : 'badge-blue'}`}>{enquiry.status}</span>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openEditEnquiry(enquiry)}>Edit</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="crm-card">
+              <h3 style={{ fontSize:14, fontWeight:700, marginBottom:16 }}>Pending Registrations</h3>
+              {registrationStats.pendingCount === 0 ? (
+                <EmptyState icon={<FaUsers />} title="No pending registrations" subtitle="New signup requests will appear here automatically." />
+              ) : (
+                <div className="dashboard-stack" style={{ gap:10 }}>
+                  {registrationStats.recentPending.map(person => (
+                    <div key={person._id} style={{ padding:'10px 12px', background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:10 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'flex-start' }}>
+                        <div>
+                          <div style={{ fontSize:12, fontWeight:700 }}>{person.name}</div>
+                          <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{person.email}</div>
+                          <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{person.phone || 'Phone not set'} | {person.role}</div>
+                        </div>
+                        <span className="badge badge-sun">Pending</span>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between', gap:8, alignItems:'center', marginTop:10 }}>
+                        <div style={{ fontSize:11, color:'var(--dim)' }}>
+                          Joined {new Date(person.createdAt).toLocaleDateString('en-IN')}
+                        </div>
+                        <Link to="/dashboard/users" className="btn btn-ghost btn-sm">
+                          Review
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+
+                  <Link to="/dashboard/users" className="btn btn-secondary" style={{ justifyContent:'center' }}>
+                    Open User Management
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

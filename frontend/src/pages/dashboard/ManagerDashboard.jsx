@@ -49,7 +49,9 @@ export function ManagerDashboard() {
     leadsAPI.getAll().then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
   }
 
-  useEffect(fetchLeads, [])
+  useEffect(() => {
+    fetchLeads()
+  }, [])
 
   const createLead = async () => {
     const phone = String(newLead.phone || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '')
@@ -236,7 +238,17 @@ export function StageDashboard({ roleOverride }) {
         </div>
       )}
 
-      {selected && <LeadModal lead={selected} onClose={() => setSelected(null)} onUpdated={fetchLeads} currentUser={user} />}
+      {selected && (
+        <LeadModal
+          lead={selected}
+          onClose={() => setSelected(null)}
+          onUpdated={fetchLeads}
+          currentUser={user}
+          showRegistrationPhotoUpload={dashboardRole === 'Registration Executive'}
+          showBankRemarkInput={dashboardRole === 'Bank/Finance Executive'}
+          showLoanApplicationInput={dashboardRole === 'Loan Officer'}
+        />
+      )}
     </div>
   )
 }

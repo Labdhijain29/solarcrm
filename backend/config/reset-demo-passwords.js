@@ -9,6 +9,7 @@ const usersData = [
   { name: 'Sneha Gupta', email: 'reg@solarcrm.in', password: 'reg123', role: 'Registration Executive', phone: '9800000004' },
   { name: 'Amit Kumar', email: 'bank@solarcrm.in', password: 'bank123', role: 'Bank/Finance Executive', phone: '9800000005' },
   { name: 'Kavya Singh', email: 'loan@solarcrm.in', password: 'loan123', role: 'Loan Officer', phone: '9800000006' },
+  { name: 'Nikhil Store', email: 'stock@solarcrm.in', password: 'stock123', role: 'Stock Manager', phone: '9800000012' },
   { name: 'Rajan Mishra', email: 'dispatch@solarcrm.in', password: 'dispatch123', role: 'Dispatch Manager', phone: '9800000007' },
   { name: 'Meera Nair', email: 'install@solarcrm.in', password: 'install123', role: 'Installation Manager', phone: '9800000008' },
   { name: 'Suresh Rao', email: 'netmeter@solarcrm.in', password: 'netmeter123', role: 'Net Metering Officer', phone: '9800000009' },

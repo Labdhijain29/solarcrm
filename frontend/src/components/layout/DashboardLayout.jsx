@@ -1,25 +1,30 @@
+import { useEffect, useState } from 'react'
 import { Outlet, useNavigate, NavLink } from 'react-router-dom'
-import { FaBell, FaBriefcase, FaClipboardList, FaCog, FaExchangeAlt, FaFileInvoice, FaHome, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTachometerAlt, FaUser, FaUsers, FaUserTie, FaWrench } from 'react-icons/fa'
+import { FaBell, FaBoxOpen, FaBriefcase, FaClipboardList, FaCog, FaExchangeAlt, FaFileInvoice, FaHome, FaMoneyBillWave, FaRegBuilding, FaShippingFast, FaSolarPanel, FaTachometerAlt, FaUser, FaUsers, FaUserTie, FaWarehouse, FaWrench } from 'react-icons/fa'
 import { useAuthStore, useAppStore } from '../../store'
 import { ROLE_STAGE_MAP, ROLE_ICONS, stageColor } from '../../utils/constants'
+import { usersAPI } from '../../services/api'
 
 const ADMIN_DASHBOARD_ITEMS = [
   { to: '/dashboard/admin', icon: FaTachometerAlt, label: 'Admin Dashboard' },
   { to: '/dashboard/manager', icon: FaRegBuilding, label: 'Manager Dashboard' },
   { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard' },
   { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
+  { to: '/dashboard/stock-manager', icon: FaWarehouse, label: 'Stock Manager Dashboard' },
   { to: '/dashboard/stage/registration-executive', icon: FaClipboardList, label: 'Registration Dashboard' },
   { to: '/dashboard/stage/bank-finance-executive', icon: FaBriefcase, label: 'Bank Dashboard' },
   { to: '/dashboard/stage/loan-officer', icon: FaMoneyBillWave, label: 'Loan Dashboard' },
-  { to: '/dashboard/stage/dispatch-manager', icon: FaExchangeAlt, label: 'Dispatch Dashboard' },
+  { to: '/dashboard/dispatch-erp', icon: FaShippingFast, label: 'Dispatch Dashboard' },
   { to: '/dashboard/stage/installation-manager', icon: FaSolarPanel, label: 'Installation Dashboard' },
   { to: '/dashboard/stage/net-metering-officer', icon: FaBell, label: 'Net Metering Dashboard' },
   { to: '/dashboard/stage/subsidy-officer', icon: FaFileInvoice, label: 'Subsidy Dashboard' },
 ]
 
 const COMMON_NAV_ITEMS = [
-  { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Manager'] },
-  { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Manager', 'Service Manager'] },
+  { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
+  { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager'] },
+  { to: '/dashboard/inventory', icon: FaBoxOpen, label: 'Inventory', roles: ['Admin', 'Stock Manager', 'Dispatch Manager'] },
+  { to: '/dashboard/dispatch-erp', icon: FaShippingFast, label: 'Dispatch ERP', roles: ['Admin', 'Dispatch Manager'] },
   { to: '/dashboard/users', icon: FaUsers, label: 'Users', roles: ['Admin'] },
   { to: '/dashboard/profile', icon: FaUser, label: 'Profile', roles: null },
 ]
@@ -27,10 +32,12 @@ const COMMON_NAV_ITEMS = [
 const ROLE_ICON_MAP = {
   Admin: FaUserTie,
   Manager: FaRegBuilding,
+  'Sales Executive': FaUsers,
   'Sales Manager': FaUsers,
   'Registration Executive': FaClipboardList,
   'Bank/Finance Executive': FaBriefcase,
   'Loan Officer': FaMoneyBillWave,
+  'Stock Manager': FaWarehouse,
   'Dispatch Manager': FaExchangeAlt,
   'Installation Manager': FaSolarPanel,
   'Net Metering Officer': FaBell,
@@ -71,7 +78,8 @@ function UserBadge({ user }) {
 
 export default function DashboardLayout() {
   const { user, logout } = useAuthStore()
-  const { theme, toggleTheme, sidebarOpen, toggleSidebar, closeSidebar } = useAppStore()
+  const { theme, toggleTheme, sidebarOpen, toggleSidebar, closeSidebar, notifications, unreadCount, setNotifications } = useAppStore()
+  const [showNotifications, setShowNotifications] = useState(false)
   const navigate = useNavigate()
   const stageAccess = ROLE_STAGE_MAP[user?.role]
   const visibleNav = COMMON_NAV_ITEMS.filter(item => !item.roles || item.roles.includes(user?.role))
@@ -80,6 +88,29 @@ export default function DashboardLayout() {
   const handleLogout = async () => {
     await logout()
     navigate('/login')
+  }
+
+  const loadNotifications = () => {
+    usersAPI.getNotifications()
+      .then((res) => setNotifications(res.data.data || []))
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    if (!user) return undefined
+    loadNotifications()
+    const timer = setInterval(loadNotifications, 30000)
+    return () => clearInterval(timer)
+  }, [user?._id])
+
+  const toggleNotifications = async () => {
+    setShowNotifications((prev) => !prev)
+    if (unreadCount > 0) {
+      try {
+        await usersAPI.markNotificationsRead()
+        loadNotifications()
+      } catch {}
+    }
   }
 
   return (
@@ -148,6 +179,31 @@ export default function DashboardLayout() {
           <span style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:14, flex:1 }}>SolarPro CRM</span>
 
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <div style={{ position:'relative' }}>
+              <button className="btn btn-ghost btn-icon" onClick={toggleNotifications} title="Notifications" style={{ position:'relative' }}>
+                <FaBell />
+                {unreadCount > 0 && (
+                  <span style={{ position:'absolute', top:-4, right:-4, minWidth:16, height:16, borderRadius:999, background:'var(--red)', color:'#fff', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 4px' }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div style={{ position:'absolute', right:0, top:44, width:320, maxWidth:'calc(100vw - 32px)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 20px 45px rgba(0,0,0,.25)', zIndex:120, overflow:'hidden' }}>
+                  <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700 }}>Notifications</div>
+                  <div style={{ maxHeight:320, overflowY:'auto' }}>
+                    {notifications.length === 0 ? (
+                      <div style={{ padding:16, fontSize:12, color:'var(--muted)' }}>No notifications yet.</div>
+                    ) : notifications.map((item) => (
+                      <div key={item._id || item.createdAt} style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', background:item.read ? 'transparent' : 'rgba(245,158,11,.08)' }}>
+                        <div style={{ fontSize:12, fontWeight:item.read ? 500 : 700 }}>{item.message}</div>
+                        <div style={{ fontSize:10, color:'var(--dim)', marginTop:4 }}>{item.createdAt ? new Date(item.createdAt).toLocaleString('en-IN') : ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <button className="btn btn-ghost btn-icon" onClick={toggleTheme}>
               {theme === 'dark' ? 'LT' : 'DK'}
             </button>

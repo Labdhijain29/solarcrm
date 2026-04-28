@@ -23,6 +23,7 @@ const leadSchema = new mongoose.Schema({
   city: { type: String, trim: true, default: '' },
   state: { type: String, trim: true, default: '' },
   pincode: { type: String, trim: true, default: '' },
+  ivrsNo: { type: String, trim: true, default: '' },
 
   // ─── Lead Info ───────────────────────────────────────────────
   source: {
@@ -35,6 +36,22 @@ const leadSchema = new mongoose.Schema({
   roofType: { type: String, enum: ['Concrete', 'Metal Sheet', 'RCC', 'Tin', 'Other'], default: 'Concrete' },
   monthlyBill: { type: Number, default: 0 }, // Monthly electricity bill in INR
   notes: { type: String, default: '' },
+  salesExecutiveData: {
+    contact: { type: String, trim: true, default: '' },
+    state: { type: String, trim: true, default: '' },
+    city: { type: String, trim: true, default: '' },
+    addressdu: { type: String, trim: true, default: '' },
+    pincode: { type: String, trim: true, default: '' },
+    panCardNo: { type: String, trim: true, default: '' },
+    aadharNo: { type: String, trim: true, default: '' },
+    dealNo: { type: String, trim: true, default: '' },
+    brand: { type: String, trim: true, default: '' },
+    accountNo: { type: String, trim: true, default: '' },
+    other: { type: String, trim: true, default: '' },
+    photoOneName: { type: String, trim: true, default: '' },
+    photoTwoName: { type: String, trim: true, default: '' },
+    documentPdfName: { type: String, trim: true, default: '' }
+  },
 
   // ─── Assignment & Stage ──────────────────────────────────────
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -58,9 +75,11 @@ const leadSchema = new mongoose.Schema({
   bankData: {
     bankName: String,
     loanAmount: Number,
+    remark: String,
     approvedAt: Date
   },
   loanData: {
+    applicationId: String,
     disbursedAmount: Number,
     disbursedAt: Date
   },
@@ -96,6 +115,20 @@ const leadSchema = new mongoose.Schema({
 leadSchema.index({ currentStage: 1, status: 1 });
 leadSchema.index({ assignedTo: 1 });
 leadSchema.index({ createdAt: -1 });
+leadSchema.index(
+  { ivrsNo: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { ivrsNo: { $type: 'string', $ne: '' } }
+  }
+);
+leadSchema.index(
+  { 'loanData.applicationId': 1 },
+  {
+    unique: true,
+    partialFilterExpression: { 'loanData.applicationId': { $type: 'string', $ne: '' } }
+  }
+);
 leadSchema.index({ name: 'text', phone: 'text', city: 'text' });
 
 // Virtual: stage index

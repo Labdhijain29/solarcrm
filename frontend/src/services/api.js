@@ -77,4 +77,20 @@ export const dashboardAPI = {
   getActivity: () => api.get('/dashboard/activity'),
 }
 
+// INVENTORY
+export const productAPI = {
+  getAll: (params) => api.get('/product', { params }),
+  getStats: () => api.get('/product/stats'),
+  create: (data) => api.post('/product', data),
+  update: (id, data) => api.put(`/product/${id}`, data),
+  delete: (id) => api.delete(`/product/${id}`),
+}
+
+// DISPATCH
+export const dispatchAPI = {
+  getAll: (params) => api.get('/dispatch', { params }),
+  getByLead: (leadId) => api.get(`/dispatch/${leadId}`),
+  create: (data) => api.post('/dispatch', data),
+}
+
 export default api

@@ -7,7 +7,7 @@ const { buildEnquiryQueryForRole } = require('./enquiry.controller');
 
 const isSingleStageRole = (role) => {
   const stageAccess = ROLE_STAGE_MAP[role];
-  return Boolean(stageAccess) && !['Manager', 'Sales Manager'].includes(role);
+  return Boolean(stageAccess) && !['Manager', 'Sales Executive', 'Sales Manager'].includes(role);
 };
 
 const buildPersonalLeadQuery = (user) => {

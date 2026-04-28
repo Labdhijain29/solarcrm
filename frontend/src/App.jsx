@@ -26,6 +26,7 @@ import UsersPage        from './pages/dashboard/UsersPage'
 import EnquiriesPage    from './pages/dashboard/EnquiriesPage'
 import AnalyticsPage    from './pages/dashboard/AnalyticsPage'
 import ProfilePage      from './pages/dashboard/ProfilePage'
+import InventoryDispatchPage from './pages/dashboard/InventoryDispatchPage'
 
 const ADMIN_STAGE_ROLES = [
   'Registration Executive',
@@ -53,12 +54,23 @@ function DashboardRouter() {
   if (!user) return <Navigate to="/login" replace />
   if (role === 'admin') return <AdminDashboard />
   if (role === 'manager') return <ManagerDashboard />
+  if (role === 'sales executive') return <SalesDashboard />
   if (role === 'sales manager') return <SalesDashboard />
+  if (role === 'stock manager') return <InventoryDispatchPage defaultTab="stock" />
+  if (role === 'dispatch manager') return <InventoryDispatchPage defaultTab="dispatch" />
   if (role === 'service manager') return <ServiceManagerDashboard />
   return <StageDashboard />
 }
 
 function AdminStageDashboardRoute({ role }) {
+  if (role === 'Dispatch Manager') {
+    return (
+      <AdminOnlyRoute>
+        <InventoryDispatchPage defaultTab="dispatch" />
+      </AdminOnlyRoute>
+    )
+  }
+
   return (
     <AdminOnlyRoute>
       <StageDashboard roleOverride={role} />
@@ -103,6 +115,9 @@ export default function App() {
           <Route path="manager"   element={<AdminOnlyRoute><ManagerDashboard /></AdminOnlyRoute>} />
           <Route path="sales"     element={<AdminOnlyRoute><SalesDashboard /></AdminOnlyRoute>} />
           <Route path="service"   element={<AdminOnlyRoute><ServiceManagerDashboard /></AdminOnlyRoute>} />
+          <Route path="stock-manager" element={<AdminOnlyRoute><InventoryDispatchPage defaultTab="stock" /></AdminOnlyRoute>} />
+          <Route path="inventory" element={<InventoryDispatchPage defaultTab="dashboard" />} />
+          <Route path="dispatch-erp" element={<InventoryDispatchPage defaultTab="dispatch" />} />
           {ADMIN_STAGE_ROLES.map(role => (
             <Route
               key={role}

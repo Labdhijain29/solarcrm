@@ -5,7 +5,7 @@ const isServiceEnquiryType = (value = '') => value.trim().toLowerCase() === 'ser
 
 const buildEnquiryQueryForRole = (user) => {
   if (['Admin', 'Manager'].includes(user.role)) return {};
-  if (user.role === 'Sales Manager') {
+  if (['Sales Executive', 'Sales Manager'].includes(user.role)) {
     return { enquiryType: { $not: /^service enquiry$/i } };
   }
   if (user.role === 'Service Manager') {

@@ -5,7 +5,45 @@ const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
 
 const isSingleStageRole = (role) => {
   const stageAccess = ROLE_STAGE_MAP[role];
-  return Boolean(stageAccess) && !['Manager', 'Sales Manager'].includes(role);
+  return Boolean(stageAccess) && !['Manager', 'Sales Executive', 'Sales Manager'].includes(role);
+};
+
+const isSalesExecutiveLead = (payload = {}) => {
+  return Array.isArray(payload.tags) && payload.tags.includes('sales-executive');
+};
+
+const ensureUniqueIvrsNo = async (ivrsNo, excludeId = null) => {
+  const normalizedIvrsNo = String(ivrsNo || '').trim();
+  if (!normalizedIvrsNo) return;
+
+  const query = { ivrsNo: normalizedIvrsNo };
+  if (excludeId) query._id = { $ne: excludeId };
+
+  const existingLead = await Lead.findOne(query).select('_id name ivrsNo');
+  if (existingLead) {
+    const error = new Error(`IVRS number '${normalizedIvrsNo}' is already assigned to lead '${existingLead.name}'.`);
+    error.statusCode = 409;
+    throw error;
+  }
+};
+
+const getSalesExecutiveManager = async () => {
+  return User.findOne({ role: 'Manager', isActive: true }).sort({ createdAt: 1 });
+};
+
+const ensureUniqueApplicationId = async (applicationId, excludeId = null) => {
+  const normalizedApplicationId = String(applicationId || '').trim();
+  if (!normalizedApplicationId) return;
+
+  const query = { 'loanData.applicationId': normalizedApplicationId };
+  if (excludeId) query._id = { $ne: excludeId };
+
+  const existingLead = await Lead.findOne(query).select('_id name loanData.applicationId');
+  if (existingLead) {
+    const error = new Error(`Application ID '${normalizedApplicationId}' is already assigned to lead '${existingLead.name}'.`);
+    error.statusCode = 409;
+    throw error;
+  }
 };
 
 const buildQuery = (query, user) => {
@@ -13,6 +51,7 @@ const buildQuery = (query, user) => {
   const role = user.role;
   const stageAccess = ROLE_STAGE_MAP[role];
   const completedStage = query.completedStage;
+  const salesExecutiveOnly = query.salesExecutiveOnly === 'true';
   const personalHistoryFilter = {
     performedBy: user._id,
     stage: completedStage || stageAccess,
@@ -34,6 +73,15 @@ const buildQuery = (query, user) => {
     q.currentStage = stageAccess;
   }
 
+  if (role === 'Sales Executive' && salesExecutiveOnly) {
+    q.$or = [
+      { assignedTo: user._id },
+      { createdBy: user._id }
+    ];
+    q.tags = 'sales-executive';
+    delete q.currentStage;
+  }
+
   if (query.stage && !completedStage) q.currentStage = query.stage;
   if (completedStage) {
     q.history = {
@@ -50,6 +98,7 @@ const buildQuery = (query, user) => {
   if (query.source) q.source = query.source;
   if (query.generatedThrough) q.generatedThrough = new RegExp(query.generatedThrough, 'i');
   if (query.city) q.city = new RegExp(query.city, 'i');
+  if (query.ivrsNo) q.ivrsNo = new RegExp(query.ivrsNo, 'i');
   if (query.assignedTo) q.assignedTo = query.assignedTo;
   if (query.priority) q.priority = query.priority;
 
@@ -59,6 +108,7 @@ const buildQuery = (query, user) => {
       { phone: new RegExp(query.search, 'i') },
       { city: new RegExp(query.search, 'i') },
       { generatedThrough: new RegExp(query.search, 'i') },
+      { ivrsNo: new RegExp(query.search, 'i') },
     ];
   }
 
@@ -74,7 +124,15 @@ exports.getLeads = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const query = buildQuery(req.query, req.user);
-    const sort = req.query.sort === 'oldest' ? { createdAt: 1 } : { createdAt: -1 };
+    const sortMap = {
+      latest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      'name-asc': { name: 1, createdAt: -1 },
+      'name-desc': { name: -1, createdAt: -1 },
+      'ivrs-asc': { ivrsNo: 1, createdAt: -1 },
+      'ivrs-desc': { ivrsNo: -1, createdAt: -1 },
+    };
+    const sort = sortMap[req.query.sort] || sortMap.latest;
 
     const [leads, total] = await Promise.all([
       Lead.find(query).populate('assignedTo', 'name role').sort(sort).skip(skip).limit(limit),
@@ -110,12 +168,31 @@ exports.getLead = async (req, res) => {
 // @route   POST /api/leads
 exports.createLead = async (req, res) => {
   try {
-    const { name, phone, email, address, city, state, pincode, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, priority } = req.body;
+    const { name, phone, email, address, city, state, pincode, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, priority, tags, salesExecutiveData } = req.body;
+
+    await ensureUniqueIvrsNo(ivrsNo);
+
+    let resolvedAssignedTo = assignedTo || req.user._id;
+    let assignedManager = null;
+
+    if (isSalesExecutiveLead(req.body)) {
+      assignedManager = await getSalesExecutiveManager();
+      if (!assignedManager) {
+        return res.status(400).json({
+          success: false,
+          message: 'No active manager found. Please create or activate a manager before submitting this lead.'
+        });
+      }
+      if (assignedManager) {
+        resolvedAssignedTo = assignedManager._id;
+      }
+    }
 
     const lead = await Lead.create({
-      name, phone, email, address, city, state, pincode,
-      source, generatedThrough, capacity, roofType, monthlyBill, notes, priority,
-      assignedTo: assignedTo || req.user._id,
+      name, phone, email, address, city, state, pincode, ivrsNo,
+      source, generatedThrough, capacity, roofType, monthlyBill, notes, priority, tags,
+      salesExecutiveData: isSalesExecutiveLead(req.body) ? salesExecutiveData || {} : undefined,
+      assignedTo: resolvedAssignedTo,
       createdBy: req.user._id,
       currentStage: 'Lead',
       status: 'active',
@@ -130,16 +207,38 @@ exports.createLead = async (req, res) => {
     });
 
     // Notify assigned user
-    if (assignedTo) {
-      await User.findByIdAndUpdate(assignedTo, {
+    if (resolvedAssignedTo && String(resolvedAssignedTo) !== String(req.user._id)) {
+      await User.findByIdAndUpdate(resolvedAssignedTo, {
         $push: { notifications: { message: `New lead assigned: ${name}` } }
       });
     }
 
+    if (isSalesExecutiveLead(req.body)) {
+      await User.updateMany(
+        { role: 'Admin', isActive: true },
+        { $push: { notifications: { message: `Sales executive lead submitted: ${name}${ivrsNo ? ` | IVRS ${ivrsNo}` : ''}` } } }
+      );
+
+      if (assignedManager && String(assignedManager._id) !== String(req.user._id)) {
+        await User.findByIdAndUpdate(assignedManager._id, {
+          $push: { notifications: { message: `New sales executive submission received: ${name}${ivrsNo ? ` | IVRS ${ivrsNo}` : ''}` } }
+        });
+      }
+    }
+
     const populated = await Lead.findById(lead._id).populate('assignedTo', 'name role');
-    res.status(201).json({ success: true, message: 'Lead created successfully', data: populated });
+    res.status(201).json({
+      success: true,
+      message: isSalesExecutiveLead(req.body) && assignedManager
+        ? 'Lead created successfully and sent to manager for approval'
+        : 'Lead created successfully',
+      data: populated
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    if (err.code === 11000 && err.keyPattern?.ivrsNo) {
+      return res.status(409).json({ success: false, message: 'This IVRS number already exists.' });
+    }
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -150,7 +249,11 @@ exports.updateLead = async (req, res) => {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
 
-    const allowed = ['name','phone','email','address','city','state','pincode','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags'];
+    if (req.body.ivrsNo !== undefined && req.body.ivrsNo !== lead.ivrsNo) {
+      await ensureUniqueIvrsNo(req.body.ivrsNo, lead._id);
+    }
+
+    const allowed = ['name','phone','email','address','city','state','pincode','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags','salesExecutiveData'];
     allowed.forEach(field => { if (req.body[field] !== undefined) lead[field] = req.body[field]; });
 
     lead.history.push({
@@ -175,7 +278,10 @@ exports.updateLead = async (req, res) => {
     }
     res.json({ success: true, message: 'Lead updated', data: lead });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    if (err.code === 11000 && err.keyPattern?.ivrsNo) {
+      return res.status(409).json({ success: false, message: 'This IVRS number already exists.' });
+    }
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -199,6 +305,13 @@ exports.approveLead = async (req, res) => {
       });
     }
 
+    if (lead.currentStage === 'Lead' && isSalesExecutiveLead(lead) && !['Admin', 'Manager'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Sales executive leads must be approved by manager before they move to registration.'
+      });
+    }
+
     const prevStage = lead.currentStage;
     lead.approveStage(req.user._id, req.user.name, req.body.note);
 
@@ -213,7 +326,6 @@ exports.approveLead = async (req, res) => {
 
     // Save stage-specific data if provided
     if (req.body.stageData) {
-      const dataKey = `${lead.currentStage.split(' ')[0].toLowerCase()}Data`;
       // Map stage names to data keys
       const stageDataMap = {
         'Registration': 'registrationData',
@@ -225,7 +337,17 @@ exports.approveLead = async (req, res) => {
         'Subsidy': 'subsidyData',
       };
       const key = stageDataMap[prevStage];
+      if (prevStage === 'Loan Disbursement') {
+        const applicationId = String(req.body.stageData.applicationId || '').trim();
+        if (!applicationId) {
+          return res.status(400).json({ success: false, message: 'Application number is required for loan approval.' });
+        }
+        req.body.stageData.applicationId = applicationId;
+        await ensureUniqueApplicationId(applicationId, lead._id);
+      }
       if (key) lead[key] = { ...lead[key], ...req.body.stageData };
+    } else if (prevStage === 'Loan Disbursement') {
+      return res.status(400).json({ success: false, message: 'Application number is required for loan approval.' });
     }
 
     await lead.save();
@@ -239,6 +361,9 @@ exports.approveLead = async (req, res) => {
 
     res.json({ success: true, message: `Lead approved. Moved to '${lead.currentStage}'`, data: lead });
   } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.['loanData.applicationId']) {
+      return res.status(409).json({ success: false, message: 'This application ID already exists.' });
+    }
     res.status(400).json({ success: false, message: err.message });
   }
 };

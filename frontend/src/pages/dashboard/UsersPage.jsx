@@ -13,6 +13,7 @@ import {
 const ROLE_ICON_MAP = {
   Admin: FaUserShield,
   Manager: FaRegBuilding,
+  'Sales Executive': FaUsers,
   'Sales Manager': FaUsers,
   'Registration Executive': FaClipboardList,
   'Bank/Finance Executive': FaRegBuilding,

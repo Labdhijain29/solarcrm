@@ -23,8 +23,8 @@ const validateRegister = [
   body('email').isEmail().withMessage('Valid email required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('role').isIn([
-    'Manager', 'Sales Manager', 'Registration Executive',
-    'Bank/Finance Executive', 'Loan Officer', 'Dispatch Manager',
+    'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',
+    'Bank/Finance Executive', 'Loan Officer', 'Stock Manager', 'Dispatch Manager',
     'Installation Manager', 'Net Metering Officer', 'Subsidy Officer',
     'Service Manager'
   ]).withMessage('Valid role required'),
@@ -67,6 +67,10 @@ const validateLead = [
       return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
     })
     .matches(/^[6-9]\d{9}$/).withMessage('Valid 10-digit Indian mobile number required'),
+  body('ivrsNo')
+    .optional({ checkFalsy: true })
+    .trim()
+    .matches(/^\d{10}$/).withMessage('Valid 10-digit IVRS number required'),
   body('source').optional().isIn(['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads','Other']),
   body('generatedThrough').optional().trim(),
   handleValidation

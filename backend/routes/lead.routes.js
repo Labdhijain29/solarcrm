@@ -11,7 +11,7 @@ router.use(protect);
 
 router.route('/')
   .get(getLeads)
-  .post(authorize('Admin', 'Manager', 'Sales Manager'), validateLead, createLead);
+  .post(authorize('Admin', 'Manager', 'Sales Executive', 'Sales Manager'), validateLead, createLead);
 
 router.route('/:id')
   .get(getLead)

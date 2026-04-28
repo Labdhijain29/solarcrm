@@ -2,21 +2,63 @@ import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { leadsAPI } from '../../services/api'
 import { canActOnStage, formatDate, STAGES, stageIndex } from '../../utils/constants'
+import { getLeadViewSections } from '../../utils/leadDetails'
 import { StageBadge, StageProgress, StatusBadge } from '../common'
 
-export default function LeadModal({ lead, onClose, onUpdated, currentUser }) {
+export default function LeadModal({
+  lead,
+  onClose,
+  onUpdated,
+  currentUser,
+  showRegistrationPhotoUpload = false,
+  showBankRemarkInput = false,
+  showLoanApplicationInput = false,
+}) {
   const [loading, setLoading] = useState(false)
   const [note, setNote] = useState('')
   const [showNote, setShowNote] = useState(false)
+  const [registrationPhotos, setRegistrationPhotos] = useState({
+    photoOne: null,
+    photoTwo: null,
+  })
+  const [stageForm, setStageForm] = useState({
+    remark: lead.bankData?.remark || '',
+    applicationId: lead.loanData?.applicationId || '',
+  })
 
   const currentIndex = stageIndex(lead.currentStage)
-  const canAct = canActOnStage(currentUser?.role, lead.currentStage)
+  const { overview, salesExecutiveFields, stageSpecificFields, isSalesExecutiveLead, salesExecutiveData } = getLeadViewSections(lead)
+  const blockedSalesExecutiveApproval = isSalesExecutiveLead && lead.currentStage === 'Lead' && currentUser?.role === 'Sales Executive'
+  const canAct = canActOnStage(currentUser?.role, lead.currentStage) && !blockedSalesExecutiveApproval
   const canApprove = canAct && lead.status === 'active' && currentIndex < STAGES.length - 1
+  const canAddBankRemark = showBankRemarkInput && lead.currentStage === 'Bank Approval'
+  const canAddLoanApplication = showLoanApplicationInput && lead.currentStage === 'Loan Disbursement'
+  const canAddRegistrationPhotos = showRegistrationPhotoUpload && lead.currentStage === 'Registration'
+  const displayedSalesExecutiveFields = canAddRegistrationPhotos
+    ? salesExecutiveFields.filter(([label]) => !['Photo 1', 'Photo 2'].includes(label))
+    : salesExecutiveFields
+  const displayedStageSpecificFields = stageSpecificFields.filter(([label]) => {
+    if (label === 'Bank Remark') return !canAddBankRemark
+    if (label === 'Application ID') return showLoanApplicationInput && !canAddLoanApplication
+    return true
+  })
 
   const doApprove = async () => {
+    if (canAddLoanApplication && !stageForm.applicationId.trim()) {
+      toast.error('Application no. required hai')
+      return
+    }
+
     setLoading(true)
     try {
-      await leadsAPI.approve(lead._id, { note: note || 'Approved' })
+      const stageData = {}
+      if (canAddBankRemark) stageData.remark = stageForm.remark.trim()
+      if (canAddLoanApplication) stageData.applicationId = stageForm.applicationId.trim()
+
+      await leadsAPI.approve(lead._id, {
+        note: note || 'Approved',
+        ...(Object.keys(stageData).length ? { stageData } : {}),
+      })
       toast.success(`Moved to ${STAGES[currentIndex + 1]}`)
       onUpdated?.()
       onClose()
@@ -58,16 +100,39 @@ export default function LeadModal({ lead, onClose, onUpdated, currentUser }) {
     }
   }
 
+  const doSaveRegistrationPhotos = async () => {
+    if (!registrationPhotos.photoOne && !registrationPhotos.photoTwo) {
+      toast.error('Photo 1 ya Photo 2 select karein')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const nextSalesExecutiveData = {
+        ...salesExecutiveData,
+        photoOneName: registrationPhotos.photoOne?.name || salesExecutiveData.photoOneName || '',
+        photoTwoName: registrationPhotos.photoTwo?.name || salesExecutiveData.photoTwoName || '',
+      }
+
+      await leadsAPI.update(lead._id, {
+        salesExecutiveData: nextSalesExecutiveData,
+        updateNote: `Registration photos updated: Photo 1 - ${nextSalesExecutiveData.photoOneName || 'Pending'}, Photo 2 - ${nextSalesExecutiveData.photoTwoName || 'Pending'}`,
+      })
+      toast.success('Registration photos saved')
+      setRegistrationPhotos({ photoOne: null, photoTwo: null })
+      onUpdated?.()
+      onClose()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save photos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const fields = [
-    ['ID', lead._id?.slice(-8) || lead.id],
-    ['Phone', lead.phone],
-    ['City', lead.city || '-'],
-    ['Source', lead.source || '-'],
-    ['By / Through', lead.generatedThrough || '-'],
-    ['Capacity', lead.capacity || '-'],
-    ['Assigned', lead.assignedTo?.name || lead.assignedTo || '-'],
+    ...overview,
     ['Created', formatDate(lead.createdAt)],
-    ['Status', lead.status],
+    ['Last Updated', formatDate(lead.updatedAt)],
   ]
 
   return (
@@ -93,9 +158,66 @@ export default function LeadModal({ lead, onClose, onUpdated, currentUser }) {
           ))}
         </div>
 
-        {lead.address && (
-          <div style={{ marginBottom:14, fontSize:13, color:'var(--muted)' }}>
-            <strong style={{ color:'var(--text)' }}>Address:</strong> {lead.address}
+        {displayedSalesExecutiveFields.length > 0 && (
+          <div className="crm-card-sm" style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Sales Executive Form Details</div>
+            <div className="dashboard-mini-grid-2">
+              {displayedSalesExecutiveFields.map(([label, value]) => (
+                <div key={label} className="crm-card-sm" style={{ padding:'8px 12px' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>{label}</div>
+                  <div style={{ fontSize:13, fontWeight:500, wordBreak:'break-word' }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {displayedStageSpecificFields.some(([, value]) => value !== '-') && (
+          <div className="crm-card-sm" style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Stage Details</div>
+            <div className="dashboard-mini-grid-2">
+              {displayedStageSpecificFields.filter(([, value]) => value !== '-').map(([label, value]) => (
+                <div key={label} className="crm-card-sm" style={{ padding:'8px 12px' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>{label}</div>
+                  <div style={{ fontSize:13, fontWeight:500, wordBreak:'break-word' }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {canAddRegistrationPhotos && (
+          <div className="crm-card-sm" style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Registration Photos</div>
+            <div className="dashboard-mini-grid-2" style={{ marginBottom:12 }}>
+              <div>
+                <label className="form-label">Photo 1</label>
+                <input
+                  className="crm-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setRegistrationPhotos((prev) => ({ ...prev, photoOne: e.target.files?.[0] || null }))}
+                />
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>
+                  {registrationPhotos.photoOne?.name || salesExecutiveData.photoOneName || 'Photo 1 pending'}
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Photo 2</label>
+                <input
+                  className="crm-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setRegistrationPhotos((prev) => ({ ...prev, photoTwo: e.target.files?.[0] || null }))}
+                />
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>
+                  {registrationPhotos.photoTwo?.name || salesExecutiveData.photoTwoName || 'Photo 2 pending'}
+                </div>
+              </div>
+            </div>
+            <button className="btn btn-secondary btn-sm" disabled={loading} onClick={doSaveRegistrationPhotos}>
+              Save Photos
+            </button>
           </div>
         )}
 
@@ -133,6 +255,29 @@ export default function LeadModal({ lead, onClose, onUpdated, currentUser }) {
           </div>
         )}
 
+        {(canAddBankRemark || canAddLoanApplication) && (
+          <div style={{ marginBottom:12 }}>
+            {canAddBankRemark && (
+              <input
+                className="crm-input"
+                style={{ marginBottom:12 }}
+                placeholder="Enter bank remark"
+                value={stageForm.remark}
+                onChange={(e) => setStageForm((prev) => ({ ...prev, remark: e.target.value }))}
+              />
+            )}
+            {canAddLoanApplication && (
+              <input
+                className="crm-input"
+                style={{ marginBottom:12 }}
+                placeholder="Enter unique application no."
+                value={stageForm.applicationId}
+                onChange={(e) => setStageForm((prev) => ({ ...prev, applicationId: e.target.value }))}
+              />
+            )}
+          </div>
+        )}
+
         <div className="dashboard-inline-actions">
           {canApprove && (
             <button className="btn btn-success" style={{ flex:1 }} disabled={loading} onClick={doApprove}>
@@ -147,6 +292,12 @@ export default function LeadModal({ lead, onClose, onUpdated, currentUser }) {
             <button className="btn btn-ghost btn-sm" disabled={loading} onClick={doAddNote}>Save Note</button>
           )}
         </div>
+
+        {blockedSalesExecutiveApproval && (
+          <div style={{ marginTop:12, fontSize:12, color:'var(--muted)' }}>
+            Ye sales executive lead pehle manager approve karega, uske baad hi registration stage me jayegi.
+          </div>
+        )}
       </div>
     </div>
   )

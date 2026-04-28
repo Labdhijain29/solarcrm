@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { authAPI } from '../services/api'
 
+const getApiErrorMessage = (err, fallback = 'Request failed') => {
+  const firstValidationError = err.response?.data?.errors?.[0]?.message
+  return firstValidationError || err.response?.data?.message || err.message || fallback
+}
+
 // ─── AUTH STORE ─────────────────────────────────────────────
 export const useAuthStore = create((set, get) => ({
   user: JSON.parse(localStorage.getItem('solar_user') || 'null'),
@@ -17,7 +22,7 @@ export const useAuthStore = create((set, get) => ({
       set({ user: data.user, token: data.token, loading: false })
       return data.user
     } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed'
+      const msg = getApiErrorMessage(err, 'Unable to login. Please try again.')
       set({ error: msg, loading: false })
       throw new Error(msg)
     }

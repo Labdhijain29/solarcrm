@@ -8,10 +8,12 @@ import { getCitiesForState, getSubDistrictOptions, STATE_OPTIONS } from '../../u
 
 const REGISTER_ROLES = [
   'Manager',
+  'Sales Executive',
   'Sales Manager',
   'Registration Executive',
   'Bank/Finance Executive',
   'Loan Officer',
+  'Stock Manager',
   'Dispatch Manager',
   'Installation Manager',
   'Net Metering Officer',
@@ -37,10 +39,14 @@ const emptyRegisterForm = {
   franchiseSubDistrict: '',
   documents: '',
   dateOfJoining: '',
-  role: 'Sales Manager',
+  role: 'Sales Executive',
 }
 
 const normalizeIndianPhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
+const getApiErrorMessage = (err, fallback = 'Request failed') => {
+  const firstValidationError = err.response?.data?.errors?.[0]?.message
+  return firstValidationError || err.response?.data?.message || err.message || fallback
+}
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -85,7 +91,7 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${firstName}!`)
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      toast.error(err.message || 'Login failed')
+      toast.error(getApiErrorMessage(err, 'Unable to login. Please try again.'))
     }
   }
 
@@ -114,7 +120,7 @@ export default function LoginPage() {
       setPassword('')
       toast.success('Registration submitted. Admin approval ke baad login hoga.')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Registration failed')
+      toast.error(getApiErrorMessage(err, 'Unable to register. Please try again.'))
     } finally {
       setRegistering(false)
     }

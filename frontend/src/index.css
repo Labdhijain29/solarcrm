@@ -219,6 +219,126 @@ img { max-width: 100%; height: auto; display: block; }
 select.crm-input { cursor: pointer; }
 textarea.crm-input { resize: vertical; }
 
+.sales-exec-modal {
+  max-width: 1080px;
+  width: min(1080px, calc(100vw - 32px));
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 0;
+  background:
+    radial-gradient(circle at top left, rgba(14,165,164,.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(245,158,11,.12), transparent 30%),
+    var(--card);
+}
+
+.sales-exec-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 24px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.sales-exec-kicker {
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #14b8a6;
+  margin-bottom: 10px;
+}
+
+.sales-exec-hero h2 {
+  margin: 0 0 6px;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.1;
+}
+
+.sales-exec-hero p {
+  color: var(--muted);
+  max-width: 700px;
+  line-height: 1.5;
+}
+
+.sales-exec-note {
+  margin: 16px 24px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(59,130,246,.16);
+  background: rgba(59,130,246,.08);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sales-exec-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+  padding: 20px 24px 24px;
+}
+
+.sales-exec-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sales-exec-section {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(15,118,110,.18), rgba(14,165,164,.08));
+  border: 1px solid rgba(20,184,166,.12);
+  color: #99f6e4;
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.sales-exec-form .full {
+  grid-column: 1 / -1;
+}
+
+.sales-exec-form textarea.crm-input {
+  min-height: 88px;
+}
+
+.sales-exec-file-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sales-exec-submit {
+  width: 100%;
+  justify-content: center;
+  padding: 12px 16px;
+}
+
+.sales-exec-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sales-exec-toolbar h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.sales-exec-toolbar p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .form-label {
   font-size: 11px;
   font-weight: 600;
@@ -947,6 +1067,24 @@ textarea.crm-input { resize: vertical; }
 
   .dashboard-inline-actions .btn {
     flex: 1 1 100%;
+  }
+
+  .sales-exec-hero,
+  .sales-exec-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sales-exec-note,
+  .sales-exec-form {
+    margin-left: 16px;
+    margin-right: 16px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .sales-exec-form {
+    grid-template-columns: 1fr;
   }
 
   .kanban-wrap {

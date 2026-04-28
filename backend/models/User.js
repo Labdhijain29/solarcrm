@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const ROLES = [
-  'Admin', 'Manager', 'Sales Manager', 'Registration Executive',
-  'Bank/Finance Executive', 'Loan Officer', 'Dispatch Manager',
+  'Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',
+  'Bank/Finance Executive', 'Loan Officer', 'Stock Manager', 'Dispatch Manager',
   'Installation Manager', 'Net Metering Officer', 'Subsidy Officer',
   'Service Manager'
 ];
@@ -63,10 +63,12 @@ userSchema.virtual('stageAccess').get(function () {
   const map = {
     'Admin': null,
     'Manager': 'Lead',
+    'Sales Executive': 'Lead',
     'Sales Manager': 'Lead',
     'Registration Executive': 'Registration',
     'Bank/Finance Executive': 'Bank Approval',
     'Loan Officer': 'Loan Disbursement',
+    'Stock Manager': null,
     'Dispatch Manager': 'Dispatch',
     'Installation Manager': 'Installation',
     'Net Metering Officer': 'Net Metering',

@@ -33,7 +33,7 @@ export default function EnquiriesPage() {
   const [sortBy, setSortBy] = useState('latest')
 
   const canEdit = user?.role === 'Admin'
-  const canConvert = ['Admin', 'Manager', 'Sales Manager'].includes(user?.role)
+  const canConvert = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(user?.role)
 
   const fetchData = async () => {
     setLoading(true)
