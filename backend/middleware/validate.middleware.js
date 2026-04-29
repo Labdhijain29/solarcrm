@@ -25,7 +25,7 @@ const validateRegister = [
   body('role').isIn([
     'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',
     'Bank/Finance Executive', 'Loan Officer', 'Stock Manager', 'Dispatch Manager',
-    'Installation Manager', 'Net Metering Officer', 'Subsidy Officer',
+    'Installation Manager', 'Net Metering Officer', 'Subsidy Officer', 'Subsidy Reading Officer',
     'Service Manager'
   ]).withMessage('Valid role required'),
   body('phone')

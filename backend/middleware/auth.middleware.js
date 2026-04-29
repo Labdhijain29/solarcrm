@@ -52,6 +52,7 @@ const ROLE_STAGE_MAP = {
   'Installation Manager': 'Installation',
   'Net Metering Officer': 'Net Metering',
   'Subsidy Officer': 'Subsidy',
+  'Subsidy Reading Officer': 'Subsidy Reading',
   'Service Manager': null,
 };
 

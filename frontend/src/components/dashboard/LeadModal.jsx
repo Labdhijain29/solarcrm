@@ -13,6 +13,10 @@ export default function LeadModal({
   showRegistrationPhotoUpload = false,
   showBankRemarkInput = false,
   showLoanApplicationInput = false,
+  showInstallationInput = false,
+  showNetMeteringInput = false,
+  showSubsidyInput = false,
+  showSubsidyReadingInput = false,
 }) {
   const [loading, setLoading] = useState(false)
   const [note, setNote] = useState('')
@@ -24,6 +28,19 @@ export default function LeadModal({
   const [stageForm, setStageForm] = useState({
     remark: lead.bankData?.remark || '',
     applicationId: lead.loanData?.applicationId || '',
+    panelPhoto: null,
+    inverterBoxPhoto: null,
+    earthingPhoto: null,
+    columnConcretePhoto: null,
+    panelNumber: lead.installationData?.panelNumber || '',
+    inverterNumber: lead.installationData?.inverterNumber || '',
+    brand: lead.installationData?.brand || '',
+    customerShortVideo: null,
+    meterNumber: lead.netMeteringData?.meterNumber || '',
+    netMeteringPdf: null,
+    subsidyPhoto: null,
+    subsidyPhotoTwo: null,
+    subsidyReadingPhoto: null,
   })
 
   const currentIndex = stageIndex(lead.currentStage)
@@ -34,6 +51,10 @@ export default function LeadModal({
   const canAddBankRemark = showBankRemarkInput && lead.currentStage === 'Bank Approval'
   const canAddLoanApplication = showLoanApplicationInput && lead.currentStage === 'Loan Disbursement'
   const canAddRegistrationPhotos = showRegistrationPhotoUpload && lead.currentStage === 'Registration'
+  const canAddInstallationData = showInstallationInput && lead.currentStage === 'Installation'
+  const canAddNetMeteringData = showNetMeteringInput && lead.currentStage === 'Net Metering'
+  const canAddSubsidyData = showSubsidyInput && lead.currentStage === 'Subsidy'
+  const canAddSubsidyReadingData = showSubsidyReadingInput && lead.currentStage === 'Subsidy Reading'
   const displayedSalesExecutiveFields = canAddRegistrationPhotos
     ? salesExecutiveFields.filter(([label]) => !['Photo 1', 'Photo 2'].includes(label))
     : salesExecutiveFields
@@ -45,7 +66,21 @@ export default function LeadModal({
 
   const doApprove = async () => {
     if (canAddLoanApplication && !stageForm.applicationId.trim()) {
-      toast.error('Application no. required hai')
+      toast.error('Application number is required.')
+      return
+    }
+    if (canAddInstallationData) {
+      if (!/^\d{16}$/.test(stageForm.panelNumber.trim())) {
+        toast.error('Panel number must be exactly 16 digits.')
+        return
+      }
+      if (!stageForm.inverterNumber.trim()) {
+        toast.error('Inverter number is required.')
+        return
+      }
+    }
+    if (canAddNetMeteringData && !stageForm.meterNumber.trim()) {
+      toast.error('Meter number is required.')
       return
     }
 
@@ -54,6 +89,27 @@ export default function LeadModal({
       const stageData = {}
       if (canAddBankRemark) stageData.remark = stageForm.remark.trim()
       if (canAddLoanApplication) stageData.applicationId = stageForm.applicationId.trim()
+      if (canAddInstallationData) {
+        stageData.panelPhotoName = stageForm.panelPhoto?.name || lead.installationData?.panelPhotoName || ''
+        stageData.inverterBoxPhotoName = stageForm.inverterBoxPhoto?.name || lead.installationData?.inverterBoxPhotoName || ''
+        stageData.earthingPhotoName = stageForm.earthingPhoto?.name || lead.installationData?.earthingPhotoName || ''
+        stageData.columnConcretePhotoName = stageForm.columnConcretePhoto?.name || lead.installationData?.columnConcretePhotoName || ''
+        stageData.panelNumber = stageForm.panelNumber.trim()
+        stageData.inverterNumber = stageForm.inverterNumber.trim()
+        stageData.brand = stageForm.brand.trim()
+        stageData.customerShortVideoName = stageForm.customerShortVideo?.name || lead.installationData?.customerShortVideoName || ''
+      }
+      if (canAddNetMeteringData) {
+        stageData.meterNumber = stageForm.meterNumber.trim()
+        stageData.pdfName = stageForm.netMeteringPdf?.name || lead.netMeteringData?.pdfName || ''
+      }
+      if (canAddSubsidyData) {
+        stageData.photoName = stageForm.subsidyPhoto?.name || lead.subsidyData?.photoName || ''
+        stageData.photoTwoName = stageForm.subsidyPhotoTwo?.name || lead.subsidyData?.photoTwoName || ''
+      }
+      if (canAddSubsidyReadingData) {
+        stageData.photoName = stageForm.subsidyReadingPhoto?.name || lead.subsidyReadingData?.photoName || ''
+      }
 
       await leadsAPI.approve(lead._id, {
         note: note || 'Approved',
@@ -102,7 +158,7 @@ export default function LeadModal({
 
   const doSaveRegistrationPhotos = async () => {
     if (!registrationPhotos.photoOne && !registrationPhotos.photoTwo) {
-      toast.error('Photo 1 ya Photo 2 select karein')
+      toast.error('Please select Photo 1 or Photo 2.')
       return
     }
 
@@ -255,7 +311,7 @@ export default function LeadModal({
           </div>
         )}
 
-        {(canAddBankRemark || canAddLoanApplication) && (
+        {(canAddBankRemark || canAddLoanApplication || canAddInstallationData || canAddNetMeteringData || canAddSubsidyData || canAddSubsidyReadingData) && (
           <div style={{ marginBottom:12 }}>
             {canAddBankRemark && (
               <input
@@ -274,6 +330,91 @@ export default function LeadModal({
                 value={stageForm.applicationId}
                 onChange={(e) => setStageForm((prev) => ({ ...prev, applicationId: e.target.value }))}
               />
+            )}
+            {canAddInstallationData && (
+              <div className="crm-card-sm" style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Installation Details</div>
+                <div className="dashboard-form-grid">
+                  <div>
+                    <label className="form-label">Panel Pic</label>
+                    <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, panelPhoto: e.target.files?.[0] || null }))} />
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.panelPhoto?.name || lead.installationData?.panelPhotoName || 'Panel pic pending'}</div>
+                  </div>
+                  <div>
+                    <label className="form-label">Panel Number</label>
+                    <input className="crm-input" inputMode="numeric" maxLength={16} value={stageForm.panelNumber} onChange={(e) => setStageForm((prev) => ({ ...prev, panelNumber: e.target.value.replace(/\D/g, '').slice(0, 16) }))} placeholder="16 digit panel number" />
+                  </div>
+                  <div>
+                    <label className="form-label">Inverter Number</label>
+                    <input className="crm-input" value={stageForm.inverterNumber} onChange={(e) => setStageForm((prev) => ({ ...prev, inverterNumber: e.target.value }))} placeholder="Unique inverter number" />
+                  </div>
+                  <div>
+                    <label className="form-label">Brand</label>
+                    <input className="crm-input" value={stageForm.brand} onChange={(e) => setStageForm((prev) => ({ ...prev, brand: e.target.value }))} placeholder="Inverter brand" />
+                  </div>
+                  <div>
+                    <label className="form-label">Inverter AC+DC Box</label>
+                    <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, inverterBoxPhoto: e.target.files?.[0] || null }))} />
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.inverterBoxPhoto?.name || lead.installationData?.inverterBoxPhotoName || 'AC+DC box pic pending'}</div>
+                  </div>
+                  <div>
+                    <label className="form-label">Earthing Pic</label>
+                    <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, earthingPhoto: e.target.files?.[0] || null }))} />
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.earthingPhoto?.name || lead.installationData?.earthingPhotoName || 'Earthing pic pending'}</div>
+                  </div>
+                  <div>
+                    <label className="form-label">Column Concrete</label>
+                    <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, columnConcretePhoto: e.target.files?.[0] || null }))} />
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.columnConcretePhoto?.name || lead.installationData?.columnConcretePhotoName || 'Column concrete pic pending'}</div>
+                  </div>
+                  <div>
+                    <label className="form-label">Short Video With Customer</label>
+                    <input className="crm-input" type="file" accept="video/*" onChange={(e) => setStageForm((prev) => ({ ...prev, customerShortVideo: e.target.files?.[0] || null }))} />
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.customerShortVideo?.name || lead.installationData?.customerShortVideoName || 'Video pending'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {canAddNetMeteringData && (
+              <div className="crm-card-sm" style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Net Metering Details</div>
+                <div className="dashboard-form-grid">
+                  <div>
+                    <label className="form-label">Meter Number</label>
+                    <input className="crm-input" value={stageForm.meterNumber} onChange={(e) => setStageForm((prev) => ({ ...prev, meterNumber: e.target.value }))} placeholder="Unique meter number" />
+                  </div>
+                  <div>
+                    <label className="form-label">Upload PDF</label>
+                    <input className="crm-input" type="file" accept="application/pdf,.pdf" onChange={(e) => setStageForm((prev) => ({ ...prev, netMeteringPdf: e.target.files?.[0] || null }))} />
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.netMeteringPdf?.name || lead.netMeteringData?.pdfName || 'PDF pending'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {canAddSubsidyData && (
+              <div className="crm-card-sm" style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Subsidy Details</div>
+                <div>
+                  <label className="form-label">Subsidy Photo</label>
+                  <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, subsidyPhoto: e.target.files?.[0] || null }))} />
+                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.subsidyPhoto?.name || lead.subsidyData?.photoName || 'Photo pending'}</div>
+                </div>
+                <div style={{ marginTop:12 }}>
+                  <label className="form-label">Subsidy Photo 2</label>
+                  <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, subsidyPhotoTwo: e.target.files?.[0] || null }))} />
+                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.subsidyPhotoTwo?.name || lead.subsidyData?.photoTwoName || 'Photo 2 pending'}</div>
+                </div>
+              </div>
+            )}
+            {canAddSubsidyReadingData && (
+              <div className="crm-card-sm" style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Subsidy Reading Details</div>
+                <div>
+                  <label className="form-label">Subsidy Reading Photo</label>
+                  <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, subsidyReadingPhoto: e.target.files?.[0] || null }))} />
+                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.subsidyReadingPhoto?.name || lead.subsidyReadingData?.photoName || 'Photo pending'}</div>
+                </div>
+              </div>
             )}
           </div>
         )}

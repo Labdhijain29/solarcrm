@@ -2,12 +2,12 @@ import { City, State } from 'country-state-city'
 
 export const STAGES = [
   'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
-  'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Completed',
+  'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed',
 ]
 
 export const STAGE_COLORS = [
   '#94A3B8', '#6366F1', '#3B82F6', '#F59E0B',
-  '#F97316', '#10B981', '#8B5CF6', '#EC4899', '#10B981',
+  '#F97316', '#10B981', '#8B5CF6', '#EC4899', '#14B8A6', '#10B981',
 ]
 
 export const ROLE_STAGE_MAP = {
@@ -23,6 +23,7 @@ export const ROLE_STAGE_MAP = {
   'Installation Manager': 'Installation',
   'Net Metering Officer': 'Net Metering',
   'Subsidy Officer': 'Subsidy',
+  'Subsidy Reading Officer': 'Subsidy Reading',
   'Service Manager': null,
 }
 
@@ -39,6 +40,7 @@ export const ROLE_ICONS = {
   'Installation Manager': 'IN',
   'Net Metering Officer': 'NM',
   'Subsidy Officer': 'SB',
+  'Subsidy Reading Officer': 'SR',
   'Service Manager': 'SV',
 }
 

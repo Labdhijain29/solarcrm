@@ -94,23 +94,23 @@ function SalesExecutiveForm({ onClose, onCreated }) {
     event.preventDefault()
 
     if (!PHONE_REGEX.test(formData.contact)) {
-      toast.error('Contact number valid 10-digit mobile hona chahiye.')
+      toast.error('Contact number must be a valid 10-digit mobile number.')
       return
     }
     if (!PINCODE_REGEX.test(formData.pincode)) {
-      toast.error('Pincode 6 digits ka hona chahiye.')
+      toast.error('Pincode must be 6 digits.')
       return
     }
     if (!AADHAR_REGEX.test(formData.aadharNo)) {
-      toast.error('Aadhar number 12 digits ka hona chahiye.')
+      toast.error('Aadhar number must be 12 digits.')
       return
     }
     if (!PAN_REGEX.test(formData.panCardNo)) {
-      toast.error('PAN format ABCDE1234F hona chahiye.')
+      toast.error('PAN format must be ABCDE1234F.')
       return
     }
     if (!IVRS_REGEX.test(formData.ivrsNo)) {
-      toast.error('IVRS number 10 digits ka hona chahiye.')
+      toast.error('IVRS number must be 10 digits.')
       return
     }
 
@@ -162,7 +162,7 @@ function SalesExecutiveForm({ onClose, onCreated }) {
         },
         tags: ['sales-executive', formData.brand.toLowerCase(), `deal-${formData.dealNo}`],
       })
-      toast.success('Lead manager ko bhej di gayi hai. Approval ke baad registration flow continue hoga.')
+      toast.success('Lead sent to the manager. The registration flow will continue after approval.')
       onCreated()
       setFormData(INITIAL_FORM)
       onClose()

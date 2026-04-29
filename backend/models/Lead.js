@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const STAGES = [
   'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
-  'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Completed'
+  'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed'
 ];
 
 const historySchema = new mongoose.Schema({
@@ -92,17 +92,33 @@ const leadSchema = new mongoose.Schema({
   installationData: {
     installedBy: String,
     installedAt: Date,
-    systemSize: String
+    systemSize: String,
+    panelPhotoName: { type: String, trim: true, default: '' },
+    inverterBoxPhotoName: { type: String, trim: true, default: '' },
+    earthingPhotoName: { type: String, trim: true, default: '' },
+    columnConcretePhotoName: { type: String, trim: true, default: '' },
+    panelNumber: { type: String, trim: true, default: '' },
+    inverterNumber: { type: String, trim: true, default: '' },
+    brand: { type: String, trim: true, default: '' },
+    customerShortVideoName: { type: String, trim: true, default: '' },
+    completedAt: Date
   },
   netMeteringData: {
-    meterNumber: String,
+    meterNumber: { type: String, trim: true, default: '' },
+    pdfName: { type: String, trim: true, default: '' },
     applicationDate: Date,
     approvedAt: Date
   },
   subsidyData: {
     subsidyAmount: Number,
     applicationRef: String,
+    photoName: { type: String, trim: true, default: '' },
+    photoTwoName: { type: String, trim: true, default: '' },
     receivedAt: Date
+  },
+  subsidyReadingData: {
+    photoName: { type: String, trim: true, default: '' },
+    completedAt: Date
   },
 
   // ─── Priority & Tags ─────────────────────────────────────────
@@ -127,6 +143,20 @@ leadSchema.index(
   {
     unique: true,
     partialFilterExpression: { 'loanData.applicationId': { $type: 'string', $ne: '' } }
+  }
+);
+leadSchema.index(
+  { 'installationData.inverterNumber': 1 },
+  {
+    unique: true,
+    partialFilterExpression: { 'installationData.inverterNumber': { $type: 'string', $ne: '' } }
+  }
+);
+leadSchema.index(
+  { 'netMeteringData.meterNumber': 1 },
+  {
+    unique: true,
+    partialFilterExpression: { 'netMeteringData.meterNumber': { $type: 'string', $ne: '' } }
   }
 );
 leadSchema.index({ name: 'text', phone: 'text', city: 'text' });

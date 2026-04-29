@@ -183,6 +183,7 @@ const STAGE_ROLE_ICONS = {
   'Installation Manager': FaSolarPanel,
   'Net Metering Officer': FaBell,
   'Subsidy Officer': FaFileInvoice,
+  'Subsidy Reading Officer': FaFileInvoice,
 }
 
 export function StageDashboard({ roleOverride }) {
@@ -247,6 +248,10 @@ export function StageDashboard({ roleOverride }) {
           showRegistrationPhotoUpload={dashboardRole === 'Registration Executive'}
           showBankRemarkInput={dashboardRole === 'Bank/Finance Executive'}
           showLoanApplicationInput={dashboardRole === 'Loan Officer'}
+          showInstallationInput={dashboardRole === 'Installation Manager'}
+          showNetMeteringInput={dashboardRole === 'Net Metering Officer'}
+          showSubsidyInput={dashboardRole === 'Subsidy Officer'}
+          showSubsidyReadingInput={dashboardRole === 'Subsidy Reading Officer'}
         />
       )}
     </div>

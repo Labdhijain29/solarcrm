@@ -31,7 +31,7 @@ export default function EnquiryForm({ compact = false }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!/^[6-9]\d{9}$/.test(form.contact)) {
-      toast.error('Contact number 10 digits ka valid mobile number hona chahiye.')
+      toast.error('Contact number must be a valid 10-digit mobile number.')
       return
     }
     setLoading(true)

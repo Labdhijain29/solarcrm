@@ -14,6 +14,7 @@ const usersData = [
   { name: 'Meera Nair', email: 'install@solarcrm.in', password: 'install123', role: 'Installation Manager', phone: '9800000008' },
   { name: 'Suresh Rao', email: 'netmeter@solarcrm.in', password: 'netmeter123', role: 'Net Metering Officer', phone: '9800000009' },
   { name: 'Anita Joshi', email: 'subsidy@solarcrm.in', password: 'subsidy123', role: 'Subsidy Officer', phone: '9800000010' },
+  { name: 'Ritu Reading', email: 'subsidyreading@solarcrm.in', password: 'reading123', role: 'Subsidy Reading Officer', phone: '9800000013' },
 ];
 
 async function resetDemoPasswords() {

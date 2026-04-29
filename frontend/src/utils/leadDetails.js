@@ -67,6 +67,23 @@ export const getLeadViewSections = (lead) => {
   const stageSpecificFields = [
     ['Bank Remark', lead?.bankData?.remark || '-'],
     ['Application ID', lead?.loanData?.applicationId || '-'],
+    ['Panel Photo', lead?.installationData?.panelPhotoName || '-'],
+    ['Panel Number', lead?.installationData?.panelNumber || '-'],
+    ['Inverter Number', lead?.installationData?.inverterNumber || '-'],
+    ['Inverter Brand', lead?.installationData?.brand || '-'],
+    ['Inverter AC+DC Box Photo', lead?.installationData?.inverterBoxPhotoName || '-'],
+    ['Earthing Photo', lead?.installationData?.earthingPhotoName || '-'],
+    ['Column Concrete Photo', lead?.installationData?.columnConcretePhotoName || '-'],
+    ['Customer Short Video', lead?.installationData?.customerShortVideoName || '-'],
+    ['Installation Completed At', lead?.installationData?.installedAt ? new Date(lead.installationData.installedAt).toLocaleDateString('en-IN') : '-'],
+    ['Meter Number', lead?.netMeteringData?.meterNumber || '-'],
+    ['Net Metering PDF', lead?.netMeteringData?.pdfName || '-'],
+    ['Net Metering Approved At', lead?.netMeteringData?.approvedAt ? new Date(lead.netMeteringData.approvedAt).toLocaleDateString('en-IN') : '-'],
+    ['Subsidy Photo', lead?.subsidyData?.photoName || '-'],
+    ['Subsidy Photo 2', lead?.subsidyData?.photoTwoName || '-'],
+    ['Subsidy Approved At', lead?.subsidyData?.receivedAt ? new Date(lead.subsidyData.receivedAt).toLocaleDateString('en-IN') : '-'],
+    ['Subsidy Reading Photo', lead?.subsidyReadingData?.photoName || '-'],
+    ['Subsidy Reading Completed At', lead?.subsidyReadingData?.completedAt ? new Date(lead.subsidyReadingData.completedAt).toLocaleDateString('en-IN') : '-'],
   ]
 
   return { overview, salesExecutiveFields, stageSpecificFields, isSalesExecutiveLead, salesExecutiveData }

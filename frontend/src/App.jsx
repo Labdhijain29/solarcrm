@@ -36,6 +36,7 @@ const ADMIN_STAGE_ROLES = [
   'Installation Manager',
   'Net Metering Officer',
   'Subsidy Officer',
+  'Subsidy Reading Officer',
 ]
 
 function PrivateRoute({ children }) {

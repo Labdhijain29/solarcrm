@@ -22,6 +22,7 @@ const ROLE_ICON_MAP = {
   'Installation Manager': FaSolarPanel,
   'Net Metering Officer': FaBell,
   'Subsidy Officer': FaFileInvoice,
+  'Subsidy Reading Officer': FaFileInvoice,
   'Service Manager': FaWrench,
 }
 

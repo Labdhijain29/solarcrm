@@ -4,7 +4,7 @@ const User = require('../models/User');
 const Lead = require('../models/Lead');
 const Enquiry = require('../models/Enquiry');
 
-const STAGES = ['Lead','Registration','Bank Approval','Loan Disbursement','Dispatch','Installation','Net Metering','Subsidy','Completed'];
+const STAGES = ['Lead','Registration','Bank Approval','Loan Disbursement','Dispatch','Installation','Net Metering','Subsidy','Subsidy Reading','Completed'];
 const SOURCES = ['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads'];
 const CITIES = ['Mumbai','Delhi','Bangalore','Pune','Hyderabad','Chennai','Ahmedabad','Jaipur','Surat','Kolkata'];
 const ENQUIRY_CATEGORIES = ['Residential', 'Commercial', 'Industrial', 'Agriculture'];
@@ -21,6 +21,7 @@ const usersData = [
   { name:'Meera Nair', email:'install@solarcrm.in', password:'install123', role:'Installation Manager', phone:'9800000008' },
   { name:'Suresh Rao', email:'netmeter@solarcrm.in', password:'netmeter123', role:'Net Metering Officer', phone:'9800000009' },
   { name:'Anita Joshi', email:'subsidy@solarcrm.in', password:'subsidy123', role:'Subsidy Officer', phone:'9800000010' },
+  { name:'Ritu Reading', email:'subsidyreading@solarcrm.in', password:'reading123', role:'Subsidy Reading Officer', phone:'9800000013' },
   { name:'Vikram Service', email:'service@solarcrm.in', password:'service123', role:'Service Manager', phone:'9800000011' },
 ];
 
@@ -51,7 +52,7 @@ async function seed() {
     // Create leads
     const leads = [];
     for (let i = 0; i < 45; i++) {
-      const stageIdx = Math.floor(Math.random() * 9);
+      const stageIdx = Math.floor(Math.random() * STAGES.length);
       const stage = STAGES[stageIdx];
       const status = Math.random() > 0.08 ? 'active' : (Math.random() > 0.5 ? 'rejected' : 'completed');
 

@@ -43,7 +43,7 @@ export default function ServiceManagerDashboard() {
   )
 
   const installedSystems = useMemo(() => {
-    const serviceReady = leads.filter(lead => ['Installation', 'Net Metering', 'Subsidy', 'Completed'].includes(lead.currentStage))
+    const serviceReady = leads.filter(lead => ['Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed'].includes(lead.currentStage))
     return serviceReady.length ? serviceReady : leads.slice(0, 8)
   }, [leads])
 

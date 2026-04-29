@@ -46,6 +46,36 @@ const ensureUniqueApplicationId = async (applicationId, excludeId = null) => {
   }
 };
 
+const ensureUniqueInverterNumber = async (inverterNumber, excludeId = null) => {
+  const normalizedInverterNumber = String(inverterNumber || '').trim();
+  if (!normalizedInverterNumber) return;
+
+  const query = { 'installationData.inverterNumber': normalizedInverterNumber };
+  if (excludeId) query._id = { $ne: excludeId };
+
+  const existingLead = await Lead.findOne(query).select('_id name installationData.inverterNumber');
+  if (existingLead) {
+    const error = new Error(`Inverter number '${normalizedInverterNumber}' is already assigned to lead '${existingLead.name}'.`);
+    error.statusCode = 409;
+    throw error;
+  }
+};
+
+const ensureUniqueMeterNumber = async (meterNumber, excludeId = null) => {
+  const normalizedMeterNumber = String(meterNumber || '').trim();
+  if (!normalizedMeterNumber) return;
+
+  const query = { 'netMeteringData.meterNumber': normalizedMeterNumber };
+  if (excludeId) query._id = { $ne: excludeId };
+
+  const existingLead = await Lead.findOne(query).select('_id name netMeteringData.meterNumber');
+  if (existingLead) {
+    const error = new Error(`Meter number '${normalizedMeterNumber}' is already assigned to lead '${existingLead.name}'.`);
+    error.statusCode = 409;
+    throw error;
+  }
+};
+
 const buildQuery = (query, user) => {
   const q = {};
   const role = user.role;
@@ -335,6 +365,7 @@ exports.approveLead = async (req, res) => {
         'Installation': 'installationData',
         'Net Metering': 'netMeteringData',
         'Subsidy': 'subsidyData',
+        'Subsidy Reading': 'subsidyReadingData',
       };
       const key = stageDataMap[prevStage];
       if (prevStage === 'Loan Disbursement') {
@@ -345,9 +376,47 @@ exports.approveLead = async (req, res) => {
         req.body.stageData.applicationId = applicationId;
         await ensureUniqueApplicationId(applicationId, lead._id);
       }
+      if (prevStage === 'Installation') {
+        const panelNumber = String(req.body.stageData.panelNumber || '').trim();
+        const inverterNumber = String(req.body.stageData.inverterNumber || '').trim();
+
+        if (!/^\d{16}$/.test(panelNumber)) {
+          return res.status(400).json({ success: false, message: 'Panel number must be exactly 16 digits.' });
+        }
+        if (!inverterNumber) {
+          return res.status(400).json({ success: false, message: 'Inverter number is required for installation approval.' });
+        }
+
+        req.body.stageData.panelNumber = panelNumber;
+        req.body.stageData.inverterNumber = inverterNumber;
+        req.body.stageData.installedAt = new Date();
+        req.body.stageData.completedAt = new Date();
+        await ensureUniqueInverterNumber(inverterNumber, lead._id);
+      }
+      if (prevStage === 'Net Metering') {
+        const meterNumber = String(req.body.stageData.meterNumber || '').trim();
+        if (!meterNumber) {
+          return res.status(400).json({ success: false, message: 'Meter number is required for net metering approval.' });
+        }
+
+        req.body.stageData.meterNumber = meterNumber;
+        req.body.stageData.applicationDate = req.body.stageData.applicationDate || new Date();
+        req.body.stageData.approvedAt = new Date();
+        await ensureUniqueMeterNumber(meterNumber, lead._id);
+      }
+      if (prevStage === 'Subsidy') {
+        req.body.stageData.receivedAt = new Date();
+      }
+      if (prevStage === 'Subsidy Reading') {
+        req.body.stageData.completedAt = new Date();
+      }
       if (key) lead[key] = { ...lead[key], ...req.body.stageData };
     } else if (prevStage === 'Loan Disbursement') {
       return res.status(400).json({ success: false, message: 'Application number is required for loan approval.' });
+    } else if (prevStage === 'Installation') {
+      return res.status(400).json({ success: false, message: 'Installation details are required before moving to Net Metering.' });
+    } else if (prevStage === 'Net Metering') {
+      return res.status(400).json({ success: false, message: 'Net metering details are required before moving to Subsidy.' });
     }
 
     await lead.save();
@@ -363,6 +432,12 @@ exports.approveLead = async (req, res) => {
   } catch (err) {
     if (err.code === 11000 && err.keyPattern?.['loanData.applicationId']) {
       return res.status(409).json({ success: false, message: 'This application ID already exists.' });
+    }
+    if (err.code === 11000 && err.keyPattern?.['installationData.inverterNumber']) {
+      return res.status(409).json({ success: false, message: 'This inverter number already exists.' });
+    }
+    if (err.code === 11000 && err.keyPattern?.['netMeteringData.meterNumber']) {
+      return res.status(409).json({ success: false, message: 'This meter number already exists.' });
     }
     res.status(400).json({ success: false, message: err.message });
   }

@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const ROLES = [
   'Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',
   'Bank/Finance Executive', 'Loan Officer', 'Stock Manager', 'Dispatch Manager',
-  'Installation Manager', 'Net Metering Officer', 'Subsidy Officer',
+  'Installation Manager', 'Net Metering Officer', 'Subsidy Officer', 'Subsidy Reading Officer',
   'Service Manager'
 ];
 
@@ -73,6 +73,7 @@ userSchema.virtual('stageAccess').get(function () {
     'Installation Manager': 'Installation',
     'Net Metering Officer': 'Net Metering',
     'Subsidy Officer': 'Subsidy',
+    'Subsidy Reading Officer': 'Subsidy Reading',
     'Service Manager': null,
   };
   return map[this.role];

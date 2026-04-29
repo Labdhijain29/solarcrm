@@ -18,6 +18,7 @@ const REGISTER_ROLES = [
   'Installation Manager',
   'Net Metering Officer',
   'Subsidy Officer',
+  'Subsidy Reading Officer',
   'Service Manager',
 ]
 
@@ -100,11 +101,11 @@ export default function LoginPage() {
     const phone = normalizeIndianPhone(registerForm.phone)
     const alternateContact = normalizeIndianPhone(registerForm.alternateContact)
     if (!/^[6-9]\d{9}$/.test(phone)) {
-      toast.error('Contact number 10 digits ka valid mobile number hona chahiye.')
+      toast.error('Contact number must be a valid 10-digit mobile number.')
       return
     }
     if (registerForm.alternateContact && !/^[6-9]\d{9}$/.test(alternateContact)) {
-      toast.error('Alternate contact bhi valid 10-digit number hona chahiye.')
+      toast.error('Alternate contact must also be a valid 10-digit number.')
       return
     }
     setRegistering(true)
@@ -118,7 +119,7 @@ export default function LoginPage() {
       setMode('login')
       setEmail(registerForm.email)
       setPassword('')
-      toast.success('Registration submitted. Admin approval ke baad login hoga.')
+      toast.success('Registration submitted. You can log in after admin approval.')
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Unable to register. Please try again.'))
     } finally {

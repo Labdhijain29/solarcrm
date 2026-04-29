@@ -18,6 +18,7 @@ const ADMIN_DASHBOARD_ITEMS = [
   { to: '/dashboard/stage/installation-manager', icon: FaSolarPanel, label: 'Installation Dashboard' },
   { to: '/dashboard/stage/net-metering-officer', icon: FaBell, label: 'Net Metering Dashboard' },
   { to: '/dashboard/stage/subsidy-officer', icon: FaFileInvoice, label: 'Subsidy Dashboard' },
+  { to: '/dashboard/stage/subsidy-reading-officer', icon: FaFileInvoice, label: 'Subsidy Reading Dashboard' },
 ]
 
 const COMMON_NAV_ITEMS = [
@@ -42,6 +43,7 @@ const ROLE_ICON_MAP = {
   'Installation Manager': FaSolarPanel,
   'Net Metering Officer': FaBell,
   'Subsidy Officer': FaFileInvoice,
+  'Subsidy Reading Officer': FaFileInvoice,
   'Service Manager': FaWrench,
 }
 

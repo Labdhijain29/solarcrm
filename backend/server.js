@@ -13,21 +13,40 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // ✅ CORS FIX (IMPORTANT)
-const allowedOrigins = [
+const configuredOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([
   'https://mahavirsolar.com',
-  'https://www.mahavirsolar.com'
-];
+  'https://www.mahavirsolar.com',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  ...configuredOrigins
+]);
+
+const isLocalDevOrigin = (origin) => {
+  if (process.env.NODE_ENV !== 'development') return false;
+
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+};
 
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow non-browser requests (Postman, mobile apps, curl)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.has(origin) || isLocalDevOrigin(origin)) {
       return callback(null, true);
-    } else {
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
     }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
