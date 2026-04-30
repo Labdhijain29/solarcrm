@@ -130,6 +130,7 @@ app.use((err, req, res, next) => {
       message: err.message
     });
   }
+  
 
   const status = err.statusCode || 500;
   res.status(status).json({
@@ -143,8 +144,10 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 SolarCRM Backend running on http://localhost:${PORT}`);
+  console.log(`🚀 SOLARCRM Backend running on http://localhost:${PORT}`);
   console.log(`📄 Environment: ${process.env.NODE_ENV}`);
 });
+
+
 
 module.exports = app;
