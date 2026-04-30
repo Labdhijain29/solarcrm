@@ -144,10 +144,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 SOLARCRM Backend running on http://localhost:${PORT}`);
+  console.log(`🚀 SolarCRM Backend running on http://localhost:${PORT}`);
   console.log(`📄 Environment: ${process.env.NODE_ENV}`);
 });
-
 
 
 module.exports = app;
