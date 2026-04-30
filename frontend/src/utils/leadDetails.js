@@ -30,7 +30,13 @@ export const getSalesExecutiveData = (lead) => {
 
 export const getLeadViewSections = (lead) => {
   const salesExecutiveData = getSalesExecutiveData(lead)
-  const isSalesExecutiveLead = Array.isArray(lead?.tags) && lead.tags.includes('sales-executive')
+  const hasSalesExecutiveData = Object.values(salesExecutiveData).some((value) => String(value || '').trim())
+  const isSalesExecutiveLead = (
+    (Array.isArray(lead?.tags) && lead.tags.includes('sales-executive')) ||
+    String(lead?.generatedThrough || '').toLowerCase().includes('sales executive') ||
+    String(lead?.notes || '').toLowerCase().includes('sales executive registration') ||
+    hasSalesExecutiveData
+  )
 
   const overview = [
     ['ID', lead?._id?.slice(-8) || lead?.id || '-'],
@@ -52,9 +58,16 @@ export const getLeadViewSections = (lead) => {
   ]
 
   const salesExecutiveFields = isSalesExecutiveLead ? [
+    ['Name', lead?.name || '-'],
+    ['Email', lead?.email || '-'],
     ['Sales Contact', salesExecutiveData.contact || lead?.phone || '-'],
+    ['State', salesExecutiveData.state || lead?.state || '-'],
+    ['City', salesExecutiveData.city || lead?.city || '-'],
+    ['Address', salesExecutiveData.addressdu || lead?.address || '-'],
+    ['Pincode', salesExecutiveData.pincode || lead?.pincode || '-'],
     ['Deal No.', salesExecutiveData.dealNo || '-'],
     ['Brand', salesExecutiveData.brand || '-'],
+    ['IVRS No.', lead?.ivrsNo || extractValueFromNotes(lead?.notes, 'IVRS No') || '-'],
     ['PAN Card No.', salesExecutiveData.panCardNo || '-'],
     ['Aadhar No.', salesExecutiveData.aadharNo || '-'],
     ['Account No.', salesExecutiveData.accountNo || '-'],

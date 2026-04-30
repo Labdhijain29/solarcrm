@@ -49,6 +49,16 @@ export function ManagerDashboard() {
     leadsAPI.getAll().then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
   }
 
+  const viewLead = async (lead) => {
+    setSelected(lead)
+    try {
+      const response = await leadsAPI.getOne(lead._id)
+      setSelected(response.data.data)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to load lead details')
+    }
+  }
+
   useEffect(() => {
     fetchLeads()
   }, [])
@@ -100,8 +110,8 @@ export function ManagerDashboard() {
         ))}
       </div>
 
-      {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={setSelected} /></div>}
-      {tab === 'pipeline' && <KanbanPipeline leads={leads} onView={setSelected} />}
+      {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={viewLead} /></div>}
+      {tab === 'pipeline' && <KanbanPipeline leads={leads} onView={viewLead} />}
 
       {showCreate && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowCreate(false)}>
