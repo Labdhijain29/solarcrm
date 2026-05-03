@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, useNavigate, NavLink } from 'react-router-dom'
-import { FaBan, FaBell, FaBoxOpen, FaBriefcase, FaClipboardList, FaCog, FaExchangeAlt, FaFileInvoice, FaHome, FaMoneyBillWave, FaRegBuilding, FaShippingFast, FaSolarPanel, FaTachometerAlt, FaUser, FaUsers, FaUserTie, FaWarehouse, FaWrench } from 'react-icons/fa'
+import { FaBan, FaBell, FaBoxOpen, FaBriefcase, FaClipboardList, FaCog, FaExchangeAlt, FaFileInvoice, FaHome, FaMoneyBillWave, FaMoon, FaRegBuilding, FaShippingFast, FaSolarPanel, FaSun, FaTachometerAlt, FaUser, FaUsers, FaUserTie, FaWarehouse, FaWrench } from 'react-icons/fa'
 import { useAuthStore, useAppStore } from '../../store'
-import { ROLE_STAGE_MAP, ROLE_ICONS, stageColor } from '../../utils/constants'
+import { ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
 import { usersAPI } from '../../services/api'
 
 const ADMIN_DASHBOARD_ITEMS = [
@@ -83,10 +83,14 @@ export default function DashboardLayout() {
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme, sidebarOpen, toggleSidebar, closeSidebar, notifications, unreadCount, setNotifications } = useAppStore()
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const navigate = useNavigate()
+  const notificationsRef = useRef(null)
+  const userMenuRef = useRef(null)
   const stageAccess = ROLE_STAGE_MAP[user?.role]
   const visibleNav = COMMON_NAV_ITEMS.filter(item => !item.roles || item.roles.includes(user?.role))
   const showAdminDashboards = user?.role === 'Admin'
+  const ThemeIcon = theme === 'dark' ? FaSun : FaMoon
 
   const handleLogout = async () => {
     await logout()
@@ -106,14 +110,52 @@ export default function DashboardLayout() {
     return () => clearInterval(timer)
   }, [user?._id])
 
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setShowNotifications(false)
+      }
+
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false)
+      }
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowNotifications(false)
+        setShowUserMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
   const toggleNotifications = async () => {
     setShowNotifications((prev) => !prev)
+    setShowUserMenu(false)
     if (unreadCount > 0) {
       try {
         await usersAPI.markNotificationsRead()
         loadNotifications()
       } catch {}
     }
+  }
+
+  const toggleUserMenu = () => {
+    setShowUserMenu((prev) => !prev)
+    setShowNotifications(false)
+  }
+
+  const handleProfileClick = () => {
+    setShowUserMenu(false)
+    navigate('/dashboard/profile')
   }
 
   return (
@@ -161,7 +203,7 @@ export default function DashboardLayout() {
 
         <div style={{ marginTop:'auto', padding:'8px 0', borderTop:'1px solid var(--border)' }}>
           <div className="nav-item" onClick={toggleTheme}>
-            <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700 }}>{theme === 'dark' ? 'LT' : 'DK'}</span>
+            <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700, display:'flex', justifyContent:'center' }}><ThemeIcon /></span>
             <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
           </div>
           <a href="/" className="nav-item">
@@ -182,7 +224,7 @@ export default function DashboardLayout() {
           <span style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:14, flex:1 }}>SolarPro CRM</span>
 
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <div style={{ position:'relative' }}>
+            <div ref={notificationsRef} style={{ position:'relative' }}>
               <button className="btn btn-ghost btn-icon" onClick={toggleNotifications} title="Notifications" style={{ position:'relative' }}>
                 <FaBell />
                 {unreadCount > 0 && (
@@ -207,14 +249,47 @@ export default function DashboardLayout() {
                 </div>
               )}
             </div>
-            <button className="btn btn-ghost btn-icon" onClick={toggleTheme}>
-              {theme === 'dark' ? 'LT' : 'DK'}
+            <button className="btn btn-ghost btn-icon" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+              <ThemeIcon />
             </button>
-            <button className="btn btn-ghost btn-sm" style={{ display:'flex', alignItems:'center', gap:6 }} onClick={handleLogout}>
-              <span style={{ display:'flex' }}>{(() => { const TopIcon = ROLE_ICON_MAP[user?.role] || FaUser; return <TopIcon /> })()}</span>
-              <span>{user?.name?.split(' ')[0]}</span>
-              <span style={{ fontSize:10, color:'var(--dim)' }}>| {user?.role?.split(' ')[0]}</span>
-            </button>
+            <div ref={userMenuRef} style={{ position:'relative' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ display:'flex', alignItems:'center', gap:6 }}
+                onClick={toggleUserMenu}
+                aria-haspopup="menu"
+                aria-expanded={showUserMenu}
+              >
+                <span style={{ display:'flex' }}>{(() => { const TopIcon = ROLE_ICON_MAP[user?.role] || FaUser; return <TopIcon /> })()}</span>
+                <span>{user?.name?.split(' ')[0]}</span>
+                <span style={{ fontSize:10, color:'var(--dim)' }}>| {user?.role?.split(' ')[0]}</span>
+              </button>
+
+              {showUserMenu && (
+                <div style={{ position:'absolute', right:0, top:44, width:220, maxWidth:'calc(100vw - 32px)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:12, boxShadow:'0 20px 45px rgba(0,0,0,.25)', zIndex:120, overflow:'hidden' }}>
+                  <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)' }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', wordBreak:'break-word' }}>{user?.name}</div>
+                    <div style={{ fontSize:11, color:'var(--muted)', marginTop:3 }}>{user?.role}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="dashboard-user-menu-item"
+                    onClick={handleProfileClick}
+                  >
+                    <FaUser />
+                    <span>Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="dashboard-user-menu-item danger"
+                    onClick={handleLogout}
+                  >
+                    <span style={{ width:14, textAlign:'center' }}>LO</span>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

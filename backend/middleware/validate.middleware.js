@@ -13,14 +13,14 @@ const handleValidation = (req, res, next) => {
 };
 
 const validateLogin = [
-  body('email').isEmail().withMessage('Valid email required'),
+  body('email').trim().isEmail().withMessage('Valid email required').bail().normalizeEmail(),
   body('password').notEmpty().withMessage('Password required'),
   handleValidation
 ];
 
 const validateRegister = [
   body('name').trim().notEmpty().withMessage('Name required'),
-  body('email').isEmail().withMessage('Valid email required'),
+  body('email').trim().isEmail().withMessage('Valid email required').bail().normalizeEmail(),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('role').isIn([
     'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',

@@ -6,6 +6,33 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+const getApiBaseUrl = () => {
+  const configuredBase = import.meta.env.VITE_API_URL || '/api'
+  if (/^https?:\/\//i.test(configuredBase)) return configuredBase.replace(/\/+$/, '')
+  return new URL(configuredBase, window.location.origin).href.replace(/\/+$/, '')
+}
+
+export const getPublicFileUrl = (filePath) => {
+  if (!filePath) return ''
+  if (/^https?:\/\//i.test(filePath)) return filePath
+
+  const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`
+  const apiBaseUrl = getApiBaseUrl()
+  const publicBase = apiBaseUrl.replace(/\/api\/?$/i, '')
+
+  return `${publicBase}${normalizedPath}`
+}
+
+const shouldRedirectToLogin = (error) => {
+  if (error.response?.status !== 401) return false
+
+  const requestUrl = String(error.config?.url || '')
+  const isPublicAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register')
+  const isAlreadyOnLoginPage = window.location.pathname === '/login'
+
+  return !isPublicAuthRequest && !isAlreadyOnLoginPage
+}
+
 // ─── Request interceptor: attach JWT ───────────────────────
 api.interceptors.request.use(
   (config) => {
@@ -20,7 +47,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (shouldRedirectToLogin(error)) {
       localStorage.removeItem('solar_token')
       localStorage.removeItem('solar_user')
       window.location.href = '/login'
@@ -32,7 +59,13 @@ api.interceptors.response.use(
 // ─── AUTH ───────────────────────────────────────────────────
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
-  register: (data) => api.post('/auth/register', data),
+  register: (data) => api.post(
+    '/auth/register',
+    data,
+    typeof FormData !== 'undefined' && data instanceof FormData
+      ? { headers: { 'Content-Type': 'multipart/form-data' } }
+      : undefined
+  ),
   getMe: () => api.get('/auth/me'),
   changePassword: (data) => api.put('/auth/change-password', data),
   logout: () => api.post('/auth/logout'),
@@ -54,6 +87,7 @@ export const leadsAPI = {
 export const usersAPI = {
   getAll: () => api.get('/users'),
   getOne: (id) => api.get(`/users/${id}`),
+  updateMe: (data) => api.put('/users/me', data),
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
   delete: (id) => api.delete(`/users/${id}`),

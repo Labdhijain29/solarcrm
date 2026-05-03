@@ -3,12 +3,13 @@ const express = require('express');
 const router = express.Router();
 const {
   getUsers, getUser, createUser, updateUser, deleteUser,
-  getNotifications, markNotificationsRead, approveUser, rejectUser
+  getNotifications, markNotificationsRead, approveUser, rejectUser, updateProfile
 } = require('../controllers/user.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 
 router.use(protect);
 
+router.put('/me', updateProfile);
 router.get('/notifications', getNotifications);
 router.put('/notifications/read', markNotificationsRead);
 

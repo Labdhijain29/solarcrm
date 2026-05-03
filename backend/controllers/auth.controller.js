@@ -19,9 +19,10 @@ const SERVICE_MANAGER_DEMO = {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
 
-    let user = await User.findOne({ email: email.toLowerCase() }).select('+password');
-    if (!user && email.toLowerCase() === SERVICE_MANAGER_DEMO.email && password === SERVICE_MANAGER_DEMO.password) {
+    let user = await User.findOne({ email: normalizedEmail }).select('+password');
+    if (!user && normalizedEmail === SERVICE_MANAGER_DEMO.email && password === SERVICE_MANAGER_DEMO.password) {
       const created = await User.create(SERVICE_MANAGER_DEMO);
       user = await User.findById(created._id).select('+password');
     }
@@ -109,15 +110,17 @@ exports.register = async (req, res) => {
       documents,
       dateOfJoining
     } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const uploadedDocumentPath = req.file ? `/uploads/registrations/${req.file.filename}` : undefined;
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(400).json({ success: false, message: 'Email already in use' });
     }
 
     const user = await User.create({
       name,
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password,
       role,
       phone,
@@ -134,7 +137,7 @@ exports.register = async (req, res) => {
       franchiseSubDistrict,
       jobTitle,
       resume,
-      documents,
+      documents: uploadedDocumentPath || documents,
       dateOfJoining: dateOfJoining || undefined,
       isActive: false,
       approvalStatus: 'pending',
@@ -180,11 +183,14 @@ exports.getMe = async (req, res) => {
 // @access  Private
 exports.changePassword = async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
-    const user = await User.findById(req.user._id).select('+password');
+    const { newPassword } = req.body;
+    if (!newPassword) {
+      return res.status(400).json({ success: false, message: 'New password is required.' });
+    }
 
-    if (!(await user.comparePassword(currentPassword))) {
-      return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
     user.password = newPassword;

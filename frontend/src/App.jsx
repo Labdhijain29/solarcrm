@@ -1,27 +1,23 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { Spinner } from './components/common'
 import { useAppStore, useAuthStore } from './store'
 
-// Website Pages
-import HomePage    from './pages/website/HomePage'
-import AboutPage   from './pages/website/AboutPage'
+import HomePage from './pages/website/HomePage'
+import AboutPage from './pages/website/AboutPage'
 import ServicesPage from './pages/website/ServicesPage'
 import ContactPage from './pages/website/ContactPage'
-import SiteLayout  from './components/layout/SiteLayout'
-
-// Auth
-import LoginPage   from './pages/auth/LoginPage'
-
-// Dashboard Pages
-import DashboardLayout  from './components/layout/DashboardLayout'
-import AdminDashboard   from './pages/dashboard/AdminDashboard'
+import SiteLayout from './components/layout/SiteLayout'
+import LoginPage from './pages/auth/LoginPage'
+import DashboardLayout from './components/layout/DashboardLayout'
+import AdminDashboard from './pages/dashboard/AdminDashboard'
 import ManagerDashboard from './pages/dashboard/ManagerDashboard'
-import SalesDashboard   from './pages/dashboard/SalesDashboard'
+import SalesDashboard from './pages/dashboard/SalesDashboard'
 import SalesExecutiveDashboard from './pages/dashboard/SalesExecutiveDashboard'
 import SalesManagerDashboard from './pages/dashboard/SalesManagerDashboard'
 import ServiceManagerDashboard from './pages/dashboard/ServiceManagerDashboard'
-import StageDashboard   from './pages/dashboard/StageDashboard'
+import StageDashboard from './pages/dashboard/StageDashboard'
 import StockManagerDashboard from './pages/dashboard/StockManagerDashboard'
 import DispatchManagerDashboard from './pages/dashboard/DispatchManagerDashboard'
 import RegistrationDashboard from './pages/dashboard/RegistrationDashboard'
@@ -31,13 +27,13 @@ import InstallationManagerDashboard from './pages/dashboard/InstallationManagerD
 import NetMeteringDashboard from './pages/dashboard/NetMeteringDashboard'
 import SubsidyDashboard from './pages/dashboard/SubsidyDashboard'
 import SubsidyReadingDashboard from './pages/dashboard/SubsidyReadingDashboard'
-import LeadsPage        from './pages/dashboard/LeadsPage'
-import LeadDetailPage   from './pages/dashboard/LeadDetailPage'
+import LeadsPage from './pages/dashboard/LeadsPage'
+import LeadDetailPage from './pages/dashboard/LeadDetailPage'
 import RejectedLeadsPage from './pages/dashboard/RejectedLeadsPage'
-import UsersPage        from './pages/dashboard/UsersPage'
-import EnquiriesPage    from './pages/dashboard/EnquiriesPage'
-import AnalyticsPage    from './pages/dashboard/AnalyticsPage'
-import ProfilePage      from './pages/dashboard/ProfilePage'
+import UsersPage from './pages/dashboard/UsersPage'
+import EnquiriesPage from './pages/dashboard/EnquiriesPage'
+import AnalyticsPage from './pages/dashboard/AnalyticsPage'
+import ProfilePage from './pages/dashboard/ProfilePage'
 import InventoryDispatchPage from './pages/dashboard/InventoryDispatchPage'
 
 const ADMIN_STAGE_DASHBOARD_ROUTES = [
@@ -51,19 +47,62 @@ const ADMIN_STAGE_DASHBOARD_ROUTES = [
   { path: 'stage/subsidy-reading-officer', element: <SubsidyReadingDashboard /> },
 ]
 
+function AuthBootstrapScreen() {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+        padding: 24,
+      }}
+    >
+      <div
+        className="crm-card"
+        style={{
+          width: 'min(360px, 100%)',
+          textAlign: 'center',
+          display: 'grid',
+          gap: 8,
+          justifyItems: 'center',
+        }}
+      >
+        <Spinner size={30} />
+        <div style={{ fontFamily: 'Syne,sans-serif', fontSize: 20, fontWeight: 700 }}>Checking session</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)' }}>Verifying your login before loading the app.</div>
+      </div>
+    </div>
+  )
+}
+
 function PrivateRoute({ children }) {
-  const { user } = useAuthStore()
+  const { user, initialized, checkingAuth } = useAuthStore()
+
+  if (!initialized || checkingAuth) return <AuthBootstrapScreen />
   return user ? children : <Navigate to="/login" replace />
 }
 
+function PublicAuthRoute({ children }) {
+  const { user, initialized, checkingAuth } = useAuthStore()
+
+  if (!initialized || checkingAuth) return <AuthBootstrapScreen />
+  return user ? <Navigate to="/dashboard" replace /> : children
+}
+
 function AdminOnlyRoute({ children }) {
-  const { user } = useAuthStore()
+  const { user, initialized, checkingAuth } = useAuthStore()
+
+  if (!initialized || checkingAuth) return <AuthBootstrapScreen />
   return user?.role === 'Admin' ? children : <Navigate to="/dashboard" replace />
 }
 
 function DashboardRouter() {
-  const { user } = useAuthStore()
+  const { user, initialized, checkingAuth } = useAuthStore()
   const role = user?.role?.trim().toLowerCase()
+
+  if (!initialized || checkingAuth) return <AuthBootstrapScreen />
   if (!user) return <Navigate to="/login" replace />
   if (role === 'admin') return <AdminDashboard />
   if (role === 'manager') return <ManagerDashboard />
@@ -77,11 +116,16 @@ function DashboardRouter() {
 }
 
 export default function App() {
-  const { theme } = useAppStore()
+  const theme = useAppStore((state) => state.theme)
+  const hydrateAuth = useAuthStore((state) => state.hydrateAuth)
 
   useEffect(() => {
     document.documentElement.className = theme
   }, [theme])
+
+  useEffect(() => {
+    hydrateAuth()
+  }, [hydrateAuth])
 
   return (
     <BrowserRouter>
@@ -95,24 +139,35 @@ export default function App() {
       />
 
       <Routes>
-        {/* ─── Public Website ─── */}
         <Route element={<SiteLayout />}>
-          <Route path="/"         element={<HomePage />} />
-          <Route path="/about"    element={<AboutPage />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/services" element={<ServicesPage />} />
-          <Route path="/contact"  element={<ContactPage />} />
+          <Route path="/contact" element={<ContactPage />} />
         </Route>
 
-        {/* ─── Auth ─── */}
-        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/login"
+          element={(
+            <PublicAuthRoute>
+              <LoginPage />
+            </PublicAuthRoute>
+          )}
+        />
 
-        {/* ─── CRM Dashboard ─── */}
-        <Route path="/dashboard" element={<PrivateRoute><DashboardLayout /></PrivateRoute>}>
-          <Route index            element={<DashboardRouter />} />
-          <Route path="admin"     element={<AdminOnlyRoute><AdminDashboard /></AdminOnlyRoute>} />
-          <Route path="manager"   element={<AdminOnlyRoute><ManagerDashboard /></AdminOnlyRoute>} />
-          <Route path="sales"     element={<AdminOnlyRoute><SalesDashboard /></AdminOnlyRoute>} />
-          <Route path="service"   element={<AdminOnlyRoute><ServiceManagerDashboard /></AdminOnlyRoute>} />
+        <Route
+          path="/dashboard"
+          element={(
+            <PrivateRoute>
+              <DashboardLayout />
+            </PrivateRoute>
+          )}
+        >
+          <Route index element={<DashboardRouter />} />
+          <Route path="admin" element={<AdminOnlyRoute><AdminDashboard /></AdminOnlyRoute>} />
+          <Route path="manager" element={<AdminOnlyRoute><ManagerDashboard /></AdminOnlyRoute>} />
+          <Route path="sales" element={<AdminOnlyRoute><SalesDashboard /></AdminOnlyRoute>} />
+          <Route path="service" element={<AdminOnlyRoute><ServiceManagerDashboard /></AdminOnlyRoute>} />
           <Route path="stock-manager" element={<AdminOnlyRoute><StockManagerDashboard /></AdminOnlyRoute>} />
           <Route path="inventory" element={<InventoryDispatchPage defaultTab="dashboard" />} />
           <Route path="dispatch-erp" element={<DispatchManagerDashboard defaultTab="dispatch" />} />
@@ -123,13 +178,13 @@ export default function App() {
               element={<AdminOnlyRoute>{element}</AdminOnlyRoute>}
             />
           ))}
-          <Route path="leads"     element={<LeadsPage />} />
+          <Route path="leads" element={<LeadsPage />} />
           <Route path="rejected-leads" element={<RejectedLeadsPage />} />
           <Route path="leads/:id" element={<LeadDetailPage />} />
-          <Route path="users"     element={<UsersPage />} />
+          <Route path="users" element={<UsersPage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="profile"   element={<ProfilePage />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { FaChartLine, FaCheckCircle, FaClipboardList, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase } from 'react-icons/fa'
 import { leadsAPI } from '../../services/api'
-import { MetricCard, PageHeader, Spinner, EmptyState } from '../../components/common'
+import { MetricCard, PageHeader, Spinner, EmptyState, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 import { CITIES, STAGES, ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
 import toast from 'react-hot-toast'
+
+const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 
 function KanbanPipeline({ leads, onView }) {
   return (
@@ -129,16 +131,25 @@ export function ManagerDashboard() {
               ))}
               <div>
                 <label className="form-label">City</label>
-                <select className="crm-input" value={newLead.city} onChange={e => setNewLead(p => ({ ...p, city: e.target.value }))}>
-                  <option value="">Select city...</option>
-                  {CITIES.map((city) => <option key={city} value={city}>{city}</option>)}
-                </select>
+                <SearchableSelect
+                  name="city"
+                  value={newLead.city}
+                  onChange={(value) => setNewLead(p => ({ ...p, city: value }))}
+                  options={toOptions(CITIES)}
+                  placeholder="Select city..."
+                  searchPlaceholder="Search city..."
+                />
               </div>
               <div>
                 <label className="form-label">Source</label>
-                <select className="crm-input" value={newLead.source} onChange={e => setNewLead(p => ({ ...p, source: e.target.value }))}>
-                  {['Website', 'Social Media', 'Referral', 'Cold Call', 'Exhibition', 'Google Ads', 'Other'].map(s => <option key={s}>{s}</option>)}
-                </select>
+                <SearchableSelect
+                  name="source"
+                  value={newLead.source}
+                  onChange={(value) => setNewLead(p => ({ ...p, source: value }))}
+                  options={toOptions(['Website', 'Social Media', 'Referral', 'Cold Call', 'Exhibition', 'Google Ads', 'Other'])}
+                  placeholder="Select source..."
+                  searchPlaceholder="Search source..."
+                />
               </div>
             </div>
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }} onClick={createLead}>Create Lead</button>

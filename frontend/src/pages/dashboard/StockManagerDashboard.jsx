@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { FaEdit, FaPlus, FaSearch, FaTrash, FaWarehouse } from 'react-icons/fa'
-import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import { productAPI } from '../../services/api'
 import {
   DCR_GROUP,
@@ -21,6 +21,8 @@ import {
   isSizedLengthGroup,
   setStructuredProductField,
 } from './inventoryStructure'
+
+const toOptions = (items, labelFormatter = (item) => item) => items.map((item) => ({ value: item, label: labelFormatter(item) }))
 
 export default function StockManagerDashboard() {
   const [products, setProducts] = useState([])
@@ -138,17 +140,25 @@ export default function StockManagerDashboard() {
           <div className="dashboard-form-grid">
             <div>
               <label className="form-label">Type</label>
-              <select className="crm-input" value={form.category} onChange={e => setField('category', e.target.value)}>
-                {STOCK_CATEGORY_OPTIONS.map(category => <option key={category} value={category}>{getCategoryLabel(category)}</option>)}
-              </select>
+              <SearchableSelect
+                name="stock-category"
+                value={form.category}
+                onChange={(value) => setField('category', value)}
+                options={toOptions(STOCK_CATEGORY_OPTIONS, getCategoryLabel)}
+                searchPlaceholder="Search type..."
+              />
             </div>
             {structuredCategory ? (
               <>
                 <div>
                   <label className="form-label">Module Category</label>
-                  <select className="crm-input" value={currentGroup} onChange={e => setField('moduleGroup', e.target.value)}>
-                    {MODULE_GROUP_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
+                  <SearchableSelect
+                    name="module-group"
+                    value={currentGroup}
+                    onChange={(value) => setField('moduleGroup', value)}
+                    options={MODULE_GROUP_OPTIONS}
+                    searchPlaceholder="Search module category..."
+                  />
                 </div>
 
                 {currentGroup === DCR_GROUP && (
@@ -181,17 +191,25 @@ export default function StockManagerDashboard() {
 
                 <div>
                   <label className="form-label">{getFieldLabel(currentGroup)}</label>
-                  <select className="crm-input" value={form.capacity} onChange={e => setField('capacity', e.target.value)}>
-                    {capacityOptions.map(item => <option key={item} value={item}>{getCapacityLabel(currentGroup, item)}</option>)}
-                  </select>
+                  <SearchableSelect
+                    name="capacity"
+                    value={form.capacity}
+                    onChange={(value) => setField('capacity', value)}
+                    options={toOptions(capacityOptions, (item) => getCapacityLabel(currentGroup, item))}
+                    searchPlaceholder={`Search ${getFieldLabel(currentGroup).toLowerCase()}...`}
+                  />
                 </div>
 
                 {brandOptions.length > 0 && (
                   <div>
                     <label className="form-label">Brand</label>
-                    <select className="crm-input" value={form.brand} onChange={e => setField('brand', e.target.value)}>
-                      {brandOptions.map(item => <option key={item} value={item}>{item}</option>)}
-                    </select>
+                    <SearchableSelect
+                      name="brand"
+                      value={form.brand}
+                      onChange={(value) => setField('brand', value)}
+                      options={toOptions(brandOptions)}
+                      searchPlaceholder="Search brand..."
+                    />
                   </div>
                 )}
               </>

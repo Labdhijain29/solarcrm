@@ -1,4 +1,5 @@
-import { isValidElement } from 'react'
+import { isValidElement, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { FaCheck, FaSearch, FaTimes } from 'react-icons/fa'
 import { STAGES, stageColor, stageIndex, STATUS_BADGE } from '../../utils/constants'
 
@@ -104,6 +105,228 @@ export function EmptyState({ icon = <FaSearch />, title = 'No results', subtitle
       <div style={{ fontSize: 48, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>{icon}</div>
       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6, color: 'var(--text)' }}>{title}</div>
       <div style={{ fontSize: 13 }}>{subtitle}</div>
+    </div>
+  )
+}
+
+export function SearchableSelect({
+  options = [],
+  value = '',
+  onChange,
+  placeholder = 'Select option...',
+  searchPlaceholder = 'Search...',
+  noOptionsText = 'No options available',
+  disabled = false,
+  required = false,
+  name,
+}) {
+  const rootRef = useRef(null)
+  const triggerRef = useRef(null)
+  const menuRef = useRef(null)
+  const inputRef = useRef(null)
+  const listId = useId()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [menuStyle, setMenuStyle] = useState(null)
+  const selectedOption = options.find((option) => option.value === value) || null
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return options
+    return options.filter((option) => String(option.label || '').toLowerCase().includes(normalizedQuery))
+  }, [options, query])
+
+  const [highlightedIndex, setHighlightedIndex] = useState(() => {
+    const selectedIndex = filteredOptions.findIndex((option) => option.value === value)
+    return selectedIndex >= 0 ? selectedIndex : 0
+  })
+
+  useEffect(() => {
+    const selectedIndex = filteredOptions.findIndex((option) => option.value === value)
+    setHighlightedIndex(selectedIndex >= 0 ? selectedIndex : 0)
+  }, [filteredOptions, value])
+
+  useEffect(() => {
+    if (!open) return
+
+    const updateMenuPosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      const spaceBelow = window.innerHeight - rect.bottom - 12
+      const spaceAbove = rect.top - 12
+      const placeAbove = spaceBelow < 220 && spaceAbove > spaceBelow
+      const menuMaxHeight = Math.max(140, Math.min(320, placeAbove ? spaceAbove : spaceBelow))
+      const menuTop = placeAbove
+        ? Math.max(12, rect.top - menuMaxHeight - 6)
+        : rect.bottom + 6
+
+      setMenuStyle({
+        top: menuTop,
+        left: rect.left,
+        width: rect.width,
+        maxHeight: menuMaxHeight,
+      })
+    }
+
+    updateMenuPosition()
+    inputRef.current?.focus()
+
+    const handlePointerDown = (event) => {
+      const clickedInsideTrigger = rootRef.current?.contains(event.target)
+      const clickedInsideMenu = menuRef.current?.contains(event.target)
+
+      if (!clickedInsideTrigger && !clickedInsideMenu) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+
+    const handleViewportChange = () => updateMenuPosition()
+
+    document.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+    }
+  }, [open, filteredOptions.length])
+
+  const commitSelection = (nextValue) => {
+    onChange?.(nextValue)
+    setOpen(false)
+    setQuery('')
+  }
+
+  const openDropdown = () => {
+    if (disabled) return
+    setOpen(true)
+    setQuery('')
+  }
+
+  const handleKeyDown = (event) => {
+    if (disabled) return
+
+    if (!open && ['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
+      event.preventDefault()
+      openDropdown()
+      return
+    }
+
+    if (!open) return
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setOpen(false)
+      setQuery('')
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setHighlightedIndex((prev) => Math.min(prev + 1, filteredOptions.length - 1))
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0))
+      return
+    }
+
+    if (event.key === 'Enter' && filteredOptions[highlightedIndex]) {
+      event.preventDefault()
+      commitSelection(filteredOptions[highlightedIndex].value)
+    }
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className={`searchable-select ${disabled ? 'is-disabled' : ''}`}
+      onKeyDown={handleKeyDown}
+    >
+      <input
+        tabIndex={-1}
+        aria-hidden="true"
+        readOnly
+        name={name}
+        required={required}
+        value={value}
+        className="searchable-select-hidden"
+      />
+      <button
+        type="button"
+        ref={triggerRef}
+        className={`crm-input searchable-select-trigger ${open ? 'is-open' : ''}`}
+        onClick={() => (open ? setOpen(false) : openDropdown())}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+      >
+        <span className={`searchable-select-trigger-label ${selectedOption ? '' : 'is-placeholder'}`}>
+          {selectedOption?.label || placeholder}
+        </span>
+        <span className="searchable-select-caret">v</span>
+      </button>
+
+      {open && menuStyle && createPortal(
+        <div
+          ref={menuRef}
+          className="searchable-select-menu"
+          style={{
+            top: menuStyle.top,
+            left: menuStyle.left,
+            width: menuStyle.width,
+            maxHeight: menuStyle.maxHeight,
+          }}
+        >
+          <div className="searchable-select-search">
+            <FaSearch size={12} />
+            <input
+              ref={inputRef}
+              className="crm-input searchable-select-search-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={searchPlaceholder}
+            />
+          </div>
+          <div
+            id={listId}
+            className="searchable-select-options"
+            role="listbox"
+            style={{ maxHeight: Math.max(88, menuStyle.maxHeight - 62) }}
+          >
+            {filteredOptions.length === 0 ? (
+              <div className="searchable-select-empty">{noOptionsText}</div>
+            ) : (
+              filteredOptions.map((option, index) => {
+                const selected = option.value === value
+                const highlighted = index === highlightedIndex
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`searchable-select-option ${selected ? 'is-selected' : ''} ${highlighted ? 'is-highlighted' : ''}`}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    onClick={() => commitSelection(option.value)}
+                    role="option"
+                    aria-selected={selected}
+                  >
+                    <span>{option.label}</span>
+                    {selected && <FaCheck size={12} />}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

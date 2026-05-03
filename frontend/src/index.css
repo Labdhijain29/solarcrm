@@ -13,6 +13,11 @@
   --red: #EF4444;
   --orange: #F97316;
   --sidebar: 220px;
+  --nav-bg: rgba(255,255,255,.92);
+  --nav-shadow: 0 14px 40px rgba(15,23,42,.08);
+  --nav-link: #475569;
+  --nav-link-active: #0F172A;
+  --hero-grid-line: rgba(148,163,184,.18);
 }
 
 .dark {
@@ -25,6 +30,11 @@
   --text:   #E2E8F0;
   --muted:  #94A3B8;
   --dim:    #64748B;
+  --nav-bg: rgba(10,14,26,.9);
+  --nav-shadow: 0 18px 48px rgba(0,0,0,.24);
+  --nav-link: #94A3B8;
+  --nav-link-active: #E2E8F0;
+  --hero-grid-line: rgba(42,58,94,.42);
 }
 
 /* Light mode overrides */
@@ -50,6 +60,8 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   transition: background 0.3s, color 0.3s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, .font-display { font-family: 'Syne', sans-serif; }
@@ -224,6 +236,117 @@ button, input, select, textarea { max-width: 100%; }
 
 select.crm-input { cursor: pointer; }
 textarea.crm-input { resize: vertical; }
+
+.searchable-select {
+  position: relative;
+  min-width: 0;
+}
+
+.searchable-select-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.searchable-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchable-select-trigger.is-open {
+  border-color: var(--sun);
+  box-shadow: 0 0 0 2px rgba(245,158,11,.1);
+}
+
+.searchable-select-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchable-select-trigger-label.is-placeholder {
+  color: var(--dim);
+}
+
+.searchable-select-caret {
+  color: var(--muted);
+  flex-shrink: 0;
+  text-transform: lowercase;
+}
+
+.searchable-select-menu {
+  position: fixed;
+  z-index: 650;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.18);
+  padding: 10px;
+  overflow: hidden;
+}
+
+.searchable-select-search {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.searchable-select-search > svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dim);
+  pointer-events: none;
+}
+
+.searchable-select-search-input {
+  padding-left: 32px;
+}
+
+.searchable-select-options {
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.searchable-select-option {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.searchable-select-option.is-highlighted,
+.searchable-select-option:hover {
+  background: var(--card2);
+}
+
+.searchable-select-option.is-selected {
+  color: var(--sun);
+  background: rgba(245,158,11,.08);
+}
+
+.searchable-select-empty {
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
 
 .sales-exec-modal {
   max-width: 1080px;
@@ -501,6 +624,100 @@ textarea.crm-input { resize: vertical; }
   padding: 80px 24px 40px;
 }
 
+.hero-glow,
+.hero-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-glow {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(245,158,11,.1), transparent),
+    radial-gradient(ellipse 60% 80% at 80% 100%, rgba(249,115,22,.07), transparent);
+}
+
+.hero-grid-overlay {
+  background-image:
+    linear-gradient(var(--hero-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hero-grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: .45;
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 620px;
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(245,158,11,.1);
+  border: 1px solid rgba(245,158,11,.22);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sun);
+  margin-bottom: 24px;
+}
+
+.hero-title {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(42px, 6vw, 76px);
+  font-weight: 800;
+  line-height: .96;
+  letter-spacing: -.04em;
+  margin-bottom: 24px;
+  max-width: 9ch;
+  text-wrap: balance;
+}
+
+.hero-lead {
+  font-size: 17px;
+  color: var(--muted);
+  line-height: 1.8;
+  margin-bottom: 32px;
+  max-width: 560px;
+}
+
+.hero-visual-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.hero-panel {
+  padding: 28px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, white 8%), var(--card));
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 24px 70px rgba(15,23,42,.08);
+}
+
+.hero-sun-chip {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #F59E0B, #F97316);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0A0E1A;
+  box-shadow: 0 14px 28px rgba(245,158,11,.28);
+}
+
 .gradient-text {
   background: linear-gradient(135deg, var(--sun), var(--orange));
   -webkit-background-clip: text;
@@ -531,9 +748,55 @@ textarea.crm-input { resize: vertical; }
   position: fixed; top: 0; width: 100%; z-index: 200;
   padding: 12px 24px;
   display: flex; align-items: center; justify-content: space-between;
-  background: rgba(10,14,26,.9);
+  background: var(--nav-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
+  box-shadow: var(--nav-shadow);
+}
+
+.site-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.site-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #F59E0B, #F97316);
+  color: #0A0E1A;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(245,158,11,.26);
+  flex: 0 0 auto;
+}
+
+.site-brand-text {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -.02em;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.site-nav-link {
+  color: var(--nav-link);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color .2s ease, opacity .2s ease;
+}
+
+.site-nav-link:hover,
+.site-nav-link.active {
+  color: var(--nav-link-active);
 }
 
 .site-nav-links {
@@ -588,7 +851,7 @@ textarea.crm-input { resize: vertical; }
 
 .site-hero-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr);
   gap: 48px;
   align-items: center;
 }
@@ -789,6 +1052,30 @@ textarea.crm-input { resize: vertical; }
   flex-wrap: wrap;
 }
 
+.dashboard-user-menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+}
+
+.dashboard-user-menu-item:hover {
+  background: var(--card2);
+}
+
+.dashboard-user-menu-item.danger {
+  color: var(--red);
+  border-top: 1px solid var(--border);
+}
+
 .dashboard-split-row {
   display: flex;
   justify-content: space-between;
@@ -862,6 +1149,14 @@ textarea.crm-input { resize: vertical; }
     gap: 32px;
   }
 
+  .hero-title {
+    max-width: 10ch;
+  }
+
+  .hero-visual-wrap {
+    justify-content: center;
+  }
+
   .hero-section {
     min-height: auto;
     padding: 120px 24px 56px;
@@ -882,6 +1177,14 @@ textarea.crm-input { resize: vertical; }
     flex-wrap: wrap;
     gap: 12px;
     padding: 12px 16px;
+  }
+
+  .site-brand {
+    flex: 1 1 auto;
+  }
+
+  .site-brand-text {
+    font-size: 16px;
   }
 
   .site-nav-toggle {
@@ -1057,6 +1360,15 @@ textarea.crm-input { resize: vertical; }
 
   .hero-section {
     padding: 110px 16px 44px;
+  }
+
+  .hero-title {
+    font-size: clamp(38px, 13vw, 56px);
+    max-width: 10ch;
+  }
+
+  .hero-lead {
+    font-size: 15px;
   }
 
   .site-grid-auto,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { FaMinus, FaPlus, FaSearch, FaShippingFast, FaTrash } from 'react-icons/fa'
-import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import { dispatchAPI, productAPI } from '../../services/api'
 import {
   DCR_GROUP,
@@ -17,6 +17,8 @@ import {
   matchesDispatchModule,
   setDispatchStructureField,
 } from './inventoryStructure'
+
+const toOptions = (items, labelFormatter = (item) => item) => items.map((item) => ({ value: item, label: labelFormatter(item) }))
 
 const emptyCustomer = {
   customerName: '',
@@ -171,9 +173,13 @@ export default function DispatchManagerDashboard() {
             </div>
             <div>
               <label className="form-label">Module Category</label>
-              <select className="crm-input" value={stockFilter.moduleGroup} onChange={e => setFilterField('moduleGroup', e.target.value)}>
-                {MODULE_GROUP_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              <SearchableSelect
+                name="dispatch-module-group"
+                value={stockFilter.moduleGroup}
+                onChange={(value) => setFilterField('moduleGroup', value)}
+                options={MODULE_GROUP_OPTIONS}
+                searchPlaceholder="Search module category..."
+              />
             </div>
             {stockFilter.moduleGroup === DCR_GROUP && (
               <div>
@@ -202,16 +208,24 @@ export default function DispatchManagerDashboard() {
             )}
             <div>
               <label className="form-label">{getFieldLabel(stockFilter.moduleGroup)}</label>
-              <select className="crm-input" value={stockFilter.capacity} onChange={e => setFilterField('capacity', e.target.value)}>
-                {capacityOptions.map(capacity => <option key={capacity} value={capacity}>{getCapacityLabel(stockFilter.moduleGroup, capacity)}</option>)}
-              </select>
+              <SearchableSelect
+                name="dispatch-capacity"
+                value={stockFilter.capacity}
+                onChange={(value) => setFilterField('capacity', value)}
+                options={toOptions(capacityOptions, (capacity) => getCapacityLabel(stockFilter.moduleGroup, capacity))}
+                searchPlaceholder={`Search ${getFieldLabel(stockFilter.moduleGroup).toLowerCase()}...`}
+              />
             </div>
             {brandOptions.length > 0 && (
               <div>
                 <label className="form-label">Brand</label>
-                <select className="crm-input" value={stockFilter.brand} onChange={e => setFilterField('brand', e.target.value)}>
-                  {brandOptions.map(brand => <option key={brand} value={brand}>{brand}</option>)}
-                </select>
+                <SearchableSelect
+                  name="dispatch-brand"
+                  value={stockFilter.brand}
+                  onChange={(value) => setFilterField('brand', value)}
+                  options={toOptions(brandOptions)}
+                  searchPlaceholder="Search brand..."
+                />
               </div>
             )}
           </div>

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { FaBell } from 'react-icons/fa'
 import toast from 'react-hot-toast'
-import { EmptyState, PageHeader, Spinner } from '../../components/common'
+import { EmptyState, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import { enquiriesAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
+const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const emptyEditForm = {
   name: '',
   contact: '',
@@ -122,6 +123,13 @@ export default function EnquiriesPage() {
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     })
 
+  const hasActiveFilters = search.trim() !== '' || sortBy !== 'latest'
+
+  const resetFilters = () => {
+    setSearch('')
+    setSortBy('latest')
+  }
+
   if (loading) return <Spinner />
 
   return (
@@ -140,6 +148,10 @@ export default function EnquiriesPage() {
           <option value="number-asc">Number 0-9</option>
           <option value="number-desc">Number 9-0</option>
         </select>
+        <span style={{ fontSize:12, color:'var(--muted)' }}>{filteredEnquiries.length} enquiries</span>
+        {hasActiveFilters && (
+          <button className="btn btn-ghost btn-sm" type="button" onClick={resetFilters}>Reset filters</button>
+        )}
       </div>
 
       {error && (
@@ -235,7 +247,11 @@ export default function EnquiriesPage() {
         </div>
 
         {!error && filteredEnquiries.length === 0 && (
-          <EmptyState icon={<FaBell />} title="No enquiries yet" subtitle="Website enquiries will appear here as soon as customers submit the form." />
+          <EmptyState
+            icon={<FaBell />}
+            title={enquiries.length === 0 ? 'No enquiries yet' : 'No enquiries match these filters'}
+            subtitle={hasActiveFilters ? 'Change or reset the filters to see enquiries again' : 'Website enquiries will appear here as soon as customers submit the form.'}
+          />
         )}
       </div>
 
@@ -262,24 +278,38 @@ export default function EnquiriesPage() {
               </div>
               <div>
                 <label className="form-label">Enquiry Type</label>
-                <select className="crm-input" value={editForm.enquiryType} onChange={e => updateField('enquiryType', e.target.value)}>
-                  <option value="">Select enquiry type...</option>
-                  {ENQUIRY_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
-                </select>
+                <SearchableSelect
+                  name="enquiryType"
+                  value={editForm.enquiryType}
+                  onChange={(value) => updateField('enquiryType', value)}
+                  options={toOptions(ENQUIRY_TYPES)}
+                  placeholder="Select enquiry type..."
+                  searchPlaceholder="Search enquiry type..."
+                />
               </div>
               <div>
                 <label className="form-label">State</label>
-                <select className="crm-input" value={editForm.state} onChange={e => updateField('state', e.target.value)}>
-                  <option value="">Select state...</option>
-                  {STATE_OPTIONS.map((state) => <option key={state} value={state}>{state}</option>)}
-                </select>
+                <SearchableSelect
+                  name="state"
+                  value={editForm.state}
+                  onChange={(value) => updateField('state', value)}
+                  options={toOptions(STATE_OPTIONS)}
+                  placeholder="Select state..."
+                  searchPlaceholder="Search state..."
+                />
               </div>
               <div>
                 <label className="form-label">City</label>
-                <select className="crm-input" value={editForm.city} onChange={e => updateField('city', e.target.value)} disabled={!editForm.state}>
-                  <option value="">{editForm.state ? 'Select city...' : 'Select state first'}</option>
-                  {getCitiesForState(editForm.state).map((city) => <option key={city} value={city}>{city}</option>)}
-                </select>
+                <SearchableSelect
+                  name="city"
+                  value={editForm.city}
+                  onChange={(value) => updateField('city', value)}
+                  options={toOptions(getCitiesForState(editForm.state))}
+                  placeholder={editForm.state ? 'Select city...' : 'Select state first'}
+                  searchPlaceholder="Search city..."
+                  noOptionsText={editForm.state ? 'No cities found' : 'Select state first'}
+                  disabled={!editForm.state}
+                />
               </div>
               <div>
                 <label className="form-label">Pincode</label>

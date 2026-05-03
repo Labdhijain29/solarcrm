@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
+const path = require('path');
+// const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -60,19 +61,20 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 // ─── Rate Limiting ─────────────────────────────────────────────
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: {
-    success: false,
-    message: 'Too many requests, please try again later.'
-  }
-});
-app.use('/api', limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 200,
+//   message: {
+//     success: false,
+//     message: 'Too many requests, please try again later.'
+//   }
+// });
+// app.use('/api', limiter);
 
 // ─── Body Parser ──────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ─── Logger ──────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'development') {
@@ -81,7 +83,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // ─── Database Connection ──────────────────────────────────────
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/solarcrm')
-  .then(() => console.log('✅ MongoDB connected'))
+  .then(() => console.log('✅ MongoDB connected', process.env.MONGODB_URI))
   .catch(err => {
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
@@ -130,7 +132,17 @@ app.use((err, req, res, next) => {
       message: err.message
     });
   }
-  
+
+  if (err.name === 'MulterError') {
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Uploaded file is too large. Maximum size is 5MB.'
+      : err.message;
+
+    return res.status(400).json({
+      success: false,
+      message
+    });
+  }
 
   const status = err.statusCode || 500;
   res.status(status).json({

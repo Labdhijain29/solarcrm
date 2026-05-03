@@ -51,20 +51,20 @@ export default function HomePage() {
   return (
     <div>
       <section className="hero-section">
-        <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse 80% 60% at 50% -10%,rgba(245,158,11,.1),transparent),radial-gradient(ellipse 60% 80% at 80% 100%,rgba(249,115,22,.07),transparent)', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px)', backgroundSize:'40px 40px', opacity:.25, pointerEvents:'none' }} />
+        <div className="hero-glow" />
+        <div className="hero-grid-overlay" />
 
         <div className="site-container site-hero-grid">
-          <motion.div variants={stagger} initial="hidden" animate="show">
+          <motion.div variants={stagger} initial="hidden" animate="show" className="hero-copy">
             <motion.div variants={fadeUp}>
-              <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'rgba(245,158,11,.1)', border:'1px solid rgba(245,158,11,.2)', borderRadius:20, padding:'6px 14px', fontSize:12, color:'var(--sun)', marginBottom:20 }}>
+              <div className="hero-kicker">
                 India's Trusted Solar Company
               </div>
             </motion.div>
-            <motion.h1 variants={fadeUp} style={{ fontFamily:'Syne,sans-serif', fontSize:'clamp(36px,5vw,60px)', fontWeight:800, lineHeight:1.1, marginBottom:20 }}>
+            <motion.h1 variants={fadeUp} className="hero-title">
               Power Your Home With <span className="gradient-text">Clean Solar</span> Energy
             </motion.h1>
-            <motion.p variants={fadeUp} style={{ fontSize:16, color:'var(--muted)', lineHeight:1.75, marginBottom:32, maxWidth:480 }}>
+            <motion.p variants={fadeUp} className="hero-lead">
               Cut electricity bills, increase property value, and move toward a more sustainable future with professional solar installation.
             </motion.p>
             <motion.div variants={fadeUp} style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
@@ -73,8 +73,8 @@ export default function HomePage() {
             </motion.div>
           </motion.div>
 
-          <motion.div initial={{ opacity:0, scale:.9 }} animate={{ opacity:1, scale:1 }} transition={{ duration:.6, delay:.2 }} style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <div style={{ padding:24, background:'var(--card)', border:'1px solid var(--border)', borderRadius:24, position:'relative', width:'100%', maxWidth:360 }}>
+          <motion.div initial={{ opacity:0, scale:.9 }} animate={{ opacity:1, scale:1 }} transition={{ duration:.6, delay:.2 }} className="hero-visual-wrap">
+            <div className="hero-panel">
               <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
                 {Array.from({ length: 6 }, (_, i) => (
                   <div key={i} style={{ minHeight:64, background:'linear-gradient(135deg,#1a2a4a,#0f1a30)', border:'1px solid rgba(59,130,246,.3)', borderRadius:8, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2, padding:6 }}>
@@ -84,7 +84,7 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
-              <div style={{ position:'absolute', top:-16, right:-16, width:52, height:52, background:'linear-gradient(135deg,#F59E0B,#F97316)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:700 }}>Sun</div>
+              <div className="hero-sun-chip">Sun</div>
             </div>
           </motion.div>
         </div>

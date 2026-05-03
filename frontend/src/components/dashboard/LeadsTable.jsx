@@ -21,6 +21,13 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
   const [stageFilter, setStage] = useState('All')
   const [sortBy, setSortBy] = useState('ivrs-asc')
 
+  const hasActiveFilters =
+    search.trim() !== '' ||
+    srcFilter !== 'All' ||
+    statusFilter !== 'All' ||
+    stageFilter !== 'All' ||
+    sortBy !== 'ivrs-asc'
+
   const filtered = leads
     .filter((lead) => {
       const q = search.toLowerCase()
@@ -54,12 +61,16 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
     navigate(`/dashboard/leads/${lead._id}`)
   }
 
-  if (loading) {
-    return <div style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>Loading leads...</div>
+  const resetFilters = () => {
+    setSearch('')
+    setSrc('All')
+    setStatus('All')
+    setStage('All')
+    setSortBy('ivrs-asc')
   }
 
-  if (filtered.length === 0) {
-    return <EmptyState title="No leads found" subtitle="Try adjusting your search or filters" />
+  if (loading) {
+    return <div style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>Loading leads...</div>
   }
 
   return (
@@ -93,91 +104,105 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
           <option value="ivrs-desc">IVRS 9-0</option>
         </select>
         <span style={{ fontSize:12, color:'var(--muted)', whiteSpace:'nowrap' }}>{filtered.length} leads</span>
+        {hasActiveFilters && (
+          <button className="btn btn-ghost btn-sm" type="button" onClick={resetFilters}>
+            Reset filters
+          </button>
+        )}
       </div>
 
       <div className="crm-table-wrap">
-        <table className="crm-table">
-          <thead>
-            <tr>
-              {['ID', 'Customer', 'City', 'Source', 'IVRS No.', 'By / Through', 'kW', 'Stage', 'Status', 'Progress', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((lead) => (
-              <tr key={lead._id || lead.id}>
-                <td><span style={{ fontFamily:'monospace', fontSize:11, color:'var(--muted)' }}>{lead._id?.slice(-6) || lead.id}</span></td>
-                <td>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <LeadAvatar name={lead.name} size={32} />
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:500 }}>{lead.name}</div>
-                      <div style={{ fontSize:11, color:'var(--dim)' }}>{lead.phone}</div>
+        {filtered.length === 0 ? (
+          <EmptyState
+            title={leads.length === 0 ? 'No leads found' : 'No leads match these filters'}
+            subtitle={hasActiveFilters ? 'Change or reset the filters to see leads again' : 'Leads will appear here once they are added'}
+          />
+        ) : (
+          <>
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  {['ID', 'Customer', 'City', 'Source', 'IVRS No.', 'By / Through', 'kW', 'Stage', 'Status', 'Progress', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((lead) => (
+                  <tr key={lead._id || lead.id}>
+                    <td><span style={{ fontFamily:'monospace', fontSize:11, color:'var(--muted)' }}>{lead._id?.slice(-6) || lead.id}</span></td>
+                    <td>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <LeadAvatar name={lead.name} size={32} />
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:500 }}>{lead.name}</div>
+                          <div style={{ fontSize:11, color:'var(--dim)' }}>{lead.phone}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="badge badge-gray">{lead.city || '-'}</span></td>
+                    <td><span className="badge badge-blue">{lead.source}</span></td>
+                    <td style={{ fontSize:12 }}>{lead.ivrsNo || '-'}</td>
+                    <td style={{ fontSize:12 }}>{lead.generatedThrough || '-'}</td>
+                    <td><span style={{ fontWeight:600, color:'var(--sun)' }}>{lead.capacity}</span></td>
+                    <td><StageBadge stage={lead.currentStage} /></td>
+                    <td><StatusBadge status={lead.status} /></td>
+                    <td style={{ minWidth:120 }}><PipelineBar lead={lead} /></td>
+                    <td>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleView(lead)}>View</button>
+                        {extraActions && extraActions(lead)}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="crm-mobile-cards">
+              {filtered.map((lead) => (
+                <div key={lead._id || lead.id} className="crm-mobile-card">
+                  <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <LeadAvatar name={lead.name} size={34} />
+                      <div>
+                        <div style={{ fontSize:14, fontWeight:600 }}>{lead.name}</div>
+                        <div style={{ fontSize:12, color:'var(--muted)' }}>{lead.phone}</div>
+                      </div>
                     </div>
+                    <StatusBadge status={lead.status} />
                   </div>
-                </td>
-                <td><span className="badge badge-gray">{lead.city || '-'}</span></td>
-                <td><span className="badge badge-blue">{lead.source}</span></td>
-                <td style={{ fontSize:12 }}>{lead.ivrsNo || '-'}</td>
-                <td style={{ fontSize:12 }}>{lead.generatedThrough || '-'}</td>
-                <td><span style={{ fontWeight:600, color:'var(--sun)' }}>{lead.capacity}</span></td>
-                <td><StageBadge stage={lead.currentStage} /></td>
-                <td><StatusBadge status={lead.status} /></td>
-                <td style={{ minWidth:120 }}><PipelineBar lead={lead} /></td>
-                <td>
-                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+
+                  {[
+                    ['City', lead.city || '-'],
+                    ['Source', lead.source || '-'],
+                    ['IVRS No.', lead.ivrsNo || '-'],
+                    ['By / Through', lead.generatedThrough || '-'],
+                    ['Capacity', lead.capacity || '-'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="crm-mobile-row">
+                      <span className="crm-mobile-label">{label}</span>
+                      <span>{value}</span>
+                    </div>
+                  ))}
+
+                  <div style={{ padding:'8px 0' }}>
+                    <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6 }}>Stage</div>
+                    <StageBadge stage={lead.currentStage} />
+                  </div>
+
+                  <div style={{ padding:'8px 0' }}>
+                    <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6 }}>Progress</div>
+                    <PipelineBar lead={lead} />
+                  </div>
+
+                  <div className="dashboard-inline-actions" style={{ marginTop:10 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => handleView(lead)}>View</button>
                     {extraActions && extraActions(lead)}
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="crm-mobile-cards">
-          {filtered.map((lead) => (
-            <div key={lead._id || lead.id} className="crm-mobile-card">
-              <div className="dashboard-split-row" style={{ marginBottom:10 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <LeadAvatar name={lead.name} size={34} />
-                  <div>
-                    <div style={{ fontSize:14, fontWeight:600 }}>{lead.name}</div>
-                    <div style={{ fontSize:12, color:'var(--muted)' }}>{lead.phone}</div>
-                  </div>
-                </div>
-                <StatusBadge status={lead.status} />
-              </div>
-
-              {[
-                ['City', lead.city || '-'],
-                ['Source', lead.source || '-'],
-                ['IVRS No.', lead.ivrsNo || '-'],
-                ['By / Through', lead.generatedThrough || '-'],
-                ['Capacity', lead.capacity || '-'],
-              ].map(([label, value]) => (
-                <div key={label} className="crm-mobile-row">
-                  <span className="crm-mobile-label">{label}</span>
-                  <span>{value}</span>
                 </div>
               ))}
-
-              <div style={{ padding:'8px 0' }}>
-                <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6 }}>Stage</div>
-                <StageBadge stage={lead.currentStage} />
-              </div>
-
-              <div style={{ padding:'8px 0' }}>
-                <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6 }}>Progress</div>
-                <PipelineBar lead={lead} />
-              </div>
-
-              <div className="dashboard-inline-actions" style={{ marginTop:10 }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => handleView(lead)}>View</button>
-                {extraActions && extraActions(lead)}
-              </div>
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </div>
     </div> 
   )

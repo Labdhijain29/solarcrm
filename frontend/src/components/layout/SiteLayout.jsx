@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
+import { FaMoon, FaSun } from 'react-icons/fa'
 import { useAppStore } from '../../store'
 import EnquiryForm from '../website/EnquiryForm'
 
@@ -16,6 +17,7 @@ export default function SiteLayout() {
   const { theme, toggleTheme } = useAppStore()
   const [enquiryOpen, setEnquiryOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const ThemeIcon = theme === 'dark' ? FaSun : FaMoon
 
   useEffect(() => {
     setMenuOpen(false)
@@ -24,9 +26,9 @@ export default function SiteLayout() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <nav className="site-nav">
-        <Link to="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}>
-          <div style={{ width:32, height:32, background:'linear-gradient(135deg,#F59E0B,#F97316)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>SP</div>
-          <span style={{ fontFamily:'Syne,sans-serif', fontWeight:800, fontSize:16, color:'var(--text)' }}>Mahaveer Multi Engeering</span>
+        <Link to="/" className="site-brand">
+          <div className="site-brand-mark">MM</div>
+          <span className="site-brand-text">Mahaveer Multi Engineering</span>
         </Link>
 
         <button className="btn btn-ghost btn-sm site-nav-toggle" onClick={() => setMenuOpen(prev => !prev)}>
@@ -38,13 +40,7 @@ export default function SiteLayout() {
             <li key={link.to}>
               <Link
                 to={link.to}
-                style={{
-                  color: pathname === link.to ? 'var(--text)' : 'var(--muted)',
-                  fontSize:14,
-                  fontWeight:500,
-                  textDecoration:'none',
-                  transition:'color .2s'
-                }}
+                className={`site-nav-link ${pathname === link.to ? 'active' : ''}`}
               >
                 {link.label}
               </Link>
@@ -56,8 +52,8 @@ export default function SiteLayout() {
           <button className="btn btn-secondary btn-sm" onClick={() => setEnquiryOpen(true)}>
             Enquiry Form
           </button>
-          <button className="btn-icon btn-ghost btn" onClick={toggleTheme} title="Toggle theme">
-            {theme === 'dark' ? 'LT' : 'DK'}
+          <button className="btn-icon btn-ghost btn" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <ThemeIcon />
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/login')}>
             CRM Login

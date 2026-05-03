@@ -1,6 +1,31 @@
 // ─── USER CONTROLLER ──────────────────────────────────────────
 const User = require('../models/User');
 
+const buildSessionUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  phone: user.phone,
+  alternateContact: user.alternateContact,
+  permanentAddress: user.permanentAddress,
+  address: user.address,
+  state: user.state,
+  city: user.city,
+  pincode: user.pincode,
+  franchiseEnabled: user.franchiseEnabled,
+  franchiseName: user.franchiseName,
+  franchiseState: user.franchiseState,
+  franchiseCity: user.franchiseCity,
+  franchiseSubDistrict: user.franchiseSubDistrict,
+  jobTitle: user.jobTitle,
+  resume: user.resume,
+  documents: user.documents,
+  dateOfJoining: user.dateOfJoining,
+  stageAccess: user.stageAccess,
+  lastLogin: user.lastLogin,
+});
+
 exports.getUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
@@ -49,6 +74,54 @@ exports.updateUser = async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     res.json({ success: true, data: user });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const {
+      name,
+      phone,
+      alternateContact,
+      permanentAddress,
+      address,
+      state,
+      city,
+      pincode,
+      jobTitle,
+    } = req.body;
+
+    const updates = {
+      name,
+      phone,
+      alternateContact,
+      permanentAddress,
+      address,
+      state,
+      city,
+      pincode,
+      jobTitle,
+    };
+
+    Object.keys(updates).forEach((key) => {
+      if (updates[key] === undefined) delete updates[key];
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      updates,
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: buildSessionUser(user),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
 
 exports.deleteUser = async (req, res) => {

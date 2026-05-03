@@ -2,8 +2,10 @@ import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { enquiriesAPI } from '../../services/api'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
+import { SearchableSelect } from '../common'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
+const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 
 export default function EnquiryForm({ compact = false }) {
   const emptyForm = {
@@ -85,24 +87,39 @@ export default function EnquiryForm({ compact = false }) {
           </div>
           <div>
             <label className="form-label">Enquiry Type *</label>
-            <select className="crm-input" value={form.enquiryType} onChange={e => setField('enquiryType', e.target.value)} required>
-              <option value="">Select enquiry type...</option>
-              {ENQUIRY_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
-            </select>
+            <SearchableSelect
+              name="enquiryType"
+              value={form.enquiryType}
+              onChange={(value) => setField('enquiryType', value)}
+              options={toOptions(ENQUIRY_TYPES)}
+              placeholder="Select enquiry type..."
+              searchPlaceholder="Search enquiry type..."
+              required
+            />
           </div>
           <div>
             <label className="form-label">State</label>
-            <select className="crm-input" value={form.state} onChange={e => setField('state', e.target.value)}>
-              <option value="">Select state...</option>
-              {STATE_OPTIONS.map((state) => <option key={state} value={state}>{state}</option>)}
-            </select>
+            <SearchableSelect
+              name="state"
+              value={form.state}
+              onChange={(value) => setField('state', value)}
+              options={toOptions(STATE_OPTIONS)}
+              placeholder="Select state..."
+              searchPlaceholder="Search state..."
+            />
           </div>
           <div>
             <label className="form-label">City</label>
-            <select className="crm-input" value={form.city} onChange={e => setField('city', e.target.value)} disabled={!form.state}>
-              <option value="">{form.state ? 'Select city...' : 'Select state first'}</option>
-              {getCitiesForState(form.state).map((city) => <option key={city} value={city}>{city}</option>)}
-            </select>
+            <SearchableSelect
+              name="city"
+              value={form.city}
+              onChange={(value) => setField('city', value)}
+              options={toOptions(getCitiesForState(form.state))}
+              placeholder={form.state ? 'Select city...' : 'Select state first'}
+              searchPlaceholder="Search city..."
+              noOptionsText={form.state ? 'No cities found' : 'Select state first'}
+              disabled={!form.state}
+            />
           </div>
           <div style={{ gridColumn: compact ? 'auto' : '1 / -1' }}>
             <label className="form-label">Address</label>

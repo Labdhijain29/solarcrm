@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { FaBoxOpen, FaChartBar, FaDownload, FaExclamationTriangle, FaFilePdf, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dispatchAPI, leadsAPI, productAPI } from '../../services/api'
-import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 
@@ -86,6 +86,24 @@ const STOCK_CATEGORY_OPTIONS = Object.keys({
   'EARTHING & SAFETY': true,
 })
 const getCategoryLabel = (category) => category === MODULE_CATEGORY ? 'Module' : category
+const toOptions = (items, labelFormatter = (item) => item) => items.map((item) => ({ value: item, label: labelFormatter(item) }))
+const STOCK_CATEGORY_SELECT_OPTIONS = toOptions(STOCK_CATEGORY_OPTIONS, getCategoryLabel)
+const MODULE_GROUP_SELECT_OPTIONS = [
+  { value: DCR_GROUP, label: 'DCR' },
+  { value: INVERTER_GROUP, label: 'Inverter On Grid' },
+  { value: AC_DC_GROUP, label: 'AC+DC Box' },
+  { value: CABLE_TRY_GROUP, label: 'Cable Try' },
+  { value: STRUCTURE_GROUP, label: 'Structure' },
+  { value: HEAD_PARLIN_GROUP, label: 'Head Parlin' },
+  { value: C_CHANNEL_GROUP, label: 'C Channel' },
+  { value: BASE_PLATE_GROUP, label: 'Base Plate' },
+  { value: FASTNER_GROUP, label: 'Fastner' },
+  { value: SS_NUT_BOLT_GROUP, label: 'SS Nut Bolt' },
+  { value: EARTHING_KIT_GROUP, label: 'Earthing Kit' },
+  { value: PIPE_GROUP, label: 'Pipe' },
+  { value: ALBA_GROUP, label: 'Alba' },
+  { value: TE_GROUP, label: 'Te' },
+]
 
 const CATEGORIES = {
   [MODULE_CATEGORY]: {
@@ -891,10 +909,16 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
         <div className="crm-card">
           <div className="dashboard-table-filters" style={{ marginBottom:16 }}>
             <div className="dashboard-search"><FaSearch /><input value={filters.search} onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))} placeholder="Search stock..." /></div>
-            <select className="crm-input" value={filters.category} onChange={e => setFilters(prev => ({ ...prev, category: e.target.value }))}>
-              <option value="">All categories</option>
-              {Object.keys(CATEGORIES).map(category => <option key={category} value={category}>{category}</option>)}
-            </select>
+            <div style={{ minWidth: 240, flex: '0 0 240px' }}>
+              <SearchableSelect
+                name="stock-category-filter"
+                value={filters.category}
+                onChange={(value) => setFilters(prev => ({ ...prev, category: value }))}
+                options={[{ value: '', label: 'All categories' }, ...toOptions(Object.keys(CATEGORIES))]}
+                placeholder="All categories"
+                searchPlaceholder="Search category..."
+              />
+            </div>
             <button className="btn btn-ghost btn-sm" onClick={exportCsv}><FaDownload /> Excel CSV</button>
           </div>
 
@@ -1029,28 +1053,23 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                 <>
                   <div>
                     <label className="form-label">Type</label>
-                    <select className="crm-input" value={MODULE_CATEGORY} onChange={e => setProductField('category', e.target.value)}>
-                      {STOCK_CATEGORY_OPTIONS.map(category => <option key={category} value={category}>{getCategoryLabel(category)}</option>)}
-                    </select>
+                    <SearchableSelect
+                      name="product-category-structured"
+                      value={productForm.category}
+                      onChange={(value) => setProductField('category', value)}
+                      options={STOCK_CATEGORY_SELECT_OPTIONS}
+                      searchPlaceholder="Search type..."
+                    />
                   </div>
                   <div>
                     <label className="form-label">Module Category</label>
-                    <select className="crm-input" value={getProductGroup(productForm)} onChange={e => setProductField('moduleGroup', e.target.value)}>
-                      <option value={DCR_GROUP}>DCR</option>
-                      <option value={INVERTER_GROUP}>Inverter On Grid</option>
-                      <option value={AC_DC_GROUP}>AC+DC Box</option>
-                      <option value={CABLE_TRY_GROUP}>Cable Try</option>
-                      <option value={STRUCTURE_GROUP}>Structure</option>
-                      <option value={HEAD_PARLIN_GROUP}>Head Parlin</option>
-                      <option value={C_CHANNEL_GROUP}>C Channel</option>
-                      <option value={BASE_PLATE_GROUP}>Base Plate</option>
-                      <option value={FASTNER_GROUP}>Fastner</option>
-                      <option value={SS_NUT_BOLT_GROUP}>SS Nut Bolt</option>
-                      <option value={EARTHING_KIT_GROUP}>Earthing Kit</option>
-                      <option value={PIPE_GROUP}>Pipe</option>
-                      <option value={ALBA_GROUP}>Alba</option>
-                      <option value={TE_GROUP}>Te</option>
-                    </select>
+                    <SearchableSelect
+                      name="product-module-group"
+                      value={getProductGroup(productForm)}
+                      onChange={(value) => setProductField('moduleGroup', value)}
+                      options={MODULE_GROUP_SELECT_OPTIONS}
+                      searchPlaceholder="Search module category..."
+                    />
                   </div>
                   {getProductGroup(productForm) === DCR_GROUP && (
                     <div>
@@ -1079,24 +1098,41 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                   )}
                   <div>
                     <label className="form-label">{[AC_DC_GROUP, CABLE_TRY_GROUP].includes(getProductGroup(productForm)) ? 'Category' : [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP].includes(getProductGroup(productForm)) ? 'Feet' : [BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(getProductGroup(productForm)) ? 'Size' : 'Capacity'}</label>
-                    <select className="crm-input" value={productForm.capacity} onChange={e => setProductField('capacity', e.target.value)}>
-                      {getProductCapacityOptions(productForm).map(item => <option key={item} value={item}>{getProductGroup(productForm) === STRUCTURE_GROUP ? getStructureFeet(item) : getProductGroup(productForm) === HEAD_PARLIN_GROUP ? getHeadParlinFeet(item) : getProductGroup(productForm) === C_CHANNEL_GROUP ? getCChannelFeet(item) : item}</option>)}
-                    </select>
+                    <SearchableSelect
+                      name="product-capacity"
+                      value={productForm.capacity}
+                      onChange={(value) => setProductField('capacity', value)}
+                      options={toOptions(
+                        getProductCapacityOptions(productForm),
+                        (item) => getProductGroup(productForm) === STRUCTURE_GROUP
+                          ? getStructureFeet(item)
+                          : getProductGroup(productForm) === HEAD_PARLIN_GROUP
+                            ? getHeadParlinFeet(item)
+                            : getProductGroup(productForm) === C_CHANNEL_GROUP
+                              ? getCChannelFeet(item)
+                              : item
+                      )}
+                      searchPlaceholder="Search option..."
+                    />
                   </div>
                   {getProductBrandOptions(productForm).length > 0 && (
                     <div>
                       <label className="form-label">Brand</label>
-                      <select className="crm-input" value={productForm.brand} onChange={e => setProductField('brand', e.target.value)}>
-                        {getProductBrandOptions(productForm).map(item => <option key={item} value={item}>{item}</option>)}
-                      </select>
+                      <SearchableSelect
+                        name="product-brand"
+                        value={productForm.brand}
+                        onChange={(value) => setProductField('brand', value)}
+                        options={toOptions(getProductBrandOptions(productForm))}
+                        searchPlaceholder="Search brand..."
+                      />
                     </div>
                   )}
                 </>
               ) : (
                 <>
-                  <div><label className="form-label">Category</label><select className="crm-input" value={productForm.category} onChange={e => setProductField('category', e.target.value)}>{STOCK_CATEGORY_OPTIONS.map(category => <option key={category} value={category}>{getCategoryLabel(category)}</option>)}</select></div>
+                  <div><label className="form-label">Category</label><SearchableSelect name="product-category" value={productForm.category} onChange={(value) => setProductField('category', value)} options={STOCK_CATEGORY_SELECT_OPTIONS} searchPlaceholder="Search category..." /></div>
                   <div><label className="form-label">Brand</label><input className="crm-input" value={productForm.brand} onChange={e => setProductField('brand', e.target.value)} list="brand-options" /><datalist id="brand-options">{(CATEGORIES[productForm.category]?.brands || []).map(item => <option key={item} value={item} />)}</datalist></div>
-                  <div><label className="form-label">Type / Subcategory</label><select className="crm-input" value={productForm.type} onChange={e => setProductField('type', e.target.value)}>{Object.keys(CATEGORIES[productForm.category]?.types || {}).map(type => <option key={type}>{type}</option>)}</select></div>
+                  <div><label className="form-label">Type / Subcategory</label><SearchableSelect name="product-type" value={productForm.type} onChange={(value) => setProductField('type', value)} options={toOptions(Object.keys(CATEGORIES[productForm.category]?.types || {}))} searchPlaceholder="Search type..." /></div>
                   <div><label className="form-label">Capacity / Variant</label><input className="crm-input" value={productForm.capacity} onChange={e => setProductField('capacity', e.target.value)} list="capacity-options" /><datalist id="capacity-options">{(CATEGORIES[productForm.category]?.types?.[productForm.type] || []).map(item => <option key={item} value={item} />)}</datalist></div>
                 </>
               )}
@@ -1178,22 +1214,14 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                       </div>
                       <div>
                         <label className="form-label">Module Category</label>
-                        <select className="crm-input" value={item.moduleGroup || 'DCR'} onChange={e => updateDispatchItem(index, 'moduleGroup', e.target.value)} required>
-                          <option value={DCR_GROUP}>DCR</option>
-                          <option value={INVERTER_GROUP}>Inverter On Grid</option>
-                          <option value={AC_DC_GROUP}>AC+DC Box</option>
-                          <option value={CABLE_TRY_GROUP}>Cable Try</option>
-                          <option value={STRUCTURE_GROUP}>Structure</option>
-                          <option value={HEAD_PARLIN_GROUP}>Head Parlin</option>
-                          <option value={C_CHANNEL_GROUP}>C Channel</option>
-                          <option value={BASE_PLATE_GROUP}>Base Plate</option>
-                          <option value={FASTNER_GROUP}>Fastner</option>
-                          <option value={SS_NUT_BOLT_GROUP}>SS Nut Bolt</option>
-                          <option value={EARTHING_KIT_GROUP}>Earthing Kit</option>
-                          <option value={PIPE_GROUP}>Pipe</option>
-                          <option value={ALBA_GROUP}>Alba</option>
-                          <option value={TE_GROUP}>Te</option>
-                        </select>
+                        <SearchableSelect
+                          name={`dispatch-row-group-${index}`}
+                          value={item.moduleGroup || DCR_GROUP}
+                          onChange={(value) => updateDispatchItem(index, 'moduleGroup', value)}
+                          options={MODULE_GROUP_SELECT_OPTIONS}
+                          searchPlaceholder="Search module category..."
+                          required
+                        />
                       </div>
                       {![INVERTER_GROUP, AC_DC_GROUP, CABLE_TRY_GROUP, STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP, BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(item.moduleGroup) && (
                         <div>
@@ -1222,24 +1250,52 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                       )}
                       <div>
                         <label className="form-label">{[AC_DC_GROUP, CABLE_TRY_GROUP].includes(item.moduleGroup) ? 'Category' : [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP].includes(item.moduleGroup) ? 'Feet' : [BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(item.moduleGroup) ? 'Size' : 'Capacity'}</label>
-                        <select className="crm-input" value={item.capacity || ''} onChange={e => updateDispatchItem(index, 'capacity', e.target.value)} required>
-                          {capacityOptions.map(capacity => <option key={capacity} value={capacity}>{item.moduleGroup === STRUCTURE_GROUP ? getStructureFeet(capacity) : item.moduleGroup === HEAD_PARLIN_GROUP ? getHeadParlinFeet(capacity) : item.moduleGroup === C_CHANNEL_GROUP ? getCChannelFeet(capacity) : capacity}</option>)}
-                        </select>
+                        <SearchableSelect
+                          name={`dispatch-row-capacity-${index}`}
+                          value={item.capacity || ''}
+                          onChange={(value) => updateDispatchItem(index, 'capacity', value)}
+                          options={toOptions(
+                            capacityOptions,
+                            (capacity) => item.moduleGroup === STRUCTURE_GROUP
+                              ? getStructureFeet(capacity)
+                              : item.moduleGroup === HEAD_PARLIN_GROUP
+                                ? getHeadParlinFeet(capacity)
+                                : item.moduleGroup === C_CHANNEL_GROUP
+                                  ? getCChannelFeet(capacity)
+                                  : capacity
+                          )}
+                          searchPlaceholder="Search option..."
+                          required
+                        />
                       </div>
                       {brandOptions.length > 0 && (
                         <div>
                           <label className="form-label">Brand</label>
-                          <select className="crm-input" value={item.brand || brandOptions[0]} onChange={e => updateDispatchItem(index, 'brand', e.target.value)} required>
-                            {brandOptions.map(brand => <option key={brand} value={brand}>{brand}</option>)}
-                          </select>
+                          <SearchableSelect
+                            name={`dispatch-row-brand-${index}`}
+                            value={item.brand || brandOptions[0]}
+                            onChange={(value) => updateDispatchItem(index, 'brand', value)}
+                            options={toOptions(brandOptions)}
+                            searchPlaceholder="Search brand..."
+                            required
+                          />
                         </div>
                       )}
                       <div>
                         <label className="form-label">Material</label>
-                        <select className="crm-input" value={item.productId} onChange={e => updateDispatchItem(index, 'productId', e.target.value)} required>
-                          <option value="">{matchingProducts.length ? 'Select material...' : 'No matching stock found'}</option>
-                          {matchingProducts.map(product => <option key={product._id} value={product._id}>{product.name} | {product.quantity} {product.unit} left</option>)}
-                        </select>
+                        <SearchableSelect
+                          name={`dispatch-row-material-${index}`}
+                          value={item.productId}
+                          onChange={(value) => updateDispatchItem(index, 'productId', value)}
+                          options={matchingProducts.map((product) => ({
+                            value: product._id,
+                            label: `${product.name} | ${product.quantity} ${product.unit} left`,
+                          }))}
+                          placeholder={matchingProducts.length ? 'Select material...' : 'No matching stock found'}
+                          searchPlaceholder="Search material..."
+                          noOptionsText="No matching stock found"
+                          required
+                        />
                       </div>
                       <div>
                         <label className="form-label">Quantity {selected ? `(${selected.unit})` : ''}</label>

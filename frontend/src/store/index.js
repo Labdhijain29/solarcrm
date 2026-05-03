@@ -6,12 +6,89 @@ const getApiErrorMessage = (err, fallback = 'Request failed') => {
   return firstValidationError || err.response?.data?.message || err.message || fallback
 }
 
-// ─── AUTH STORE ─────────────────────────────────────────────
+const getStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('solar_user') || 'null')
+  } catch {
+    return null
+  }
+}
+
+const getStoredToken = () => localStorage.getItem('solar_token') || null
+
+const clearStoredAuth = () => {
+  localStorage.removeItem('solar_token')
+  localStorage.removeItem('solar_user')
+}
+
+let hydrateAuthPromise = null
+
 export const useAuthStore = create((set, get) => ({
-  user: JSON.parse(localStorage.getItem('solar_user') || 'null'),
-  token: localStorage.getItem('solar_token') || null,
+  user: getStoredUser(),
+  token: getStoredToken(),
   loading: false,
   error: null,
+  initialized: false,
+  checkingAuth: false,
+
+  hydrateAuth: async () => {
+    const token = getStoredToken()
+
+    if (!token) {
+      clearStoredAuth()
+      set({
+        user: null,
+        token: null,
+        error: null,
+        initialized: true,
+        checkingAuth: false,
+      })
+      return null
+    }
+
+    if (get().checkingAuth && hydrateAuthPromise) return hydrateAuthPromise
+
+    set({
+      checkingAuth: true,
+      token,
+      error: null,
+    })
+
+    hydrateAuthPromise = authAPI.getMe()
+      .then(({ data }) => {
+        const user = data.user
+        localStorage.setItem('solar_user', JSON.stringify(user))
+        set({
+          user,
+          token,
+          loading: false,
+          error: null,
+          initialized: true,
+          checkingAuth: false,
+        })
+        return user
+      })
+      .catch((err) => {
+        const unauthorized = err.response?.status === 401
+        if (unauthorized) clearStoredAuth()
+
+        set({
+          user: null,
+          token: unauthorized ? null : token,
+          loading: false,
+          error: unauthorized ? null : getApiErrorMessage(err, 'Unable to verify your session.'),
+          initialized: true,
+          checkingAuth: false,
+        })
+
+        return null
+      })
+      .finally(() => {
+        hydrateAuthPromise = null
+      })
+
+    return hydrateAuthPromise
+  },
 
   login: async (email, password) => {
     set({ loading: true, error: null })
@@ -19,7 +96,14 @@ export const useAuthStore = create((set, get) => ({
       const { data } = await authAPI.login({ email, password })
       localStorage.setItem('solar_token', data.token)
       localStorage.setItem('solar_user', JSON.stringify(data.user))
-      set({ user: data.user, token: data.token, loading: false })
+      set({
+        user: data.user,
+        token: data.token,
+        loading: false,
+        error: null,
+        initialized: true,
+        checkingAuth: false,
+      })
       return data.user
     } catch (err) {
       const msg = getApiErrorMessage(err, 'Unable to login. Please try again.')
@@ -29,16 +113,21 @@ export const useAuthStore = create((set, get) => ({
   },
 
   logout: async () => {
-    try { await authAPI.logout() } catch {}
-    localStorage.removeItem('solar_token')
-    localStorage.removeItem('solar_user')
-    set({ user: null, token: null })
+    try {
+      await authAPI.logout()
+    } catch {}
+    clearStoredAuth()
+    set({ user: null, token: null, error: null, initialized: true, checkingAuth: false })
+  },
+
+  setUser: (user) => {
+    localStorage.setItem('solar_user', JSON.stringify(user))
+    set({ user, initialized: true })
   },
 
   clearError: () => set({ error: null }),
 }))
 
-// ─── APP STORE (theme, sidebar, notifications) ──────────────
 export const useAppStore = create((set, get) => ({
   theme: localStorage.getItem('solar_theme') || 'dark',
   sidebarOpen: false,
@@ -59,6 +148,6 @@ export const useAppStore = create((set, get) => ({
 
   setNotifications: (notifications) => set({
     notifications,
-    unreadCount: notifications.filter(n => !n.read).length,
+    unreadCount: notifications.filter((notification) => !notification.read).length,
   }),
 }))

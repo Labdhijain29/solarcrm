@@ -3,11 +3,13 @@ import { FaBell, FaCheckCircle, FaClipboardList, FaCog, FaTasks, FaUsers, FaWare
 import { Link } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dashboardAPI, enquiriesAPI, leadsAPI, usersAPI } from '../../services/api'
-import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import { getCitiesForState, STAGE_COLORS, STATE_OPTIONS } from '../../utils/constants'
 
 const TT_STYLE = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, color:'var(--text)' }
+const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
+const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [activity, setActivity] = useState([])
@@ -318,21 +320,38 @@ export default function AdminDashboard() {
               ))}
               <div>
                 <label className="form-label">State</label>
-                <select className="crm-input" value={editForm.state} onChange={e => updateEnquiryField('state', e.target.value)}>
-                  <option value="">Select state...</option>
-                  {STATE_OPTIONS.map((state) => <option key={state} value={state}>{state}</option>)}
-                </select>
+                <SearchableSelect
+                  name="edit-enquiry-state"
+                  value={editForm.state}
+                  onChange={(value) => updateEnquiryField('state', value)}
+                  options={toOptions(STATE_OPTIONS)}
+                  placeholder="Select state..."
+                  searchPlaceholder="Search state..."
+                />
               </div>
               <div>
                 <label className="form-label">City</label>
-                <select className="crm-input" value={editForm.city} onChange={e => updateEnquiryField('city', e.target.value)} disabled={!editForm.state}>
-                  <option value="">{editForm.state ? 'Select city...' : 'Select state first'}</option>
-                  {getCitiesForState(editForm.state).map((city) => <option key={city} value={city}>{city}</option>)}
-                </select>
+                <SearchableSelect
+                  name="edit-enquiry-city"
+                  value={editForm.city}
+                  onChange={(value) => updateEnquiryField('city', value)}
+                  options={toOptions(getCitiesForState(editForm.state))}
+                  placeholder={editForm.state ? 'Select city...' : 'Select state first'}
+                  searchPlaceholder="Search city..."
+                  noOptionsText={editForm.state ? 'No cities found' : 'Select state first'}
+                  disabled={!editForm.state}
+                />
               </div>
               <div>
                 <label className="form-label">Enquiry Type</label>
-                <input className="crm-input" value={editForm.enquiryType} onChange={e => updateEnquiryField('enquiryType', e.target.value)} />
+                <SearchableSelect
+                  name="edit-enquiry-type"
+                  value={editForm.enquiryType}
+                  onChange={(value) => updateEnquiryField('enquiryType', value)}
+                  options={toOptions(ENQUIRY_TYPES)}
+                  placeholder="Select enquiry type..."
+                  searchPlaceholder="Search enquiry type..."
+                />
               </div>
               <div>
                 <label className="form-label">Status</label>

@@ -7,3 +7,6 @@ dist/
 coverage/
 backend/node_modules/
 frontend/node_modules/
+backend/uploads/
+frontend/package-lock.json
+backend/package-lock.json
