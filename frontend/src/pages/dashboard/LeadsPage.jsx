@@ -13,7 +13,7 @@ export function LeadsPage() {
   const { user } = useAuthStore()
 
   const fetch = () => {
-    leadsAPI.getAll().then(r => setLeads(r.data.data)).finally(() => setLoading(false))
+    leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).finally(() => setLoading(false))
   }
   useEffect(fetch, [])
 

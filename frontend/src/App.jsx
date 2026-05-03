@@ -18,25 +18,37 @@ import DashboardLayout  from './components/layout/DashboardLayout'
 import AdminDashboard   from './pages/dashboard/AdminDashboard'
 import ManagerDashboard from './pages/dashboard/ManagerDashboard'
 import SalesDashboard   from './pages/dashboard/SalesDashboard'
+import SalesExecutiveDashboard from './pages/dashboard/SalesExecutiveDashboard'
+import SalesManagerDashboard from './pages/dashboard/SalesManagerDashboard'
 import ServiceManagerDashboard from './pages/dashboard/ServiceManagerDashboard'
 import StageDashboard   from './pages/dashboard/StageDashboard'
+import StockManagerDashboard from './pages/dashboard/StockManagerDashboard'
+import DispatchManagerDashboard from './pages/dashboard/DispatchManagerDashboard'
+import RegistrationDashboard from './pages/dashboard/RegistrationDashboard'
+import BankFinanceDashboard from './pages/dashboard/BankFinanceDashboard'
+import LoanOfficerDashboard from './pages/dashboard/LoanOfficerDashboard'
+import InstallationManagerDashboard from './pages/dashboard/InstallationManagerDashboard'
+import NetMeteringDashboard from './pages/dashboard/NetMeteringDashboard'
+import SubsidyDashboard from './pages/dashboard/SubsidyDashboard'
+import SubsidyReadingDashboard from './pages/dashboard/SubsidyReadingDashboard'
 import LeadsPage        from './pages/dashboard/LeadsPage'
 import LeadDetailPage   from './pages/dashboard/LeadDetailPage'
+import RejectedLeadsPage from './pages/dashboard/RejectedLeadsPage'
 import UsersPage        from './pages/dashboard/UsersPage'
 import EnquiriesPage    from './pages/dashboard/EnquiriesPage'
 import AnalyticsPage    from './pages/dashboard/AnalyticsPage'
 import ProfilePage      from './pages/dashboard/ProfilePage'
 import InventoryDispatchPage from './pages/dashboard/InventoryDispatchPage'
 
-const ADMIN_STAGE_ROLES = [
-  'Registration Executive',
-  'Bank/Finance Executive',
-  'Loan Officer',
-  'Dispatch Manager',
-  'Installation Manager',
-  'Net Metering Officer',
-  'Subsidy Officer',
-  'Subsidy Reading Officer',
+const ADMIN_STAGE_DASHBOARD_ROUTES = [
+  { path: 'stage/registration-executive', element: <RegistrationDashboard /> },
+  { path: 'stage/bank-finance-executive', element: <BankFinanceDashboard /> },
+  { path: 'stage/loan-officer', element: <LoanOfficerDashboard /> },
+  { path: 'stage/dispatch-manager', element: <DispatchManagerDashboard defaultTab="dispatch" /> },
+  { path: 'stage/installation-manager', element: <InstallationManagerDashboard /> },
+  { path: 'stage/net-metering-officer', element: <NetMeteringDashboard /> },
+  { path: 'stage/subsidy-officer', element: <SubsidyDashboard /> },
+  { path: 'stage/subsidy-reading-officer', element: <SubsidyReadingDashboard /> },
 ]
 
 function PrivateRoute({ children }) {
@@ -55,28 +67,13 @@ function DashboardRouter() {
   if (!user) return <Navigate to="/login" replace />
   if (role === 'admin') return <AdminDashboard />
   if (role === 'manager') return <ManagerDashboard />
-  if (role === 'sales executive') return <SalesDashboard />
-  if (role === 'sales manager') return <SalesDashboard />
-  if (role === 'stock manager') return <InventoryDispatchPage defaultTab="stock" />
-  if (role === 'dispatch manager') return <InventoryDispatchPage defaultTab="dispatch" />
+  if (role === 'sales executive') return <SalesExecutiveDashboard />
+  if (role === 'sales manager') return <SalesManagerDashboard />
+  if (role === 'stock manager') return <StockManagerDashboard />
+  if (role === 'dispatch manager') return <DispatchManagerDashboard />
+  if (role === 'installation manager') return <InstallationManagerDashboard />
   if (role === 'service manager') return <ServiceManagerDashboard />
   return <StageDashboard />
-}
-
-function AdminStageDashboardRoute({ role }) {
-  if (role === 'Dispatch Manager') {
-    return (
-      <AdminOnlyRoute>
-        <InventoryDispatchPage defaultTab="dispatch" />
-      </AdminOnlyRoute>
-    )
-  }
-
-  return (
-    <AdminOnlyRoute>
-      <StageDashboard roleOverride={role} />
-    </AdminOnlyRoute>
-  )
 }
 
 export default function App() {
@@ -116,17 +113,18 @@ export default function App() {
           <Route path="manager"   element={<AdminOnlyRoute><ManagerDashboard /></AdminOnlyRoute>} />
           <Route path="sales"     element={<AdminOnlyRoute><SalesDashboard /></AdminOnlyRoute>} />
           <Route path="service"   element={<AdminOnlyRoute><ServiceManagerDashboard /></AdminOnlyRoute>} />
-          <Route path="stock-manager" element={<AdminOnlyRoute><InventoryDispatchPage defaultTab="stock" /></AdminOnlyRoute>} />
+          <Route path="stock-manager" element={<AdminOnlyRoute><StockManagerDashboard /></AdminOnlyRoute>} />
           <Route path="inventory" element={<InventoryDispatchPage defaultTab="dashboard" />} />
-          <Route path="dispatch-erp" element={<InventoryDispatchPage defaultTab="dispatch" />} />
-          {ADMIN_STAGE_ROLES.map(role => (
+          <Route path="dispatch-erp" element={<DispatchManagerDashboard defaultTab="dispatch" />} />
+          {ADMIN_STAGE_DASHBOARD_ROUTES.map(({ path, element }) => (
             <Route
-              key={role}
-              path={`stage/${role.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-              element={<AdminStageDashboardRoute role={role} />}
+              key={path}
+              path={path}
+              element={<AdminOnlyRoute>{element}</AdminOnlyRoute>}
             />
           ))}
           <Route path="leads"     element={<LeadsPage />} />
+          <Route path="rejected-leads" element={<RejectedLeadsPage />} />
           <Route path="leads/:id" element={<LeadDetailPage />} />
           <Route path="users"     element={<UsersPage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />

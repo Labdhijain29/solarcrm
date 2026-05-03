@@ -53,6 +53,7 @@ exports.createProduct = async (req, res) => {
     const product = await Product.create({
       ...req.body,
       quantity: Number(req.body.quantity || 0),
+      price: Number(req.body.price || 0),
       lowStockThreshold: Number(req.body.lowStockThreshold || 10),
       createdBy: req.user._id,
       updatedBy: req.user._id,
@@ -77,17 +78,116 @@ exports.createProduct = async (req, res) => {
   }
 };
 
+exports.bulkAddProducts = async (req, res) => {
+  try {
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!items.length) {
+      return res.status(400).json({ success: false, message: 'Add at least one stock item.' });
+    }
+
+    const receiptNo = String(req.body.receiptNo || '').trim() || `STK-${Date.now()}`;
+    const savedItems = [];
+
+    for (const raw of items) {
+      const quantity = Number(raw.quantity || 0);
+      if (quantity <= 0) {
+        return res.status(400).json({ success: false, message: 'Each stock item needs quantity greater than 0.' });
+      }
+
+      const payload = {
+        name: String(raw.name || [raw.brand, raw.type, raw.capacity].filter(Boolean).join(' ') || raw.category || 'Stock Item').trim(),
+        category: String(raw.category || '').trim(),
+        subCategory: String(raw.subCategory || '').trim(),
+        brand: String(raw.brand || '').trim(),
+        type: String(raw.type || '').trim(),
+        capacity: String(raw.capacity || '').trim(),
+        unit: String(raw.unit || 'pcs').trim(),
+        price: Number(raw.price || 0),
+        lowStockThreshold: Number(raw.lowStockThreshold || 10),
+      };
+
+      if (!payload.category) {
+        return res.status(400).json({ success: false, message: 'Every stock item needs a category.' });
+      }
+
+      let product = await Product.findOne({
+        name: payload.name,
+        category: payload.category,
+        brand: payload.brand,
+        type: payload.type,
+        capacity: payload.capacity,
+      }).collation({ locale: 'en', strength: 2 });
+
+      const beforeQuantity = Number(product?.quantity || 0);
+      if (product) {
+        product.quantity = beforeQuantity + quantity;
+        product.unit = payload.unit;
+        product.price = payload.price;
+        product.lowStockThreshold = payload.lowStockThreshold;
+        product.updatedBy = req.user._id;
+        await product.save();
+      } else {
+        product = await Product.create({
+          ...payload,
+          quantity,
+          createdBy: req.user._id,
+          updatedBy: req.user._id,
+        });
+      }
+
+      savedItems.push({
+        productId: product._id,
+        name: product.name,
+        category: product.category,
+        brand: product.brand,
+        type: product.type,
+        capacity: product.capacity,
+        unit: product.unit,
+        price: product.price,
+        addedQuantity: quantity,
+        previousQuantity: beforeQuantity,
+        currentQuantity: Number(product.quantity || 0),
+      });
+    }
+
+    const totalAdded = savedItems.reduce((sum, item) => sum + item.addedQuantity, 0);
+    await recordActivity({
+      action: 'Stock Received',
+      message: `Receipt ${receiptNo}: ${savedItems.length} items received, ${totalAdded} total quantity added`,
+      quantityChange: totalAdded,
+      performedBy: req.user._id,
+      performedByName: req.user.name,
+    });
+    await notifyDispatchManagers(`Stock receipt ${receiptNo} added: ${savedItems.length} materials updated`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Stock receipt saved',
+      data: {
+        receiptNo,
+        receivedBy: req.user.name,
+        receivedAt: new Date(),
+        items: savedItems,
+        totalAdded,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 exports.updateProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
     const previousQuantity = product.quantity;
-    const allowed = ['name', 'category', 'subCategory', 'brand', 'type', 'capacity', 'quantity', 'unit', 'lowStockThreshold'];
+    const allowed = ['name', 'category', 'subCategory', 'brand', 'type', 'capacity', 'quantity', 'price', 'unit', 'lowStockThreshold'];
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) product[field] = req.body[field];
     });
     product.quantity = Number(product.quantity || 0);
+    product.price = Number(product.price || 0);
     product.lowStockThreshold = Number(product.lowStockThreshold || 10);
     product.updatedBy = req.user._id;
     await product.save();

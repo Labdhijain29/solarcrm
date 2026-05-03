@@ -30,6 +30,10 @@ export const getSalesExecutiveData = (lead) => {
 
 export const getLeadViewSections = (lead) => {
   const salesExecutiveData = getSalesExecutiveData(lead)
+  const dispatchItems = Array.isArray(lead?.dispatchData?.items) ? lead.dispatchData.items : []
+  const dispatchItemsText = dispatchItems
+    .map((item) => `${item.productName || item.category || 'Item'} - ${item.quantity || 0} ${item.unit || 'pcs'}`)
+    .join(', ')
   const hasSalesExecutiveData = Object.values(salesExecutiveData).some((value) => String(value || '').trim())
   const isSalesExecutiveLead = (
     (Array.isArray(lead?.tags) && lead.tags.includes('sales-executive')) ||
@@ -78,6 +82,10 @@ export const getLeadViewSections = (lead) => {
   ] : []
 
   const stageSpecificFields = [
+    ['Dispatch Bill No.', lead?.dispatchData?.billNo || '-'],
+    ['Dispatch Tracking ID', lead?.dispatchData?.trackingId || '-'],
+    ['Dispatched Items', dispatchItemsText || '-'],
+    ['Dispatched At', lead?.dispatchData?.dispatchedAt ? new Date(lead.dispatchData.dispatchedAt).toLocaleDateString('en-IN') : '-'],
     ['Bank Remark', lead?.bankData?.remark || '-'],
     ['Application ID', lead?.loanData?.applicationId || '-'],
     ['Panel Photo', lead?.installationData?.panelPhotoName || '-'],

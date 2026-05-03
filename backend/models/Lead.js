@@ -87,6 +87,18 @@ const leadSchema = new mongoose.Schema({
     panels: Number,
     inverter: String,
     trackingId: String,
+    billNo: String,
+    items: [{
+      productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+      productName: String,
+      category: String,
+      brand: String,
+      type: String,
+      capacity: String,
+      unit: String,
+      quantity: Number,
+      remainingQuantity: Number
+    }],
     dispatchedAt: Date
   },
   installationData: {

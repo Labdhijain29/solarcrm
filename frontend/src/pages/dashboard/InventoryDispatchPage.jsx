@@ -384,6 +384,7 @@ const matchesDispatchModule = (product, item) => {
 }
 
 const emptyDispatch = {
+  billNo: '',
   customerName: '',
   leadId: '',
   engineerName: '',
@@ -396,6 +397,8 @@ const emptyDispatch = {
 const statusClass = (product) => Number(product.quantity || 0) < Number(product.lowStockThreshold || 10) ? 'badge-red' : 'badge-green'
 const formatDate = (value) => value ? new Date(value).toLocaleDateString('en-IN') : '-'
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
+const makeBillNo = () => `DSP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-5)}`
+const makeStockReceiptNo = () => `STK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-5)}`
 
 export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   const { user } = useAuthStore()
@@ -408,8 +411,12 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   const [productFormOpen, setProductFormOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [productForm, setProductForm] = useState(emptyProduct)
+  const [stockBillItems, setStockBillItems] = useState([])
+  const [stockReceipt, setStockReceipt] = useState(null)
+  const [stockSaving, setStockSaving] = useState(false)
   const [dispatchFormOpen, setDispatchFormOpen] = useState(false)
   const [dispatchForm, setDispatchForm] = useState(emptyDispatch)
+  const [dispatchSaving, setDispatchSaving] = useState(false)
   const [filters, setFilters] = useState({ search: '', category: '' })
   const [leadSearch, setLeadSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState(null)
@@ -475,6 +482,18 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     [dispatchLeads]
   )
 
+  const openDispatchBill = (lead = null) => {
+    setDispatchForm({
+      ...emptyDispatch,
+      billNo: makeBillNo(),
+      customerName: lead?.name || '',
+      leadId: lead ? (lead.ivrsNo || lead._id) : '',
+      mobile: lead ? normalizePhone(lead.phone) : '',
+      siteAddress: lead?.address || '',
+    })
+    setDispatchFormOpen(true)
+  }
+
   const setProductField = (key, value) => {
     setProductForm((prev) => {
       if (key === 'category') {
@@ -538,9 +557,20 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     })
   }
 
+  const getInitialProductForm = () => ({ ...emptyProduct, brand: CATEGORIES[emptyProduct.category].brands[0] })
+
+  const buildProductPayload = (source = productForm) => ({
+    ...source,
+    name: String(source.name || '').trim() || [source.brand, source.type, source.capacity].filter(Boolean).join(' '),
+    quantity: Number(source.quantity || 0),
+    lowStockThreshold: Number(source.lowStockThreshold || 10),
+  })
+
   const openCreateProduct = () => {
     setEditingProduct(null)
-    setProductForm({ ...emptyProduct, brand: CATEGORIES[emptyProduct.category].brands[0] })
+    setProductForm(getInitialProductForm())
+    setStockBillItems([])
+    setStockReceipt(null)
     setProductFormOpen(true)
   }
 
@@ -580,12 +610,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
 
   const saveProduct = async (e) => {
     e.preventDefault()
-    const payload = {
-      ...productForm,
-      name: productForm.name.trim() || [productForm.brand, productForm.type, productForm.capacity].filter(Boolean).join(' '),
-      quantity: Number(productForm.quantity || 0),
-      lowStockThreshold: Number(productForm.lowStockThreshold || 10),
-    }
+    const payload = buildProductPayload()
     try {
       if (editingProduct) await productAPI.update(editingProduct._id, payload)
       else await productAPI.create(payload)
@@ -594,6 +619,49 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       loadData()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Product save failed')
+    }
+  }
+
+  const addStockLine = () => {
+    const payload = buildProductPayload()
+    if (!payload.quantity || payload.quantity <= 0) {
+      toast.error('Quantity 0 se zyada honi chahiye.')
+      return
+    }
+    if (!payload.name) {
+      toast.error('Item name ya brand/type/capacity select karein.')
+      return
+    }
+    setStockBillItems(prev => [...prev, { ...payload, lineId: `${Date.now()}-${prev.length}` }])
+    setProductForm(prev => ({ ...prev, name: '', quantity: '' }))
+  }
+
+  const removeStockLine = (lineId) => {
+    setStockBillItems(prev => prev.filter(item => item.lineId !== lineId))
+  }
+
+  const saveStockBill = async () => {
+    const pendingLine = buildProductPayload()
+    const itemsToSave = pendingLine.quantity > 0 ? [...stockBillItems, pendingLine] : stockBillItems
+    if (!itemsToSave.length) {
+      toast.error('Stock bill me kam se kam ek item add karein.')
+      return
+    }
+    setStockSaving(true)
+    try {
+      const { data } = await productAPI.bulkAdd({
+        receiptNo: makeStockReceiptNo(),
+        items: itemsToSave.map(({ lineId, ...item }) => item),
+      })
+      setStockReceipt(data.data)
+      setStockBillItems([])
+      setProductForm(getInitialProductForm())
+      toast.success('Stock bill saved')
+      loadData()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Stock bill save failed')
+    } finally {
+      setStockSaving(false)
     }
   }
 
@@ -669,18 +737,27 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
 
   const submitDispatch = async (e) => {
     e.preventDefault()
+    const billItems = dispatchForm.items.filter(item => item.productId).map(item => ({ ...item, quantity: Number(item.quantity || 0) }))
+    if (!billItems.length) {
+      toast.error('Bill me kam se kam ek material select karein.')
+      return
+    }
+
+    setDispatchSaving(true)
     try {
       await dispatchAPI.create({
         ...dispatchForm,
         mobile: normalizePhone(dispatchForm.mobile),
-        items: dispatchForm.items.filter(item => item.productId).map(item => ({ ...item, quantity: Number(item.quantity || 0) })),
+        items: billItems,
       })
-      toast.success('Dispatch saved, stock reduced')
+      toast.success('Dispatch bill saved, stock reduced')
       setDispatchForm(emptyDispatch)
       setDispatchFormOpen(false)
       loadData()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Dispatch failed')
+    } finally {
+      setDispatchSaving(false)
     }
   }
 
@@ -709,7 +786,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
         action={(
           <div className="dashboard-inline-actions">
             {canManageStock && <button className="btn btn-primary" onClick={openCreateProduct}><FaPlus /> Add Stock</button>}
-            {canDispatch && <button className="btn btn-secondary" onClick={() => setDispatchFormOpen(true)}><FaShippingFast /> Dispatch</button>}
+            {canDispatch && <button className="btn btn-secondary" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>}
           </div>
         )}
       />
@@ -738,7 +815,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
             <div className="crm-card" style={{ marginBottom:16 }}>
               <div className="dashboard-split-row" style={{ marginBottom:16 }}>
                 <h3 style={{ fontSize:15, fontWeight:700 }}>Leads at Dispatch ({activeDispatchLeads.length})</h3>
-                <button className="btn btn-primary btn-sm" onClick={() => setDispatchFormOpen(true)}><FaShippingFast /> New Dispatch</button>
+                <button className="btn btn-primary btn-sm" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>
               </div>
               {activeDispatchLeads.length === 0 ? (
                 <EmptyState title="No leads pending at Dispatch" />
@@ -756,20 +833,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                           <td>
                             <div className="dashboard-inline-actions">
                               <button className="btn btn-ghost btn-sm" onClick={() => setSelectedLead(lead)}>View / Approve</button>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setDispatchForm(prev => ({
-                                    ...prev,
-                                    customerName: lead.name || '',
-                                    leadId: lead.ivrsNo || lead._id,
-                                    mobile: normalizePhone(lead.phone),
-                                    siteAddress: lead.address || '',
-                                  }))
-                                  setDispatchFormOpen(true)
-                                }}
-                              >
-                                Dispatch
+                              <button className="btn btn-secondary btn-sm" onClick={() => openDispatchBill(lead)}>
+                                Create Bill
                               </button>
                             </div>
                           </td>
@@ -864,17 +929,17 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
         <div className="crm-card">
           <div className="dashboard-split-row" style={{ marginBottom:16 }}>
             <h3 style={{ fontSize:15, fontWeight:700 }}>Dispatch Tracking</h3>
-            {canDispatch && <button className="btn btn-primary btn-sm" onClick={() => setDispatchFormOpen(true)}><FaShippingFast /> New Dispatch</button>}
+            {canDispatch && <button className="btn btn-primary btn-sm" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>}
           </div>
           <div className="crm-table-wrap">
             <table className="crm-table">
-              <thead><tr><th>Customer / Lead</th><th>Engineer</th><th>Items List</th><th>Quantity</th><th>Date</th></tr></thead>
+              <thead><tr><th>Bill / Customer</th><th>Engineer</th><th>Items List</th><th>Quantity</th><th>Date</th></tr></thead>
               <tbody>
                 {dispatches.map(dispatch => (
                   <tr key={dispatch._id}>
-                    <td><strong>{dispatch.customerName}</strong><div style={{ fontSize:11, color:'var(--muted)' }}>{dispatch.leadId || dispatch.mobile}</div></td>
+                    <td><strong>{dispatch.billNo || '-'}</strong><div style={{ fontSize:11, color:'var(--muted)' }}>{dispatch.customerName} | {dispatch.leadId || dispatch.mobile}</div></td>
                     <td>{dispatch.engineerName}</td>
-                    <td>{dispatch.items.map(item => item.productName).join(', ')}</td>
+                    <td>{dispatch.items.map(item => `${item.productName} (${item.quantity} ${item.unit}, left ${item.remainingQuantity ?? '-'})`).join(', ')}</td>
                     <td>{dispatch.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</td>
                     <td>{formatDate(dispatch.dispatchDate)}</td>
                   </tr>
@@ -905,7 +970,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                     {dispatch.items.map(item => (
                       <div key={`${dispatch._id}-${item.productId}`} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'6px 0', borderTop:'1px solid var(--border)' }}>
                         <span>{item.productName}</span>
-                        <strong>{item.quantity} {item.unit}</strong>
+                        <strong>{item.quantity} {item.unit} | Left {item.remainingQuantity ?? '-'}</strong>
                       </div>
                     ))}
                   </div>
@@ -934,8 +999,31 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
 
       {productFormOpen && (
         <div className="modal-backdrop" style={{ alignItems:'stretch', padding:0 }} onClick={e => e.target === e.currentTarget && setProductFormOpen(false)}>
-          <form className="modal-box" style={{ maxWidth:'100%', width:'100%', minHeight:'100vh', borderRadius:0, overflowY:'auto' }} onSubmit={saveProduct}>
-            <PageHeader icon={<FaBoxOpen />} title={editingProduct ? 'Update Inventory Item' : 'Add Inventory Item'} action={<button type="button" className="btn btn-ghost" onClick={() => setProductFormOpen(false)}>Close</button>} />
+          <form className="modal-box" style={{ maxWidth:'100%', width:'100%', minHeight:'100vh', borderRadius:0, overflowY:'auto' }} onSubmit={editingProduct ? saveProduct : (e) => e.preventDefault()}>
+            <PageHeader
+              icon={<FaBoxOpen />}
+              title={editingProduct ? 'Update Inventory Item' : 'Stock Receive Bill'}
+              subtitle={editingProduct ? 'Existing SKU update karein' : 'Items one by one add karein, last me receipt save hogi'}
+              action={<button type="button" className="btn btn-ghost" onClick={() => setProductFormOpen(false)}>Close</button>}
+            />
+            {!editingProduct && stockReceipt && (
+              <div className="crm-card-sm" style={{ marginBottom:16, borderColor:'rgba(34,197,94,.35)' }}>
+                <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                  <strong>Receipt Generated: {stockReceipt.receiptNo}</strong>
+                  <span className="badge badge-green">+{stockReceipt.totalAdded} stock added</span>
+                </div>
+                <div className="dashboard-stack">
+                  {stockReceipt.items.map(item => (
+                    <div key={`${stockReceipt.receiptNo}-${item.productId}`} style={{ display:'grid', gridTemplateColumns:'1.5fr repeat(3, minmax(90px, .5fr))', gap:10, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
+                      <span>{item.name}</span>
+                      <strong>Added: {item.addedQuantity} {item.unit}</strong>
+                      <span>Before: {item.previousQuantity}</span>
+                      <span>Now: {item.currentQuantity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="dashboard-form-grid">
               {isStructuredCategory(productForm.category) ? (
                 <>
@@ -1017,7 +1105,38 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
               <div><label className="form-label">Unit</label><input className="crm-input" value={productForm.unit} onChange={e => setProductField('unit', e.target.value)} /></div>
               <div><label className="form-label">Low Stock Alert Below</label><input className="crm-input" type="number" min="0" value={productForm.lowStockThreshold} onChange={e => setProductField('lowStockThreshold', e.target.value)} /></div>
             </div>
-            <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:20 }} type="submit">{editingProduct ? 'Save Stock Update' : 'Add Item'}</button>
+            {editingProduct ? (
+              <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:20 }} type="submit">Save Stock Update</button>
+            ) : (
+              <>
+                <div className="dashboard-inline-actions" style={{ marginTop:20, justifyContent:'flex-end' }}>
+                  <button className="btn btn-secondary" type="button" onClick={addStockLine}><FaPlus /> Add Item to Bill</button>
+                  <button className="btn btn-primary" type="button" onClick={saveStockBill} disabled={stockSaving || (!stockBillItems.length && !Number(productForm.quantity || 0))}>
+                    {stockSaving ? 'Saving Stock Bill...' : 'Save Stock Bill'}
+                  </button>
+                </div>
+                <div className="crm-card-sm" style={{ marginTop:16 }}>
+                  <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                    <strong>Current Stock Bill</strong>
+                    <span className="badge badge-blue">{stockBillItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} total qty</span>
+                  </div>
+                  {stockBillItems.length === 0 ? (
+                    <EmptyState title="No item added yet" subtitle="Upar item select karke Add Item to Bill dabayein; form next item ke liye ready rahega." />
+                  ) : (
+                    <div className="dashboard-stack">
+                      {stockBillItems.map((item, index) => (
+                        <div key={item.lineId} style={{ display:'grid', gridTemplateColumns:'40px 1fr 110px 44px', gap:10, alignItems:'center', fontSize:12, padding:'8px 0', borderTop:'1px solid var(--border)' }}>
+                          <strong>#{index + 1}</strong>
+                          <span>{item.name}<div style={{ color:'var(--muted)', fontSize:11 }}>{item.category} | {[item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div></span>
+                          <strong>{item.quantity} {item.unit}</strong>
+                          <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeStockLine(item.lineId)}><FaTrash /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </form>
         </div>
       )}
@@ -1025,10 +1144,11 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       {dispatchFormOpen && (
         <div className="modal-backdrop" style={{ alignItems:'stretch', padding:0 }} onClick={e => e.target === e.currentTarget && setDispatchFormOpen(false)}>
           <form className="modal-box" style={{ maxWidth:'100%', width:'100%', minHeight:'100vh', borderRadius:0, overflowY:'auto' }} onSubmit={submitDispatch}>
-            <PageHeader icon={<FaShippingFast />} title="Dispatch Materials" subtitle="Stock submit hote hi automatic reduce hoga" action={<button type="button" className="btn btn-ghost" onClick={() => setDispatchFormOpen(false)}>Close</button>} />
+            <PageHeader icon={<FaShippingFast />} title="Dispatch Billing" subtitle="Bill submit hote hi stock automatic minus hoga aur lead Installation stage me move hogi" action={<button type="button" className="btn btn-ghost" onClick={() => setDispatchFormOpen(false)}>Close</button>} />
             <div className="dashboard-form-grid">
+              <div><label className="form-label">Bill No.</label><input className="crm-input" value={dispatchForm.billNo} onChange={e => setDispatchForm(prev => ({ ...prev, billNo: e.target.value }))} required /></div>
               <div><label className="form-label">Customer Name</label><input className="crm-input" value={dispatchForm.customerName} onChange={e => setDispatchForm(prev => ({ ...prev, customerName: e.target.value }))} required /></div>
-              <div><label className="form-label">Lead ID</label><input className="crm-input" value={dispatchForm.leadId} onChange={e => setDispatchForm(prev => ({ ...prev, leadId: e.target.value }))} /></div>
+              <div><label className="form-label">Lead ID / IVRS No.</label><input className="crm-input" value={dispatchForm.leadId} onChange={e => setDispatchForm(prev => ({ ...prev, leadId: e.target.value }))} placeholder="IVRS, short lead ID, deal no." /></div>
               <div><label className="form-label">Installation Engineer</label><input className="crm-input" value={dispatchForm.engineerName} onChange={e => setDispatchForm(prev => ({ ...prev, engineerName: e.target.value }))} required /></div>
               <div><label className="form-label">Mobile Number</label><input className="crm-input" value={dispatchForm.mobile} onChange={e => setDispatchForm(prev => ({ ...prev, mobile: normalizePhone(e.target.value) }))} maxLength={10} required /></div>
               <div><label className="form-label">Dispatch Date</label><input className="crm-input" type="date" value={dispatchForm.dispatchDate} onChange={e => setDispatchForm(prev => ({ ...prev, dispatchDate: e.target.value }))} /></div>
@@ -1043,6 +1163,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
               <div className="dashboard-stack">
                 {dispatchForm.items.map((item, index) => {
                   const selected = products.find(product => product._id === item.productId)
+                  const quantity = Number(item.quantity || 0)
+                  const remainingAfterBill = selected ? Number(selected.quantity || 0) - quantity : null
                   const capacityOptions = getDispatchCapacityOptions(item)
                   const brandOptions = getDispatchBrandOptions(item)
                   const matchingProducts = products.filter(product => matchesDispatchModule(product, item))
@@ -1122,13 +1244,45 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                       <div>
                         <label className="form-label">Quantity {selected ? `(${selected.unit})` : ''}</label>
                         <input className="crm-input" type="number" min="1" max={selected?.quantity || undefined} value={item.quantity} onChange={e => updateDispatchItem(index, 'quantity', e.target.value)} required />
+                        {selected && (
+                          <div style={{ fontSize:11, color: remainingAfterBill < 0 ? 'var(--red)' : 'var(--muted)', marginTop:5 }}>
+                            Stock: {selected.quantity} {selected.unit} | After bill: {Math.max(remainingAfterBill, 0)} {selected.unit}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="form-label">Line Total</label>
+                        <div className="crm-card-sm" style={{ padding:'9px 12px', minHeight:37 }}>
+                          {quantity || 0} {selected?.unit || 'pcs'}
+                        </div>
                       </div>
                     </div>
                   )
                 })}
               </div>
             </div>
-            <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:20 }} type="submit">Submit Dispatch</button>
+            <div className="crm-card-sm" style={{ marginTop:16 }}>
+              <div className="dashboard-split-row">
+                <strong>Bill Total Material</strong>
+                <span className="badge badge-green">
+                  {dispatchForm.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} pcs
+                </span>
+              </div>
+              <div style={{ marginTop:10 }}>
+                {dispatchForm.items.filter(item => item.productId).map((item, index) => {
+                  const selected = products.find(product => product._id === item.productId)
+                  return (
+                    <div key={`${item.productId}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
+                      <span>{selected?.name || 'Selected item'}</span>
+                      <strong>{Number(item.quantity || 0)} {selected?.unit || 'pcs'}</strong>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:20 }} type="submit" disabled={dispatchSaving}>
+              {dispatchSaving ? 'Submitting Bill...' : 'Submit Bill & Dispatch'}
+            </button>
           </form>
         </div>
       )}

@@ -82,17 +82,18 @@ const buildQuery = (query, user) => {
   const stageAccess = ROLE_STAGE_MAP[role];
   const completedStage = query.completedStage;
   const salesExecutiveOnly = query.salesExecutiveOnly === 'true';
+  const canViewDispatchQueue = role === 'Dispatch Manager' && query.stage === 'Dispatch' && !completedStage;
   const personalHistoryFilter = {
     performedBy: user._id,
     stage: completedStage || stageAccess,
     action: { $in: ['Approved', 'Completed'] }
   };
 
-  if (role !== 'Admin' && isSingleStageRole(role)) {
+  if (role !== 'Admin' && isSingleStageRole(role) && !canViewDispatchQueue) {
     q.assignedTo = user._id;
   }
 
-  if (role !== 'Admin' && !isSingleStageRole(role)) {
+  if (role !== 'Admin' && !isSingleStageRole(role) && !canViewDispatchQueue) {
     q.$or = [
       { assignedTo: user._id },
       { createdBy: user._id }
@@ -164,8 +165,13 @@ exports.getLeads = async (req, res) => {
     };
     const sort = sortMap[req.query.sort] || sortMap.latest;
 
+    let leadsQuery = Lead.find(query).populate('assignedTo', 'name role').sort(sort).skip(skip).limit(limit);
+    if (req.query.sort === 'ivrs-asc' || req.query.sort === 'ivrs-desc') {
+      leadsQuery = leadsQuery.collation({ locale: 'en', numericOrdering: true });
+    }
+
     const [leads, total] = await Promise.all([
-      Lead.find(query).populate('assignedTo', 'name role').sort(sort).skip(skip).limit(limit),
+      leadsQuery,
       Lead.countDocuments(query)
     ]);
 
@@ -281,6 +287,17 @@ exports.updateLead = async (req, res) => {
 
     if (req.body.ivrsNo !== undefined && req.body.ivrsNo !== lead.ivrsNo) {
       await ensureUniqueIvrsNo(req.body.ivrsNo, lead._id);
+    }
+
+    if (req.body.installationData?.panelNumber !== undefined) {
+      const panelNumber = String(req.body.installationData.panelNumber || '').trim();
+      if (panelNumber && !/^\d{16}$/.test(panelNumber)) {
+        return res.status(400).json({ success: false, message: 'Panel number must be exactly 16 digits.' });
+      }
+      lead.installationData = {
+        ...(lead.installationData?.toObject ? lead.installationData.toObject() : lead.installationData || {}),
+        panelNumber
+      };
     }
 
     const allowed = ['name','phone','email','address','city','state','pincode','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags','salesExecutiveData'];

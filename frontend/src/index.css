@@ -55,6 +55,7 @@ body {
 h1, h2, h3, h4, .font-display { font-family: 'Syne', sans-serif; }
 a { color: inherit; }
 img { max-width: 100%; height: auto; display: block; }
+button, input, select, textarea { max-width: 100%; }
 
 /* ─── Scrollbar ─────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -77,6 +78,8 @@ img { max-width: 100%; height: auto; display: block; }
 .app-main {
   margin-left: var(--sidebar);
   min-height: 100vh;
+  min-width: 0;
+  width: calc(100% - var(--sidebar));
   transition: margin 0.3s ease;
 }
 
@@ -98,7 +101,7 @@ img { max-width: 100%; height: auto; display: block; }
 @media (max-width: 900px) {
   .app-sidebar { transform: translateX(-100%); }
   .app-sidebar.open { transform: none; }
-  .app-main { margin-left: 0 !important; }
+  .app-main { margin-left: 0 !important; width: 100%; }
 }
 
 /* ─── Cards ─────────────────────────────────────────────────── */
@@ -107,6 +110,7 @@ img { max-width: 100%; height: auto; display: block; }
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 20px;
+  min-width: 0;
 }
 
 .crm-card-sm {
@@ -114,6 +118,7 @@ img { max-width: 100%; height: auto; display: block; }
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px;
+  min-width: 0;
 }
 
 .metric-card {
@@ -125,6 +130,7 @@ img { max-width: 100%; height: auto; display: block; }
   overflow: hidden;
   transition: transform 0.2s, border-color 0.2s;
   cursor: default;
+  min-width: 0;
 }
 
 .metric-card:hover {
@@ -350,9 +356,15 @@ textarea.crm-input { resize: vertical; }
 }
 
 /* ─── Table ─────────────────────────────────────────────────── */
-.crm-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+.crm-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
 
-.crm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.crm-table { width: 100%; min-width: 860px; border-collapse: collapse; font-size: 13px; }
 .crm-table thead { background: var(--bg3); }
 .crm-table th {
   padding: 11px 14px;
@@ -426,6 +438,7 @@ textarea.crm-input { resize: vertical; }
   overflow-y: auto;
   animation: fadeIn 0.2s ease;
   box-shadow: 0 24px 80px rgba(0,0,0,.35);
+  min-width: 0;
 }
 
 /* ─── Stage Progress ─────────────────────────────────────────── */
@@ -672,6 +685,8 @@ textarea.crm-input { resize: vertical; }
 .dashboard-page {
   animation: fadeIn .4s ease;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .dashboard-grid-metrics {
@@ -679,6 +694,7 @@ textarea.crm-input { resize: vertical; }
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
+  min-width: 0;
 }
 
 .dashboard-grid-two {
@@ -742,6 +758,31 @@ textarea.crm-input { resize: vertical; }
   position: relative;
 }
 
+.dashboard-search > input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  width: 100%;
+}
+
+.dashboard-search > svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dim);
+  pointer-events: none;
+}
+
+.dashboard-search > svg + input {
+  padding-left: 34px;
+}
+
 .dashboard-inline-actions {
   display: flex;
   gap: 8px;
@@ -774,6 +815,13 @@ textarea.crm-input { resize: vertical; }
   border-radius: 14px;
   padding: 14px;
   min-width: 0;
+}
+
+.crm-mobile-card,
+.crm-mobile-row,
+.dashboard-split-row,
+.history-item {
+  overflow-wrap: anywhere;
 }
 
 .crm-mobile-row {
@@ -921,11 +969,11 @@ textarea.crm-input { resize: vertical; }
 }
 
 @media (max-width: 768px) {
-  .crm-table {
+  .crm-table-wrap:has(.crm-mobile-cards) .crm-table {
     display: none;
   }
 
-  .crm-table-wrap {
+  .crm-table-wrap:has(.crm-mobile-cards) {
     border: none;
     overflow: visible;
   }
@@ -933,6 +981,10 @@ textarea.crm-input { resize: vertical; }
   .crm-mobile-cards {
     display: grid;
     gap: 12px;
+  }
+
+  .crm-table-wrap:not(:has(.crm-mobile-cards)) .crm-table {
+    min-width: 720px;
   }
 
   .dashboard-grid-metrics,
@@ -1030,6 +1082,12 @@ textarea.crm-input { resize: vertical; }
   .app-topbar .btn-icon,
   .app-topbar .btn-sm {
     min-height: 38px;
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .app-topbar .btn-ghost:not(.btn-icon) {
+    width: auto;
   }
 
   .nav-item {

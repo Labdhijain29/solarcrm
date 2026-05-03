@@ -8,6 +8,7 @@ const productSchema = new mongoose.Schema({
   type: { type: String, trim: true, default: '' },
   capacity: { type: String, trim: true, default: '' },
   quantity: { type: Number, required: true, min: 0, default: 0 },
+  price: { type: Number, required: true, min: 0, default: 0 },
   unit: { type: String, trim: true, default: 'pcs' },
   lowStockThreshold: { type: Number, min: 0, default: 10 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

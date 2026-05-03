@@ -242,6 +242,24 @@ export default function LeadModal({
           </div>
         )}
 
+        {(lead.dispatchData?.items || []).length > 0 && (
+          <div className="crm-card-sm" style={{ marginBottom:14 }}>
+            <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5 }}>Dispatch Material</div>
+              <span className="badge badge-blue">{lead.dispatchData?.billNo || 'Dispatch bill'}</span>
+            </div>
+            <div className="dashboard-stack">
+              {(lead.dispatchData.items || []).map((item, index) => (
+                <div key={`${item.productId || item.productName}-${index}`} style={{ display:'grid', gridTemplateColumns:'1fr 110px 90px', gap:10, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
+                  <span>{item.productName}<div style={{ color:'var(--muted)', fontSize:11 }}>{[item.category, item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div></span>
+                  <strong>{item.quantity} {item.unit || 'pcs'}</strong>
+                  <span>Left {item.remainingQuantity ?? '-'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {canAddRegistrationPhotos && (
           <div className="crm-card-sm" style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Registration Photos</div>

@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const Lead = require('../models/Lead');
 const Enquiry = require('../models/Enquiry');
+const Product = require('../models/Product');
+const Dispatch = require('../models/Dispatch');
+const InventoryActivity = require('../models/InventoryActivity');
 
 const STAGES = ['Lead','Registration','Bank Approval','Loan Disbursement','Dispatch','Installation','Net Metering','Subsidy','Subsidy Reading','Completed'];
 const SOURCES = ['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads'];
@@ -25,6 +28,14 @@ const usersData = [
   { name:'Vikram Service', email:'service@solarcrm.in', password:'service123', role:'Service Manager', phone:'9800000011' },
 ];
 
+const productsData = [
+  { name: 'Waaree 540WP DCR Module', category: 'MODULE', brand: 'Warree', type: 'DCR P-Type', capacity: '540WP', quantity: 120, price: 9800, unit: 'pcs', lowStockThreshold: 20 },
+  { name: 'Adani 570WP TOPCon Module', category: 'MODULE', brand: 'Adani', type: 'N-Type TOPCon', capacity: '570WP', quantity: 80, price: 11200, unit: 'pcs', lowStockThreshold: 15 },
+  { name: 'Sungrow 5kw On Grid Inverter', category: 'INVERTER (ON-GRID)', brand: 'Sungrow', type: 'Capacity', capacity: '5kw', quantity: 18, price: 52000, unit: 'pcs', lowStockThreshold: 5 },
+  { name: 'Havells Single Phase AC/DC Box', category: 'AC/DC BOX', brand: 'Havells', type: 'Phase', capacity: 'Single Phase', quantity: 35, price: 4200, unit: 'pcs', lowStockThreshold: 8 },
+  { name: 'JSW Structure 140*50*2mm 13 feet', category: 'STRUCTURE', brand: 'JSW', type: 'Size', capacity: '140*50*2mm | 13 feet', quantity: 200, price: 1450, unit: 'pcs', lowStockThreshold: 25 },
+];
+
 const firstNames = ['Rajesh','Neha','Vijay','Ananya','Sunil','Deepa','Arun','Pooja','Kiran','Mohan','Lakshmi','Prakash','Sunita','Ganesh','Rekha','Amit','Shweta','Vinod','Kavita','Mahesh'];
 const lastNames = ['Kumar','Singh','Patel','Sharma','Verma','Gupta','Nair','Reddy','Joshi','Mehta'];
 const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -39,6 +50,9 @@ async function seed() {
     await User.deleteMany({});
     await Lead.deleteMany({});
     await Enquiry.deleteMany({});
+    await Product.deleteMany({});
+    await Dispatch.deleteMany({});
+    await InventoryActivity.deleteMany({});
     console.log('🗑️  Cleared existing data');
 
     // Create users
@@ -102,6 +116,14 @@ async function seed() {
     }));
     await Enquiry.insertMany(enquiries);
     console.log(`📩 Created ${enquiries.length} enquiries`);
+
+    const stockManager = createdUsers.find(user => user.role === 'Stock Manager') || createdUsers[0];
+    await Product.insertMany(productsData.map(item => ({
+      ...item,
+      createdBy: stockManager._id,
+      updatedBy: stockManager._id,
+    })));
+    console.log(`📦 Created ${productsData.length} stock items`);
 
     console.log('\n🎉 Seed complete! Login credentials:');
     usersData.forEach(u => console.log(`  ${u.role.padEnd(30)} ${u.email} / ${u.password}`));

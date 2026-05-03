@@ -159,7 +159,7 @@ export default function LeadDetailPage() {
   ]
 
   return (
-    <div style={{ animation: 'fadeIn .4s ease', maxWidth: 900 }}>
+    <div className="dashboard-page" style={{ maxWidth: 900 }}>
       <PageHeader
         icon="SUN"
         title={lead.name}
@@ -172,7 +172,7 @@ export default function LeadDetailPage() {
         <StageProgress lead={lead} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div className="dashboard-grid-two" style={{ marginBottom: 16 }}>
         <div className="crm-card">
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Lead Details</div>
           {fields.map(([label, value]) => (

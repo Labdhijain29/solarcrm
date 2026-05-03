@@ -313,7 +313,7 @@ export default function SalesDashboard() {
 
   const fetchLeads = () => {
     setLoading(true)
-    leadsAPI.getAll(isSalesExecutive ? { salesExecutiveOnly: true } : undefined)
+    leadsAPI.getAll({ ...(isSalesExecutive ? { salesExecutiveOnly: true } : {}), sort: 'ivrs-asc' })
       .then((response) => setLeads(response.data.data || []))
       .catch(console.error)
       .finally(() => setLoading(false))

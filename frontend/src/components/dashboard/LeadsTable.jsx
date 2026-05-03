@@ -3,13 +3,23 @@ import { useNavigate } from 'react-router-dom'
 import { EmptyState, LeadAvatar, PipelineBar, StageBadge, StatusBadge } from '../common'
 import { SOURCES, STAGES } from '../../utils/constants'
 
+const compareIvrs = (a, b, direction = 'asc') => {
+  const left = String(a.ivrsNo || '')
+  const right = String(b.ivrsNo || '')
+  if (!left && !right) return 0
+  if (!left) return 1
+  if (!right) return -1
+  const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+  return direction === 'desc' ? -result : result
+}
+
 export default function LeadsTable({ leads = [], loading, onView, extraActions }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [srcFilter, setSrc] = useState('All')
   const [statusFilter, setStatus] = useState('All')
   const [stageFilter, setStage] = useState('All')
-  const [sortBy, setSortBy] = useState('latest')
+  const [sortBy, setSortBy] = useState('ivrs-asc')
 
   const filtered = leads
     .filter((lead) => {
@@ -30,8 +40,8 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
     .sort((a, b) => {
       if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '')
       if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '')
-      if (sortBy === 'ivrs-asc') return (a.ivrsNo || '').localeCompare(b.ivrsNo || '')
-      if (sortBy === 'ivrs-desc') return (b.ivrsNo || '').localeCompare(a.ivrsNo || '')
+      if (sortBy === 'ivrs-asc') return compareIvrs(a, b, 'asc')
+      if (sortBy === 'ivrs-desc') return compareIvrs(a, b, 'desc')
       if (sortBy === 'oldest') return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     })
@@ -169,6 +179,6 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
           ))}
         </div>
       </div>
-    </div>
+    </div> 
   )
 }

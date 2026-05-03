@@ -46,7 +46,7 @@ export function ManagerDashboard() {
   const { user } = useAuthStore()
 
   const fetchLeads = () => {
-    leadsAPI.getAll().then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+    leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
   }
 
   const viewLead = async (lead) => {
@@ -158,7 +158,7 @@ export function SalesDashboard() {
   const { user } = useAuthStore()
 
   useEffect(() => {
-    leadsAPI.getAll().then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+    leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
   }, [])
 
   const stats = {
@@ -180,7 +180,7 @@ export function SalesDashboard() {
       <div className="crm-card">
         <LeadsTable leads={leads} loading={loading} onView={setSelected} />
       </div>
-      {selected && <LeadModal lead={selected} onClose={() => setSelected(null)} onUpdated={() => leadsAPI.getAll().then(r => setLeads(r.data.data))} currentUser={user} />}
+      {selected && <LeadModal lead={selected} onClose={() => setSelected(null)} onUpdated={() => leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data))} currentUser={user} />}
     </div>
   )
 }
@@ -201,6 +201,8 @@ export function StageDashboard({ roleOverride }) {
   const [completedCount, setCompletedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+  const [panelNumbers, setPanelNumbers] = useState({})
+  const [savingPanelId, setSavingPanelId] = useState('')
   const { user } = useAuthStore()
   const dashboardRole = roleOverride || user?.role
   const myStage = ROLE_STAGE_MAP[dashboardRole]
@@ -208,11 +210,13 @@ export function StageDashboard({ roleOverride }) {
   const fetchLeads = () => {
     setLoading(true)
     Promise.all([
-      leadsAPI.getAll({ stage: myStage }),
-      leadsAPI.getAll({ completedStage: myStage }),
+      leadsAPI.getAll({ stage: myStage, sort: 'ivrs-asc' }),
+      leadsAPI.getAll({ completedStage: myStage, sort: 'ivrs-asc' }),
     ])
       .then(([activeRes, completedRes]) => {
-        setLeads(activeRes.data.data || [])
+        const nextLeads = activeRes.data.data || []
+        setLeads(nextLeads)
+        setPanelNumbers(Object.fromEntries(nextLeads.map((lead) => [lead._id, lead.installationData?.panelNumber || ''])))
         setCompletedCount(completedRes.data.pagination?.total ?? completedRes.data.data?.length ?? 0)
       })
       .catch(console.error)
@@ -222,6 +226,53 @@ export function StageDashboard({ roleOverride }) {
   useEffect(fetchLeads, [myStage])
 
   const activeLeads = leads.filter((lead) => lead.status === 'active')
+  const showPanelNumberRows = dashboardRole === 'Installation Manager'
+
+  const savePanelNumber = async (lead) => {
+    const panelNumber = String(panelNumbers[lead._id] || '').trim()
+    if (!/^\d{16}$/.test(panelNumber)) {
+      toast.error('Panel number must be exactly 16 digits.')
+      return
+    }
+
+    setSavingPanelId(lead._id)
+    try {
+      await leadsAPI.update(lead._id, {
+        installationData: { panelNumber },
+        updateNote: `Panel number updated: ${panelNumber}`,
+      })
+      toast.success('Panel number saved')
+      fetchLeads()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save panel number')
+    } finally {
+      setSavingPanelId('')
+    }
+  }
+
+  const installationPanelAction = (lead) => {
+    if (!showPanelNumberRows || lead.currentStage !== 'Installation') return null
+
+    return (
+      <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+        <input
+          className="crm-input"
+          inputMode="numeric"
+          maxLength={16}
+          value={panelNumbers[lead._id] || ''}
+          onChange={(event) => setPanelNumbers((prev) => ({
+            ...prev,
+            [lead._id]: event.target.value.replace(/\D/g, '').slice(0, 16),
+          }))}
+          placeholder="Panel no."
+          style={{ width:140, height:32, fontSize:12 }}
+        />
+        <button className="btn btn-secondary btn-sm" disabled={savingPanelId === lead._id} onClick={() => savePanelNumber(lead)}>
+          Save Panel
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="dashboard-page">
@@ -245,7 +296,7 @@ export function StageDashboard({ roleOverride }) {
       ) : (
         <div className="crm-card">
           <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Leads at {myStage} ({activeLeads.length})</h3>
-          <LeadsTable leads={activeLeads} loading={false} onView={setSelected} />
+          <LeadsTable leads={activeLeads} loading={false} onView={setSelected} extraActions={installationPanelAction} />
         </div>
       )}
 
