@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { FaBoxOpen, FaChartBar, FaDownload, FaExclamationTriangle, FaFilePdf, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
+import { FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dispatchAPI, leadsAPI, productAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
@@ -66,6 +66,7 @@ const EARTHING_KIT_SIZES = ['17*1 Mtr', 'LA 17*1 mtr']
 const PIPE_SIZES = ['10*25']
 const ALBA_SIZES = ['10*25']
 const TE_SIZES = ['10*25']
+const UNIT_OPTIONS = ['pcs', 'mtr', 'kg', 'set', 'box', 'roll']
 const STOCK_CATEGORY_OPTIONS = Object.keys({
   [MODULE_CATEGORY]: true,
   [INVERTER_CATEGORY]: true,
@@ -435,6 +436,10 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   const [dispatchFormOpen, setDispatchFormOpen] = useState(false)
   const [dispatchForm, setDispatchForm] = useState(emptyDispatch)
   const [dispatchSaving, setDispatchSaving] = useState(false)
+  const [editingDispatch, setEditingDispatch] = useState(null)
+  const [dispatchEditForm, setDispatchEditForm] = useState(null)
+  const [dispatchEditSaving, setDispatchEditSaving] = useState(false)
+  const [approvalSavingId, setApprovalSavingId] = useState('')
   const [filters, setFilters] = useState({ search: '', category: '' })
   const [leadSearch, setLeadSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState(null)
@@ -499,6 +504,32 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     () => dispatchLeads.filter(lead => lead.status === 'active' && lead.currentStage === 'Dispatch'),
     [dispatchLeads]
   )
+
+  const pendingDispatches = useMemo(
+    () => dispatches.filter(dispatch => dispatch.approvalStatus === 'Pending'),
+    [dispatches]
+  )
+
+  const approvedDispatches = useMemo(
+    () => dispatches.filter(dispatch => dispatch.approvalStatus === 'Approved'),
+    [dispatches]
+  )
+
+  const getDispatchItemProductId = (item) => String(item.productId?._id || item.productId || '')
+  const getDispatchTotalQuantity = (dispatch) => dispatch.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  const getApprovalBadgeClass = (status) => status === 'Approved' ? 'badge-green' : 'badge-blue'
+
+  const getReservedQuantityForEdit = (productId) => {
+    if (!editingDispatch) return 0
+    return editingDispatch.items.reduce((sum, item) => (
+      getDispatchItemProductId(item) === productId ? sum + Number(item.quantity || 0) : sum
+    ), 0)
+  }
+
+  const getEditableAvailableQuantity = (productId) => {
+    const product = products.find(item => item._id === productId)
+    return Number(product?.quantity || 0) + getReservedQuantityForEdit(productId)
+  }
 
   const openDispatchBill = (lead = null) => {
     setDispatchForm({
@@ -768,7 +799,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
         mobile: normalizePhone(dispatchForm.mobile),
         items: billItems,
       })
-      toast.success('Dispatch bill saved, stock reduced')
+      toast.success('Pending dispatch bill saved and stock reserved')
       setDispatchForm(emptyDispatch)
       setDispatchFormOpen(false)
       loadData()
@@ -776,6 +807,146 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       toast.error(err.response?.data?.message || 'Dispatch failed')
     } finally {
       setDispatchSaving(false)
+    }
+  }
+
+  const openDispatchEditor = (dispatch) => {
+    setEditingDispatch(dispatch)
+    setDispatchEditForm({
+      billNo: dispatch.billNo || '',
+      customerName: dispatch.customerName || '',
+      leadId: dispatch.leadId || '',
+      engineerName: dispatch.engineerName || '',
+      siteAddress: dispatch.siteAddress || '',
+      mobile: normalizePhone(dispatch.mobile),
+      dispatchDate: dispatch.dispatchDate ? new Date(dispatch.dispatchDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      items: dispatch.items.map((item, index) => ({
+        lineId: `${getDispatchItemProductId(item)}-${index}`,
+        productId: getDispatchItemProductId(item),
+        productName: item.productName,
+        quantity: Number(item.quantity || 0),
+        unit: item.unit || 'pcs',
+      })),
+    })
+  }
+
+  const closeDispatchEditor = () => {
+    setEditingDispatch(null)
+    setDispatchEditForm(null)
+  }
+
+  const setDispatchEditField = (key, value) => {
+    setDispatchEditForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const updateDispatchEditItem = (index, key, value) => {
+    setDispatchEditForm(prev => ({
+      ...prev,
+      items: prev.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        if (key === 'productId') {
+          const product = products.find(productItem => productItem._id === value)
+          return {
+            ...item,
+            productId: value,
+            productName: product?.name || '',
+            unit: product?.unit || 'pcs',
+          }
+        }
+        return { ...item, [key]: value }
+      }),
+    }))
+  }
+
+  const addDispatchEditItem = () => {
+    setDispatchEditForm(prev => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        { lineId: `new-${Date.now()}`, productId: '', productName: '', quantity: 1, unit: 'pcs' },
+      ],
+    }))
+  }
+
+  const removeDispatchEditItem = (lineId) => {
+    setDispatchEditForm(prev => ({ ...prev, items: prev.items.filter(item => item.lineId !== lineId) }))
+  }
+
+  const buildDispatchEditPayload = () => {
+    if (!dispatchEditForm) return null
+    const items = dispatchEditForm.items
+      .filter(item => item.productId)
+      .map(item => ({ productId: item.productId, quantity: Number(item.quantity || 0) }))
+
+    if (!items.length) {
+      toast.error('Pending bill me kam se kam ek material rehna chahiye.')
+      return null
+    }
+    if (items.some(item => item.quantity <= 0)) {
+      toast.error('Har material quantity 0 se zyada honi chahiye.')
+      return null
+    }
+
+    return {
+      ...dispatchEditForm,
+      mobile: normalizePhone(dispatchEditForm.mobile),
+      items,
+    }
+  }
+
+  const savePendingDispatch = async () => {
+    if (!editingDispatch || !dispatchEditForm) return
+    const payload = buildDispatchEditPayload()
+    if (!payload) return
+
+    setDispatchEditSaving(true)
+    try {
+      await dispatchAPI.update(editingDispatch._id, payload)
+      toast.success('Pending bill updated and stock adjusted')
+      closeDispatchEditor()
+      loadData()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Pending bill update failed')
+    } finally {
+      setDispatchEditSaving(false)
+    }
+  }
+
+  const approveCurrentDispatch = async () => {
+    if (!editingDispatch) return
+    const payload = buildDispatchEditPayload()
+    if (!payload) return
+
+    setDispatchEditSaving(true)
+    setApprovalSavingId(editingDispatch._id)
+    try {
+      if (dispatchEditorEditable) {
+        await dispatchAPI.update(editingDispatch._id, payload)
+      }
+      await dispatchAPI.approve(editingDispatch._id)
+      toast.success('Bill approved, locked and sent to Installation Manager')
+      closeDispatchEditor()
+      loadData()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Approval failed')
+    } finally {
+      setDispatchEditSaving(false)
+      setApprovalSavingId('')
+    }
+  }
+
+  const approvePendingDispatch = async (dispatch) => {
+    if (!dispatch) return
+    setApprovalSavingId(dispatch._id)
+    try {
+      await dispatchAPI.approve(dispatch._id)
+      toast.success('Bill approved, locked and sent to Installation Manager')
+      if (editingDispatch?._id === dispatch._id) closeDispatchEditor()
+      loadData()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Approval failed')
+    } finally {
+      setApprovalSavingId('')
     }
   }
 
@@ -792,6 +963,16 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     link.click()
     URL.revokeObjectURL(url)
   }
+
+  const dispatchEditorEditable = canDispatch && editingDispatch?.approvalStatus === 'Pending' && !editingDispatch?.billLocked
+  const dispatchEditorTotal = dispatchEditForm?.items.reduce((sum, item) => {
+    const product = products.find(productItem => productItem._id === item.productId)
+    const originalItem = editingDispatch?.items.find(dispatchItem => getDispatchItemProductId(dispatchItem) === item.productId)
+    const price = dispatchEditorEditable
+      ? Number(product?.price ?? originalItem?.price ?? 0)
+      : Number(originalItem?.price ?? product?.price ?? 0)
+    return sum + (Number(item.quantity || 0) * price)
+  }, 0) || 0
 
   if (loading && !products.length) return <Spinner size={48} />
 
@@ -950,26 +1131,59 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       )}
 
       {tab === 'dispatch' && (
-        <div className="crm-card">
-          <div className="dashboard-split-row" style={{ marginBottom:16 }}>
-            <h3 style={{ fontSize:15, fontWeight:700 }}>Dispatch Tracking</h3>
-            {canDispatch && <button className="btn btn-primary btn-sm" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>}
+        <div className="dashboard-stack">
+          <div className="dashboard-grid-metrics">
+            <MetricCard icon={<FaShippingFast />} label="Pending Bills" value={pendingDispatches.length} change="Review before approval" changeColor="var(--blue)" />
+            <MetricCard icon={<FaCheck />} label="Approved Bills" value={approvedDispatches.length} change="Sent to installation" changeColor="var(--green)" />
+            <MetricCard icon={<FaBoxOpen />} label="Reserved Material" value={pendingDispatches.reduce((sum, dispatch) => sum + getDispatchTotalQuantity(dispatch), 0)} change="Held in pending bills" changeColor="var(--sun)" />
+            <MetricCard icon={<FaWarehouse />} label="Total Dispatch Qty" value={dispatches.reduce((sum, dispatch) => sum + getDispatchTotalQuantity(dispatch), 0)} change="All bills" changeColor="var(--green)" />
           </div>
-          <div className="crm-table-wrap">
-            <table className="crm-table">
-              <thead><tr><th>Bill / Customer</th><th>Engineer</th><th>Items List</th><th>Quantity</th><th>Date</th></tr></thead>
-              <tbody>
-                {dispatches.map(dispatch => (
-                  <tr key={dispatch._id}>
-                    <td><strong>{dispatch.billNo || '-'}</strong><div style={{ fontSize:11, color:'var(--muted)' }}>{dispatch.customerName} | {dispatch.leadId || dispatch.mobile}</div></td>
-                    <td>{dispatch.engineerName}</td>
-                    <td>{dispatch.items.map(item => `${item.productName} (${item.quantity} ${item.unit}, left ${item.remainingQuantity ?? '-'})`).join(', ')}</td>
-                    <td>{dispatch.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</td>
-                    <td>{formatDate(dispatch.dispatchDate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="crm-card">
+            <div className="dashboard-split-row" style={{ marginBottom:16 }}>
+              <div>
+                <h3 style={{ fontSize:15, fontWeight:700 }}>Dispatch Bills</h3>
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Pending bills can be edited before approval. Approved bills are locked.</div>
+              </div>
+              {canDispatch && <button className="btn btn-primary btn-sm" onClick={() => openDispatchBill()}><FaShippingFast /> New Pending Bill</button>}
+            </div>
+            {!dispatches.length ? (
+              <EmptyState title="No dispatch bills yet" subtitle="Create a bill to reserve stock and start approval." />
+            ) : (
+              <div className="crm-table-wrap">
+                <table className="crm-table">
+                  <thead><tr><th>Bill / Customer</th><th>Status</th><th>Engineer</th><th>Items List</th><th>Qty</th><th>Total</th><th>Date</th><th>Action</th></tr></thead>
+                  <tbody>
+                    {dispatches.map(dispatch => (
+                      <tr key={dispatch._id}>
+                        <td>
+                          <strong>{dispatch.billNo || '-'}</strong>
+                          <div style={{ fontSize:11, color:'var(--muted)' }}>{dispatch.customerName} | {dispatch.leadId || dispatch.mobile}</div>
+                        </td>
+                        <td><span className={`badge ${getApprovalBadgeClass(dispatch.approvalStatus)}`}>{dispatch.approvalStatus}</span></td>
+                        <td>{dispatch.engineerName}</td>
+                        <td>{dispatch.items.map(item => `${item.productName} (${item.quantity} ${item.unit}, left ${item.remainingQuantity ?? '-'})`).join(', ')}</td>
+                        <td>{getDispatchTotalQuantity(dispatch)}</td>
+                        <td>Rs. {Number(dispatch.grandTotal || 0).toLocaleString('en-IN')}</td>
+                        <td>{formatDate(dispatch.dispatchDate)}</td>
+                        <td>
+                          <div className="dashboard-inline-actions">
+                            <button className="btn btn-ghost btn-sm" onClick={() => openDispatchEditor(dispatch)}>
+                              {dispatch.approvalStatus === 'Pending' ? <FaEdit /> : <FaSearch />} {dispatch.approvalStatus === 'Pending' ? 'Review' : 'View'}
+                            </button>
+                            {canDispatch && dispatch.approvalStatus === 'Pending' && (
+                              <button className="btn btn-secondary btn-sm" onClick={() => approvePendingDispatch(dispatch)} disabled={approvalSavingId === dispatch._id}>
+                                <FaCheck /> {approvalSavingId === dispatch._id ? 'Approving...' : 'Approve'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1138,7 +1352,12 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
               )}
               <div style={{ gridColumn:'1/-1' }}><label className="form-label">Item Name</label><input className="crm-input" value={productForm.name} onChange={e => setProductField('name', e.target.value)} placeholder="Auto name bhi chalega, ya custom item name likhein" /></div>
               <div><label className="form-label">Quantity</label><input className="crm-input" type="number" min="0" value={productForm.quantity} onChange={e => setProductField('quantity', e.target.value)} required /></div>
-              <div><label className="form-label">Unit</label><input className="crm-input" value={productForm.unit} onChange={e => setProductField('unit', e.target.value)} /></div>
+              <div>
+                <label className="form-label">Unit</label>
+                <select className="crm-input" value={productForm.unit} onChange={e => setProductField('unit', e.target.value)}>
+                  {UNIT_OPTIONS.map(unit => <option key={unit} value={unit}>{unit}</option>)}
+                </select>
+              </div>
               <div><label className="form-label">Low Stock Alert Below</label><input className="crm-input" type="number" min="0" value={productForm.lowStockThreshold} onChange={e => setProductField('lowStockThreshold', e.target.value)} /></div>
             </div>
             {editingProduct ? (
@@ -1177,10 +1396,136 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
         </div>
       )}
 
+      {editingDispatch && dispatchEditForm && (
+        <div className="modal-backdrop" style={{ alignItems:'stretch', padding:0 }} onClick={e => e.target === e.currentTarget && closeDispatchEditor()}>
+          <div className="modal-box" style={{ maxWidth:'100%', width:'100%', minHeight:'100vh', borderRadius:0, overflowY:'auto' }}>
+            <PageHeader
+              icon={<FaShippingFast />}
+              title={`${dispatchEditorEditable ? 'Review Pending Bill' : 'View Locked Bill'} ${dispatchEditForm.billNo || ''}`}
+              subtitle={dispatchEditorEditable ? 'Edit customer details or quantities before approval. Stock is adjusted on save.' : 'Approved bills are locked and visible to Installation Manager.'}
+              action={<button type="button" className="btn btn-ghost" onClick={closeDispatchEditor}>Close</button>}
+            />
+
+            <div className="dashboard-grid-metrics">
+              <MetricCard icon={<FaShippingFast />} label="Bill Status" value={editingDispatch.approvalStatus} change={editingDispatch.billLocked ? 'Locked' : 'Editable'} changeColor={editingDispatch.approvalStatus === 'Approved' ? 'var(--green)' : 'var(--blue)'} />
+              <MetricCard icon={<FaBoxOpen />} label="Material Qty" value={dispatchEditForm.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} change="Bill quantity" changeColor="var(--sun)" />
+              <MetricCard icon={<FaFilePdf />} label="Bill Total" value={`Rs. ${dispatchEditorTotal.toLocaleString('en-IN')}`} change={dispatchEditorEditable ? 'Current product price' : 'Locked total'} changeColor="var(--green)" />
+              <MetricCard icon={<FaWarehouse />} label="Installation" value={editingDispatch.installationStatus || 'Pending'} change="After approval" changeColor="var(--blue)" />
+            </div>
+
+            <div className="crm-card" style={{ marginBottom:16 }}>
+              <div className="dashboard-split-row" style={{ marginBottom:16 }}>
+                <h3 style={{ fontSize:15, fontWeight:700 }}>Customer & Site</h3>
+                <span className={`badge ${getApprovalBadgeClass(editingDispatch.approvalStatus)}`}>{editingDispatch.approvalStatus}</span>
+              </div>
+              <div className="dashboard-form-grid">
+                <div><label className="form-label">Bill No.</label><input className="crm-input" value={dispatchEditForm.billNo} onChange={e => setDispatchEditField('billNo', e.target.value)} disabled={!dispatchEditorEditable} /></div>
+                <div><label className="form-label">Customer Name</label><input className="crm-input" value={dispatchEditForm.customerName} onChange={e => setDispatchEditField('customerName', e.target.value)} disabled={!dispatchEditorEditable} /></div>
+                <div><label className="form-label">Lead ID / IVRS No.</label><input className="crm-input" value={dispatchEditForm.leadId} onChange={e => setDispatchEditField('leadId', e.target.value)} disabled={!dispatchEditorEditable} /></div>
+                <div><label className="form-label">Installation Engineer</label><input className="crm-input" value={dispatchEditForm.engineerName} onChange={e => setDispatchEditField('engineerName', e.target.value)} disabled={!dispatchEditorEditable} /></div>
+                <div><label className="form-label">Mobile Number</label><input className="crm-input" value={dispatchEditForm.mobile} onChange={e => setDispatchEditField('mobile', normalizePhone(e.target.value))} maxLength={10} disabled={!dispatchEditorEditable} /></div>
+                <div><label className="form-label">Dispatch Date</label><input className="crm-input" type="date" value={dispatchEditForm.dispatchDate} onChange={e => setDispatchEditField('dispatchDate', e.target.value)} disabled={!dispatchEditorEditable} /></div>
+                <div style={{ gridColumn:'1/-1' }}><label className="form-label">Site Address</label><textarea className="crm-input" rows={3} value={dispatchEditForm.siteAddress} onChange={e => setDispatchEditField('siteAddress', e.target.value)} disabled={!dispatchEditorEditable} /></div>
+              </div>
+            </div>
+
+            <div className="crm-card">
+              <div className="dashboard-split-row" style={{ marginBottom:16 }}>
+                <div>
+                  <h3 style={{ fontSize:15, fontWeight:700 }}>Bill Materials</h3>
+                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Saving a pending bill applies the stock difference only.</div>
+                </div>
+                {dispatchEditorEditable && <button type="button" className="btn btn-ghost btn-sm" onClick={addDispatchEditItem}><FaPlus /> Add Material</button>}
+              </div>
+
+              <div className="dashboard-stack">
+                {dispatchEditForm.items.map((item, index) => {
+                  const product = products.find(productItem => productItem._id === item.productId)
+                  const originalItem = editingDispatch.items.find(dispatchItem => getDispatchItemProductId(dispatchItem) === item.productId)
+                  const price = dispatchEditorEditable
+                    ? Number(product?.price ?? originalItem?.price ?? 0)
+                    : Number(originalItem?.price ?? product?.price ?? 0)
+                  const availableQuantity = item.productId ? getEditableAvailableQuantity(item.productId) : 0
+                  return (
+                    <div key={item.lineId} className="dashboard-form-grid" style={{ gap:10 }}>
+                      <div style={{ gridColumn:'span 2' }}>
+                        <label className="form-label">Material</label>
+                        <SearchableSelect
+                          name={`pending-bill-product-${index}`}
+                          value={item.productId}
+                          onChange={(value) => updateDispatchEditItem(index, 'productId', value)}
+                          options={products.map(productItem => ({
+                            value: productItem._id,
+                            label: `${productItem.name} | ${getEditableAvailableQuantity(productItem._id)} ${productItem.unit} available | Rs. ${Number(productItem.price || 0).toLocaleString('en-IN')}`,
+                          }))}
+                          placeholder="Select material..."
+                          searchPlaceholder="Search material..."
+                          noOptionsText="No stock items found"
+                          disabled={!dispatchEditorEditable}
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label">Quantity {item.unit ? `(${item.unit})` : ''}</label>
+                        <input
+                          className="crm-input"
+                          type="number"
+                          min="1"
+                          max={availableQuantity || undefined}
+                          value={item.quantity}
+                          onChange={e => updateDispatchEditItem(index, 'quantity', e.target.value)}
+                          disabled={!dispatchEditorEditable}
+                        />
+                        {item.productId && dispatchEditorEditable && (
+                          <div style={{ fontSize:11, color:Number(item.quantity || 0) > availableQuantity ? 'var(--red)' : 'var(--muted)', marginTop:5 }}>
+                            Available including this pending bill: {availableQuantity} {product?.unit || item.unit || 'pcs'}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="form-label">Line Total</label>
+                        <div className="crm-card-sm" style={{ padding:'9px 12px', minHeight:37 }}>
+                          Rs. {(Number(item.quantity || 0) * price).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'end' }}>
+                        {dispatchEditorEditable && (
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeDispatchEditItem(item.lineId)}>
+                            <FaTrash /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="dashboard-split-row" style={{ marginTop:18, paddingTop:16, borderTop:'1px solid var(--border)' }}>
+                <strong>Grand Total</strong>
+                <strong>Rs. {dispatchEditorTotal.toLocaleString('en-IN')}</strong>
+              </div>
+
+              <div className="dashboard-inline-actions" style={{ marginTop:20, justifyContent:'flex-end' }}>
+                <button type="button" className="btn btn-ghost" onClick={closeDispatchEditor}>Close</button>
+                {dispatchEditorEditable && (
+                  <button type="button" className="btn btn-secondary" onClick={savePendingDispatch} disabled={dispatchEditSaving}>
+                    {dispatchEditSaving ? 'Saving...' : 'Save Pending Bill'}
+                  </button>
+                )}
+                {dispatchEditorEditable && (
+                  <button type="button" className="btn btn-primary" onClick={approveCurrentDispatch} disabled={approvalSavingId === editingDispatch._id || dispatchEditSaving}>
+                    <FaCheck /> {approvalSavingId === editingDispatch._id ? 'Approving...' : 'Approve & Send to Installation'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {dispatchFormOpen && (
         <div className="modal-backdrop" style={{ alignItems:'stretch', padding:0 }} onClick={e => e.target === e.currentTarget && setDispatchFormOpen(false)}>
           <form className="modal-box" style={{ maxWidth:'100%', width:'100%', minHeight:'100vh', borderRadius:0, overflowY:'auto' }} onSubmit={submitDispatch}>
-            <PageHeader icon={<FaShippingFast />} title="Dispatch Billing" subtitle="Bill submit hote hi stock automatic minus hoga aur lead Installation stage me move hogi" action={<button type="button" className="btn btn-ghost" onClick={() => setDispatchFormOpen(false)}>Close</button>} />
+            <PageHeader icon={<FaShippingFast />} title="Dispatch Billing" subtitle="Bill submit hote hi stock reserve hoga. Approval ke baad bill lock hoga aur Installation Manager ko dikhega." action={<button type="button" className="btn btn-ghost" onClick={() => setDispatchFormOpen(false)}>Close</button>} />
             <div className="dashboard-form-grid">
               <div><label className="form-label">Bill No.</label><input className="crm-input" value={dispatchForm.billNo} onChange={e => setDispatchForm(prev => ({ ...prev, billNo: e.target.value }))} required /></div>
               <div><label className="form-label">Customer Name</label><input className="crm-input" value={dispatchForm.customerName} onChange={e => setDispatchForm(prev => ({ ...prev, customerName: e.target.value }))} required /></div>
@@ -1337,7 +1682,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
               </div>
             </div>
             <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:20 }} type="submit" disabled={dispatchSaving}>
-              {dispatchSaving ? 'Submitting Bill...' : 'Submit Bill & Dispatch'}
+              {dispatchSaving ? 'Submitting Bill...' : 'Save Pending Bill & Reserve Stock'}
             </button>
           </form>
         </div>

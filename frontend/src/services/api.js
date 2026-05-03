@@ -88,7 +88,13 @@ export const usersAPI = {
   getAll: () => api.get('/users'),
   getOne: (id) => api.get(`/users/${id}`),
   updateMe: (data) => api.put('/users/me', data),
-  create: (data) => api.post('/users', data),
+  create: (data) => api.post(
+    '/users',
+    data,
+    typeof FormData !== 'undefined' && data instanceof FormData
+      ? { headers: { 'Content-Type': 'multipart/form-data' } }
+      : undefined
+  ),
   update: (id, data) => api.put(`/users/${id}`, data),
   delete: (id) => api.delete(`/users/${id}`),
   approve: (id) => api.post(`/users/${id}/approve`),
@@ -126,6 +132,7 @@ export const dispatchAPI = {
   getAll: (params) => api.get('/dispatch', { params }),
   getByLead: (leadId) => api.get(`/dispatch/${leadId}`),
   create: (data) => api.post('/dispatch', data),
+  update: (id, data) => api.patch(`/dispatch/${id}`, data),
   approve: (id) => api.post(`/dispatch/${id}/approve`),
   updateInstallationStatus: (id, status) => api.patch(`/dispatch/${id}/installation-status`, { status }),
 }

@@ -48,12 +48,14 @@ exports.createUser = async (req, res) => {
       permanentAddress, address, state, city, pincode, jobTitle,
       resume, documents, dateOfJoining
     } = req.body;
-    const existing = await User.findOne({ email });
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const uploadedDocumentPath = req.file ? `/uploads/registrations/${req.file.filename}` : undefined;
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
     const user = await User.create({
-      name, email, password, role, phone, alternateContact,
+      name, email: normalizedEmail, password, role, phone, alternateContact,
       permanentAddress, address, state, city, pincode, jobTitle,
-      resume, documents, dateOfJoining: dateOfJoining || undefined
+      resume, documents: uploadedDocumentPath || documents, dateOfJoining: dateOfJoining || undefined
     });
     const safe = await User.findById(user._id).select('-password');
     res.status(201).json({ success: true, message: 'User created', data: safe });

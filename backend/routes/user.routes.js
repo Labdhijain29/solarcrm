@@ -6,6 +6,7 @@ const {
   getNotifications, markNotificationsRead, approveUser, rejectUser, updateProfile
 } = require('../controllers/user.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
+const { uploadRegistrationDocument } = require('../middleware/upload.middleware');
 
 router.use(protect);
 
@@ -15,7 +16,7 @@ router.put('/notifications/read', markNotificationsRead);
 
 router.route('/')
   .get(authorize('Admin', 'Manager'), getUsers)
-  .post(authorize('Admin'), createUser);
+  .post(authorize('Admin'), uploadRegistrationDocument, createUser);
 
 router.route('/:id')
   .get(getUser)

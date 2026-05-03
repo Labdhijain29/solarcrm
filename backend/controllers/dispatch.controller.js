@@ -13,6 +13,46 @@ const rollbackStock = async (updates) => {
   await Promise.all(updates.map((item) => Product.findByIdAndUpdate(item.productId, { $inc: { quantity: item.quantity } })));
 };
 
+const rollbackStockDeltas = async (updates) => {
+  await Promise.all(updates.map((item) => Product.findByIdAndUpdate(item.productId, { $inc: { quantity: item.delta } })));
+};
+
+const normalizeDispatchItems = (items) => {
+  const itemMap = new Map();
+
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const productId = String(item.productId || '').trim();
+    const quantity = Number(item.quantity || 0);
+    if (!productId || quantity <= 0) return;
+    itemMap.set(productId, (itemMap.get(productId) || 0) + quantity);
+  });
+
+  return Array.from(itemMap.entries()).map(([productId, quantity]) => ({ productId, quantity }));
+};
+
+const buildDispatchSnapshots = (products, normalizedItems) => {
+  const productMap = new Map(products.map((product) => [product._id.toString(), product]));
+
+  return normalizedItems.map((item) => {
+    const product = productMap.get(item.productId);
+    if (!product) throw new Error('Selected stock item not found.');
+
+    return {
+      productId: product._id,
+      productName: product.name,
+      category: product.category,
+      brand: product.brand,
+      type: product.type,
+      capacity: product.capacity,
+      unit: product.unit,
+      quantity: item.quantity,
+      price: Number(product.price || 0),
+      lineTotal: Number(product.price || 0) * item.quantity,
+      remainingQuantity: Number(product.quantity || 0),
+    };
+  });
+};
+
 const findDispatchLead = async (leadId, mobile) => {
   const term = normalizeLookupText(leadId);
   const digitTerm = normalizeDigits(term);
@@ -66,14 +106,10 @@ exports.createDispatch = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Select at least one material.' });
     }
 
-    const normalizedItems = items.map((item) => ({
-      productId: item.productId,
-      quantity: Number(item.quantity || 0),
-    }));
-
-    if (normalizedItems.some(item => !item.productId || item.quantity <= 0)) {
+    if (items.some(item => !item.productId || Number(item.quantity || 0) <= 0)) {
       return res.status(400).json({ success: false, message: 'Every selected material needs a valid quantity.' });
     }
+    const normalizedItems = normalizeDispatchItems(items);
 
     const lead = await findDispatchLead(leadId, mobile);
     if (leadId && !lead) {
@@ -148,6 +184,129 @@ exports.createDispatch = async (req, res) => {
   } catch (err) {
     await rollbackStock(decremented);
     if (dispatch?._id) await Dispatch.findByIdAndDelete(dispatch._id).catch(console.error);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.updateDispatch = async (req, res) => {
+  const stockDeltas = [];
+
+  try {
+    const dispatch = await Dispatch.findById(req.params.id);
+    if (!dispatch) return res.status(404).json({ success: false, message: 'Dispatch not found' });
+    if (dispatch.approvalStatus !== 'Pending' || dispatch.billLocked) {
+      return res.status(400).json({ success: false, message: 'Approved or locked bills cannot be edited.' });
+    }
+
+    const billNo = req.body.billNo !== undefined ? String(req.body.billNo || '').trim() : dispatch.billNo;
+    const customerName = req.body.customerName !== undefined ? String(req.body.customerName || '').trim() : dispatch.customerName;
+    const leadId = req.body.leadId !== undefined ? String(req.body.leadId || '').trim() : dispatch.leadId;
+    const engineerName = req.body.engineerName !== undefined ? String(req.body.engineerName || '').trim() : dispatch.engineerName;
+    const siteAddress = req.body.siteAddress !== undefined ? String(req.body.siteAddress || '').trim() : dispatch.siteAddress;
+    const mobile = req.body.mobile !== undefined ? normalizeMobile(req.body.mobile) : dispatch.mobile;
+    const dispatchDate = req.body.dispatchDate !== undefined ? req.body.dispatchDate : dispatch.dispatchDate;
+    const rawItems = req.body.items === undefined
+      ? dispatch.items.map(item => ({ productId: item.productId, quantity: item.quantity }))
+      : req.body.items;
+
+    if (!customerName || !engineerName || !siteAddress || !mobile) {
+      return res.status(400).json({ success: false, message: 'Customer, engineer, site address and mobile are required.' });
+    }
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid 10-digit mobile number.' });
+    }
+    if (!Array.isArray(rawItems) || !rawItems.length) {
+      return res.status(400).json({ success: false, message: 'Select at least one material.' });
+    }
+    if (rawItems.some(item => !item.productId || Number(item.quantity || 0) <= 0)) {
+      return res.status(400).json({ success: false, message: 'Every selected material needs a valid quantity.' });
+    }
+
+    const lead = await findDispatchLead(leadId, mobile);
+    if (leadId && !lead) {
+      return res.status(404).json({ success: false, message: 'Lead not found. Enter valid Lead ID, IVRS number, deal number or mobile.' });
+    }
+    if (lead && lead.status !== 'active') {
+      return res.status(400).json({ success: false, message: `Lead is already ${lead.status}.` });
+    }
+    if (lead && lead.currentStage !== 'Dispatch') {
+      return res.status(400).json({ success: false, message: `Lead is at '${lead.currentStage}' stage. Dispatch can be edited only while lead is at 'Dispatch' stage.` });
+    }
+
+    const normalizedItems = normalizeDispatchItems(rawItems);
+    const productIds = normalizedItems.map(item => item.productId);
+    const products = await Product.find({ _id: { $in: productIds } });
+    if (products.length !== productIds.length) {
+      return res.status(404).json({ success: false, message: 'Selected stock item not found.' });
+    }
+
+    const currentQuantities = new Map();
+    dispatch.items.forEach((item) => {
+      const productId = item.productId.toString();
+      currentQuantities.set(productId, (currentQuantities.get(productId) || 0) + Number(item.quantity || 0));
+    });
+
+    const nextQuantities = new Map(normalizedItems.map(item => [item.productId, item.quantity]));
+    const allProductIds = Array.from(new Set([...currentQuantities.keys(), ...nextQuantities.keys()]));
+    const quantityDeltas = allProductIds
+      .map(productId => ({
+        productId,
+        delta: Number(nextQuantities.get(productId) || 0) - Number(currentQuantities.get(productId) || 0),
+      }))
+      .filter(item => item.delta !== 0);
+
+    for (const item of quantityDeltas.filter(deltaItem => deltaItem.delta > 0)) {
+      const product = await Product.findOneAndUpdate(
+        { _id: item.productId, quantity: { $gte: item.delta } },
+        { $inc: { quantity: -item.delta }, $set: { updatedBy: req.user._id } },
+        { new: true }
+      );
+      if (!product) {
+        await rollbackStockDeltas(stockDeltas);
+        return res.status(400).json({ success: false, message: 'Insufficient Stock' });
+      }
+      stockDeltas.push(item);
+    }
+
+    for (const item of quantityDeltas.filter(deltaItem => deltaItem.delta < 0)) {
+      const product = await Product.findByIdAndUpdate(
+        item.productId,
+        { $inc: { quantity: -item.delta }, $set: { updatedBy: req.user._id } },
+        { new: true }
+      );
+      if (!product) throw new Error('Selected stock item not found.');
+      stockDeltas.push(item);
+    }
+
+    const updatedProducts = await Product.find({ _id: { $in: productIds } });
+    const snapshots = buildDispatchSnapshots(updatedProducts, normalizedItems);
+    const grandTotal = snapshots.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+
+    dispatch.billNo = billNo || dispatch.billNo || `DSP-${Date.now()}`;
+    dispatch.customerName = customerName;
+    dispatch.leadId = lead?._id?.toString() || leadId || '';
+    dispatch.engineerName = engineerName;
+    dispatch.siteAddress = siteAddress;
+    dispatch.mobile = mobile;
+    dispatch.dispatchDate = dispatchDate || dispatch.dispatchDate || new Date();
+    dispatch.items = snapshots;
+    dispatch.subTotal = grandTotal;
+    dispatch.grandTotal = grandTotal;
+    await dispatch.save();
+
+    const netQuantityChange = quantityDeltas.reduce((sum, item) => sum + Number(item.delta || 0), 0);
+    await InventoryActivity.create({
+      action: 'Dispatch Updated',
+      dispatch: dispatch._id,
+      message: `Pending bill ${dispatch.billNo} updated for ${dispatch.customerName}`,
+      quantityChange: -netQuantityChange,
+      performedBy: req.user._id,
+      performedByName: req.user.name,
+    }).catch(console.error);
+
+    res.json({ success: true, message: 'Pending dispatch bill updated', data: dispatch });
+  } catch (err) {
+    await rollbackStockDeltas(stockDeltas);
     res.status(500).json({ success: false, message: err.message });
   }
 };
