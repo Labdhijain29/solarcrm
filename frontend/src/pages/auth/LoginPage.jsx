@@ -5,7 +5,7 @@ import { FaSolarPanel } from 'react-icons/fa'
 import { authAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, getSubDistrictOptions, STATE_OPTIONS } from '../../utils/constants'
-import { SearchableSelect } from '../../components/common'
+import { FilePreview, SearchableSelect } from '../../components/common'
 
 const REGISTER_ROLES = [
   'Manager',
@@ -407,8 +407,8 @@ export default function LoginPage() {
                     onChange={(e) => setRegisterField('documents', e.target.files?.[0] || null)}
                   />
                   {registerForm.documents && (
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6 }}>
-                      Selected: {registerForm.documents.name}
+                    <div style={{ marginTop:8 }}>
+                      <FilePreview file={registerForm.documents} label="Selected document" compact />
                     </div>
                   )}
                 </div>

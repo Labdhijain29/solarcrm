@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getPublicFileUrl } from '../utils/files'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -6,22 +7,10 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-const getApiBaseUrl = () => {
-  const configuredBase = import.meta.env.VITE_API_URL || '/api'
-  if (/^https?:\/\//i.test(configuredBase)) return configuredBase.replace(/\/+$/, '')
-  return new URL(configuredBase, window.location.origin).href.replace(/\/+$/, '')
-}
+export { getPublicFileUrl }
 
-export const getPublicFileUrl = (filePath) => {
-  if (!filePath) return ''
-  if (/^https?:\/\//i.test(filePath)) return filePath
-
-  const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`
-  const apiBaseUrl = getApiBaseUrl()
-  const publicBase = apiBaseUrl.replace(/\/api\/?$/i, '')
-
-  return `${publicBase}${normalizedPath}`
-}
+const isFormData = (data) => typeof FormData !== 'undefined' && data instanceof FormData
+const formDataConfig = (data) => (isFormData(data) ? { headers: {} } : undefined)
 
 const shouldRedirectToLogin = (error) => {
   if (error.response?.status !== 401) return false
@@ -38,6 +27,14 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('solar_token')
     if (token) config.headers.Authorization = `Bearer ${token}`
+    if (isFormData(config.data)) {
+      if (typeof config.headers?.delete === 'function') {
+        config.headers.delete('Content-Type')
+      } else {
+        delete config.headers['Content-Type']
+        delete config.headers['content-type']
+      }
+    }
     return config
   },
   (error) => Promise.reject(error)
@@ -62,9 +59,7 @@ export const authAPI = {
   register: (data) => api.post(
     '/auth/register',
     data,
-    typeof FormData !== 'undefined' && data instanceof FormData
-      ? { headers: { 'Content-Type': 'multipart/form-data' } }
-      : undefined
+    formDataConfig(data)
   ),
   getMe: () => api.get('/auth/me'),
   changePassword: (data) => api.put('/auth/change-password', data),
@@ -75,9 +70,9 @@ export const authAPI = {
 export const leadsAPI = {
   getAll: (params) => api.get('/leads', { params }),
   getOne: (id) => api.get(`/leads/${id}`),
-  create: (data) => api.post('/leads', data),
-  update: (id, data) => api.put(`/leads/${id}`, data),
-  approve: (id, data) => api.post(`/leads/${id}/approve`, data),
+  create: (data) => api.post('/leads', data, formDataConfig(data)),
+  update: (id, data) => api.put(`/leads/${id}`, data, formDataConfig(data)),
+  approve: (id, data) => api.post(`/leads/${id}/approve`, data, formDataConfig(data)),
   reject: (id, data) => api.post(`/leads/${id}/reject`, data),
   addNote: (id, note) => api.post(`/leads/${id}/note`, { note }),
   delete: (id) => api.delete(`/leads/${id}`),
@@ -91,11 +86,9 @@ export const usersAPI = {
   create: (data) => api.post(
     '/users',
     data,
-    typeof FormData !== 'undefined' && data instanceof FormData
-      ? { headers: { 'Content-Type': 'multipart/form-data' } }
-      : undefined
+    formDataConfig(data)
   ),
-  update: (id, data) => api.put(`/users/${id}`, data),
+  update: (id, data) => api.put(`/users/${id}`, data, formDataConfig(data)),
   delete: (id) => api.delete(`/users/${id}`),
   approve: (id) => api.post(`/users/${id}/approve`),
   reject: (id) => api.post(`/users/${id}/reject`),
@@ -135,6 +128,11 @@ export const dispatchAPI = {
   update: (id, data) => api.patch(`/dispatch/${id}`, data),
   approve: (id) => api.post(`/dispatch/${id}/approve`),
   updateInstallationStatus: (id, status) => api.patch(`/dispatch/${id}/installation-status`, { status }),
+}
+
+export const settingsAPI = {
+  getUpload: () => api.get('/settings/upload'),
+  updateUpload: (data) => api.put('/settings/upload', data),
 }
 
 export default api

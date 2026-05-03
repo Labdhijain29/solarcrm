@@ -2,6 +2,140 @@ const Lead = require('../models/Lead');
 const Enquiry = require('../models/Enquiry');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
+const { uploadFileAsset } = require('../services/storage/fileAsset');
+
+const leadFileFieldMap = {
+  photoOne: {
+    target: 'salesExecutiveData',
+    nameField: 'photoOneName',
+    fileField: 'photoOneFile',
+    folder: 'sales-executive',
+  },
+  photoTwo: {
+    target: 'salesExecutiveData',
+    nameField: 'photoTwoName',
+    fileField: 'photoTwoFile',
+    folder: 'sales-executive',
+  },
+  documentPdf: {
+    target: 'salesExecutiveData',
+    nameField: 'documentPdfName',
+    fileField: 'documentPdfFile',
+    folder: 'sales-executive',
+  },
+  panelPhoto: {
+    target: 'installationData',
+    nameField: 'panelPhotoName',
+    fileField: 'panelPhotoFile',
+    folder: 'installation',
+  },
+  inverterBoxPhoto: {
+    target: 'installationData',
+    nameField: 'inverterBoxPhotoName',
+    fileField: 'inverterBoxPhotoFile',
+    folder: 'installation',
+  },
+  earthingPhoto: {
+    target: 'installationData',
+    nameField: 'earthingPhotoName',
+    fileField: 'earthingPhotoFile',
+    folder: 'installation',
+  },
+  columnConcretePhoto: {
+    target: 'installationData',
+    nameField: 'columnConcretePhotoName',
+    fileField: 'columnConcretePhotoFile',
+    folder: 'installation',
+  },
+  customerShortVideo: {
+    target: 'installationData',
+    nameField: 'customerShortVideoName',
+    fileField: 'customerShortVideoFile',
+    folder: 'installation',
+  },
+  netMeteringPdf: {
+    target: 'netMeteringData',
+    nameField: 'pdfName',
+    fileField: 'pdfFile',
+    folder: 'net-metering',
+  },
+  subsidyPhoto: {
+    target: 'subsidyData',
+    nameField: 'photoName',
+    fileField: 'photoFile',
+    folder: 'subsidy',
+  },
+  subsidyPhotoTwo: {
+    target: 'subsidyData',
+    nameField: 'photoTwoName',
+    fileField: 'photoTwoFile',
+    folder: 'subsidy',
+  },
+  subsidyReadingPhoto: {
+    target: 'subsidyReadingData',
+    nameField: 'photoName',
+    fileField: 'photoFile',
+    folder: 'subsidy-reading',
+  },
+};
+
+const stageDataMap = {
+  'Registration': 'registrationData',
+  'Bank Approval': 'bankData',
+  'Loan Disbursement': 'loanData',
+  'Dispatch': 'dispatchData',
+  'Installation': 'installationData',
+  'Net Metering': 'netMeteringData',
+  'Subsidy': 'subsidyData',
+  'Subsidy Reading': 'subsidyReadingData',
+};
+
+const getRequestFile = (req, fieldName) => {
+  if (req.file?.fieldname === fieldName) return req.file;
+  const value = req.files?.[fieldName];
+  if (Array.isArray(value)) return value[0];
+  return value || null;
+};
+
+const toPlainObject = (value) => (value?.toObject ? value.toObject() : value || {});
+
+const mergePatch = (target, key, patch) => {
+  if (!patch || Object.keys(patch).length === 0) return;
+  target[key] = {
+    ...toPlainObject(target[key]),
+    ...patch,
+  };
+};
+
+const collectUploadedLeadFilePatches = async (req, leadId) => {
+  const patches = {};
+
+  for (const [fieldName, config] of Object.entries(leadFileFieldMap)) {
+    const file = getRequestFile(req, fieldName);
+    if (!file) continue;
+
+    const asset = await uploadFileAsset(file, {
+      folder: `leads/${leadId}/${config.folder}`,
+    });
+
+    patches[config.target] = {
+      ...(patches[config.target] || {}),
+      [config.nameField]: asset.originalName,
+      [config.fileField]: asset,
+    };
+  }
+
+  return patches;
+};
+
+const mergeUploadedPatchesIntoBody = (body, patches) => {
+  Object.entries(patches).forEach(([key, patch]) => {
+    body[key] = {
+      ...toPlainObject(body[key]),
+      ...patch,
+    };
+  });
+};
 
 const isSingleStageRole = (role) => {
   const stageAccess = ROLE_STAGE_MAP[role];
@@ -242,6 +376,12 @@ exports.createLead = async (req, res) => {
       }]
     });
 
+    const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
+    if (Object.keys(uploadedFilePatches).length) {
+      Object.entries(uploadedFilePatches).forEach(([key, patch]) => mergePatch(lead, key, patch));
+      await lead.save();
+    }
+
     // Notify assigned user
     if (resolvedAssignedTo && String(resolvedAssignedTo) !== String(req.user._id)) {
       await User.findByIdAndUpdate(resolvedAssignedTo, {
@@ -294,14 +434,42 @@ exports.updateLead = async (req, res) => {
       if (panelNumber && !/^\d{16}$/.test(panelNumber)) {
         return res.status(400).json({ success: false, message: 'Panel number must be exactly 16 digits.' });
       }
-      lead.installationData = {
-        ...(lead.installationData?.toObject ? lead.installationData.toObject() : lead.installationData || {}),
-        panelNumber
-      };
+      req.body.installationData.panelNumber = panelNumber;
     }
 
-    const allowed = ['name','phone','email','address','city','state','pincode','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags','salesExecutiveData'];
+    if (req.body.installationData?.inverterNumber !== undefined) {
+      const inverterNumber = String(req.body.installationData.inverterNumber || '').trim();
+      req.body.installationData.inverterNumber = inverterNumber;
+      if (inverterNumber && inverterNumber !== lead.installationData?.inverterNumber) {
+        await ensureUniqueInverterNumber(inverterNumber, lead._id);
+      }
+    }
+
+    if (req.body.netMeteringData?.meterNumber !== undefined) {
+      const meterNumber = String(req.body.netMeteringData.meterNumber || '').trim();
+      req.body.netMeteringData.meterNumber = meterNumber;
+      if (meterNumber && meterNumber !== lead.netMeteringData?.meterNumber) {
+        await ensureUniqueMeterNumber(meterNumber, lead._id);
+      }
+    }
+
+    const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
+    mergeUploadedPatchesIntoBody(req.body, uploadedFilePatches);
+
+    const allowed = ['name','phone','email','address','city','state','pincode','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags'];
     allowed.forEach(field => { if (req.body[field] !== undefined) lead[field] = req.body[field]; });
+
+    [
+      'salesExecutiveData',
+      'registrationData',
+      'bankData',
+      'loanData',
+      'dispatchData',
+      'installationData',
+      'netMeteringData',
+      'subsidyData',
+      'subsidyReadingData',
+    ].forEach((key) => mergePatch(lead, key, req.body[key]));
 
     lead.history.push({
       stage: lead.currentStage,
@@ -371,69 +539,66 @@ exports.approveLead = async (req, res) => {
       lead.assignedTo = null;
     }
 
-    // Save stage-specific data if provided
-    if (req.body.stageData) {
-      // Map stage names to data keys
-      const stageDataMap = {
-        'Registration': 'registrationData',
-        'Bank Approval': 'bankData',
-        'Loan Disbursement': 'loanData',
-        'Dispatch': 'dispatchData',
-        'Installation': 'installationData',
-        'Net Metering': 'netMeteringData',
-        'Subsidy': 'subsidyData',
-        'Subsidy Reading': 'subsidyReadingData',
-      };
-      const key = stageDataMap[prevStage];
-      if (prevStage === 'Loan Disbursement') {
-        const applicationId = String(req.body.stageData.applicationId || '').trim();
-        if (!applicationId) {
-          return res.status(400).json({ success: false, message: 'Application number is required for loan approval.' });
-        }
-        req.body.stageData.applicationId = applicationId;
-        await ensureUniqueApplicationId(applicationId, lead._id);
-      }
-      if (prevStage === 'Installation') {
-        const panelNumber = String(req.body.stageData.panelNumber || '').trim();
-        const inverterNumber = String(req.body.stageData.inverterNumber || '').trim();
+    const key = stageDataMap[prevStage];
+    const stageData = req.body.stageData ? { ...req.body.stageData } : {};
 
-        if (!/^\d{16}$/.test(panelNumber)) {
-          return res.status(400).json({ success: false, message: 'Panel number must be exactly 16 digits.' });
-        }
-        if (!inverterNumber) {
-          return res.status(400).json({ success: false, message: 'Inverter number is required for installation approval.' });
-        }
+    if (prevStage === 'Loan Disbursement') {
+      const applicationId = String(stageData.applicationId || '').trim();
+      if (!applicationId) {
+        return res.status(400).json({ success: false, message: 'Application number is required for loan approval.' });
+      }
+      stageData.applicationId = applicationId;
+      await ensureUniqueApplicationId(applicationId, lead._id);
+    }
 
-        req.body.stageData.panelNumber = panelNumber;
-        req.body.stageData.inverterNumber = inverterNumber;
-        req.body.stageData.installedAt = new Date();
-        req.body.stageData.completedAt = new Date();
-        await ensureUniqueInverterNumber(inverterNumber, lead._id);
-      }
-      if (prevStage === 'Net Metering') {
-        const meterNumber = String(req.body.stageData.meterNumber || '').trim();
-        if (!meterNumber) {
-          return res.status(400).json({ success: false, message: 'Meter number is required for net metering approval.' });
-        }
+    if (prevStage === 'Installation') {
+      const panelNumber = String(stageData.panelNumber || '').trim();
+      const inverterNumber = String(stageData.inverterNumber || '').trim();
 
-        req.body.stageData.meterNumber = meterNumber;
-        req.body.stageData.applicationDate = req.body.stageData.applicationDate || new Date();
-        req.body.stageData.approvedAt = new Date();
-        await ensureUniqueMeterNumber(meterNumber, lead._id);
+      if (!/^\d{16}$/.test(panelNumber)) {
+        return res.status(400).json({ success: false, message: 'Panel number must be exactly 16 digits.' });
       }
-      if (prevStage === 'Subsidy') {
-        req.body.stageData.receivedAt = new Date();
+      if (!inverterNumber) {
+        return res.status(400).json({ success: false, message: 'Inverter number is required for installation approval.' });
       }
-      if (prevStage === 'Subsidy Reading') {
-        req.body.stageData.completedAt = new Date();
+
+      stageData.panelNumber = panelNumber;
+      stageData.inverterNumber = inverterNumber;
+      stageData.installedAt = new Date();
+      stageData.completedAt = new Date();
+      await ensureUniqueInverterNumber(inverterNumber, lead._id);
+    }
+
+    if (prevStage === 'Net Metering') {
+      const meterNumber = String(stageData.meterNumber || '').trim();
+      if (!meterNumber) {
+        return res.status(400).json({ success: false, message: 'Meter number is required for net metering approval.' });
       }
-      if (key) lead[key] = { ...lead[key], ...req.body.stageData };
-    } else if (prevStage === 'Loan Disbursement') {
-      return res.status(400).json({ success: false, message: 'Application number is required for loan approval.' });
-    } else if (prevStage === 'Installation') {
-      return res.status(400).json({ success: false, message: 'Installation details are required before moving to Net Metering.' });
-    } else if (prevStage === 'Net Metering') {
-      return res.status(400).json({ success: false, message: 'Net metering details are required before moving to Subsidy.' });
+
+      stageData.meterNumber = meterNumber;
+      stageData.applicationDate = stageData.applicationDate || new Date();
+      stageData.approvedAt = new Date();
+      await ensureUniqueMeterNumber(meterNumber, lead._id);
+    }
+
+    if (prevStage === 'Subsidy') {
+      stageData.receivedAt = new Date();
+    }
+    if (prevStage === 'Subsidy Reading') {
+      stageData.completedAt = new Date();
+    }
+
+    const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
+    Object.entries(uploadedFilePatches).forEach(([target, patch]) => {
+      if (target === key) return;
+      mergePatch(lead, target, patch);
+    });
+
+    if (key) {
+      mergePatch(lead, key, {
+        ...stageData,
+        ...(uploadedFilePatches[key] || {}),
+      });
     }
 
     await lead.save();
@@ -456,7 +621,7 @@ exports.approveLead = async (req, res) => {
     if (err.code === 11000 && err.keyPattern?.['netMeteringData.meterNumber']) {
       return res.status(409).json({ success: false, message: 'This meter number already exists.' });
     }
-    res.status(400).json({ success: false, message: err.message });
+    res.status(err.statusCode || 400).json({ success: false, message: err.message });
   }
 };
 

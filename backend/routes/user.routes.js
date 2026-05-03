@@ -20,7 +20,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getUser)
-  .put(authorize('Admin'), updateUser)
+  .put(authorize('Admin'), uploadRegistrationDocument, updateUser)
   .delete(authorize('Admin'), deleteUser);
 
 router.post('/:id/approve', authorize('Admin'), approveUser);

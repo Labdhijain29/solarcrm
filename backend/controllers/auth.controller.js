@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
+const { uploadFileAsset } = require('../services/storage/fileAsset');
 
 const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
 
@@ -72,6 +73,7 @@ exports.login = async (req, res) => {
       jobTitle: user.jobTitle,
       resume: user.resume,
       documents: user.documents,
+      documentsFile: user.documentsFile,
       dateOfJoining: user.dateOfJoining,
       stageAccess: ROLE_STAGE_MAP[user.role],
       lastLogin: user.lastLogin,
@@ -111,12 +113,15 @@ exports.register = async (req, res) => {
       dateOfJoining
     } = req.body;
     const normalizedEmail = String(email || '').trim().toLowerCase();
-    const uploadedDocumentPath = req.file ? `/uploads/registrations/${req.file.filename}` : undefined;
 
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(400).json({ success: false, message: 'Email already in use' });
     }
+
+    const uploadedDocument = req.file
+      ? await uploadFileAsset(req.file, { folder: 'users/registrations' })
+      : null;
 
     const user = await User.create({
       name,
@@ -137,7 +142,8 @@ exports.register = async (req, res) => {
       franchiseSubDistrict,
       jobTitle,
       resume,
-      documents: uploadedDocumentPath || documents,
+      documents: uploadedDocument?.fileUrl || documents,
+      documentsFile: uploadedDocument || undefined,
       dateOfJoining: dateOfJoining || undefined,
       isActive: false,
       approvalStatus: 'pending',

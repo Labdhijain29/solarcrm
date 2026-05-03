@@ -1,5 +1,7 @@
 // ─── USER CONTROLLER ──────────────────────────────────────────
 const User = require('../models/User');
+const { uploadFileAsset } = require('../services/storage/fileAsset');
+const storageService = require('../services/storage/storageService');
 
 const buildSessionUser = (user) => ({
   _id: user._id,
@@ -21,6 +23,7 @@ const buildSessionUser = (user) => ({
   jobTitle: user.jobTitle,
   resume: user.resume,
   documents: user.documents,
+  documentsFile: user.documentsFile,
   dateOfJoining: user.dateOfJoining,
   stageAccess: user.stageAccess,
   lastLogin: user.lastLogin,
@@ -49,13 +52,18 @@ exports.createUser = async (req, res) => {
       resume, documents, dateOfJoining
     } = req.body;
     const normalizedEmail = String(email || '').trim().toLowerCase();
-    const uploadedDocumentPath = req.file ? `/uploads/registrations/${req.file.filename}` : undefined;
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
+    const uploadedDocument = req.file
+      ? await uploadFileAsset(req.file, { folder: 'users/registrations' })
+      : null;
     const user = await User.create({
       name, email: normalizedEmail, password, role, phone, alternateContact,
       permanentAddress, address, state, city, pincode, jobTitle,
-      resume, documents: uploadedDocumentPath || documents, dateOfJoining: dateOfJoining || undefined
+      resume,
+      documents: uploadedDocument?.fileUrl || documents,
+      documentsFile: uploadedDocument || undefined,
+      dateOfJoining: dateOfJoining || undefined
     });
     const safe = await User.findById(user._id).select('-password');
     res.status(201).json({ success: true, message: 'User created', data: safe });
@@ -68,11 +76,24 @@ exports.updateUser = async (req, res) => {
       name, phone, isActive, role, approvalStatus, alternateContact, permanentAddress,
       address, state, city, pincode, jobTitle, resume, documents, dateOfJoining
     } = req.body;
-    const user = await User.findByIdAndUpdate(req.params.id, {
+
+    const updates = {
       name, phone, isActive, role, approvalStatus, alternateContact, permanentAddress,
       address, state, city, pincode, jobTitle, resume, documents,
       dateOfJoining: dateOfJoining || undefined
-    }, { new: true, runValidators: true }).select('-password');
+    };
+
+    if (req.file) {
+      const uploadedDocument = await uploadFileAsset(req.file, { folder: 'users/registrations' });
+      updates.documents = uploadedDocument.fileUrl;
+      updates.documentsFile = uploadedDocument;
+    }
+
+    Object.keys(updates).forEach((key) => {
+      if (updates[key] === undefined) delete updates[key];
+    });
+
+    const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true }).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     res.json({ success: true, data: user });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
@@ -129,7 +150,10 @@ exports.updateProfile = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     if (req.params.id === req.user._id.toString()) return res.status(400).json({ success: false, message: 'Cannot delete yourself' });
-    await User.findByIdAndDelete(req.params.id);
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (user?.documentsFile?.fileKey) {
+      storageService.delete(user.documentsFile.fileKey).catch(() => {});
+    }
     res.json({ success: true, message: 'User deleted' });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };

@@ -6,19 +6,20 @@ const {
 } = require('../controllers/lead.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { validateLead } = require('../middleware/validate.middleware');
+const { uploadLeadFiles, normalizeMultipartBody } = require('../middleware/upload.middleware');
 
 router.use(protect);
 
 router.route('/')
   .get(getLeads)
-  .post(authorize('Admin', 'Manager', 'Sales Executive', 'Sales Manager'), validateLead, createLead);
+  .post(authorize('Admin', 'Manager', 'Sales Executive', 'Sales Manager'), uploadLeadFiles, normalizeMultipartBody, validateLead, createLead);
 
 router.route('/:id')
   .get(getLead)
-  .put(updateLead)
+  .put(uploadLeadFiles, normalizeMultipartBody, updateLead)
   .delete(authorize('Admin'), deleteLead);
 
-router.post('/:id/approve', approveLead);
+router.post('/:id/approve', uploadLeadFiles, normalizeMultipartBody, approveLead);
 router.post('/:id/reject', rejectLead);
 router.post('/:id/note', addNote);
 

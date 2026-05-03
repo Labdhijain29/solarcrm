@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FaChartLine, FaCheckCircle, FaClipboardList, FaPlus, FaUsers } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
-import { MetricCard, PageHeader } from '../../components/common'
+import { FilePreview, MetricCard, PageHeader } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
@@ -201,7 +201,11 @@ function SalesExecutiveForm({ onClose, onCreated }) {
           </label>
 
           <div className="sales-exec-file-strip full">
-            <span className="badge badge-indigo">{formData.documents?.name || 'No document selected'}</span>
+            {formData.documents ? (
+              <FilePreview file={formData.documents} label="Selected document" compact />
+            ) : (
+              <span className="badge badge-indigo">No document selected</span>
+            )}
           </div>
 
           <button type="submit" className="btn btn-primary sales-exec-submit" disabled={isSubmitDisabled}>

@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { leadsAPI } from '../../services/api'
-import { StageProgress, StageBadge, StatusBadge, Spinner, PageHeader } from '../../components/common'
+import { FilePreview, StageProgress, StageBadge, StatusBadge, Spinner, PageHeader } from '../../components/common'
 import { useAuthStore } from '../../store'
 import { canActOnStage, STAGES, stageIndex, formatDate } from '../../utils/constants'
 import { getLeadViewSections } from '../../utils/leadDetails'
+import { hasFileValue } from '../../utils/files'
 
 export default function LeadDetailPage() {
   const { id } = useParams()
@@ -69,6 +70,47 @@ export default function LeadDetailPage() {
   const showNetMeteringField = lead.currentStage === 'Net Metering'
   const showSubsidyField = lead.currentStage === 'Subsidy'
   const showSubsidyReadingField = lead.currentStage === 'Subsidy Reading'
+  const uploadedFileItems = [
+    ['Photo 1', lead.salesExecutiveData?.photoOneFile || lead.salesExecutiveData?.photoOneName],
+    ['Photo 2', lead.salesExecutiveData?.photoTwoFile || lead.salesExecutiveData?.photoTwoName],
+    ['Document PDF', lead.salesExecutiveData?.documentPdfFile || lead.salesExecutiveData?.documentPdfName],
+    ['Panel Photo', lead.installationData?.panelPhotoFile || lead.installationData?.panelPhotoName],
+    ['Inverter AC+DC Box', lead.installationData?.inverterBoxPhotoFile || lead.installationData?.inverterBoxPhotoName],
+    ['Earthing Photo', lead.installationData?.earthingPhotoFile || lead.installationData?.earthingPhotoName],
+    ['Column Concrete', lead.installationData?.columnConcretePhotoFile || lead.installationData?.columnConcretePhotoName],
+    ['Customer Short Video', lead.installationData?.customerShortVideoFile || lead.installationData?.customerShortVideoName],
+    ['Net Metering PDF', lead.netMeteringData?.pdfFile || lead.netMeteringData?.pdfName],
+    ['Subsidy Photo', lead.subsidyData?.photoFile || lead.subsidyData?.photoName],
+    ['Subsidy Photo 2', lead.subsidyData?.photoTwoFile || lead.subsidyData?.photoTwoName],
+    ['Subsidy Reading Photo', lead.subsidyReadingData?.photoFile || lead.subsidyReadingData?.photoName],
+  ].filter(([, file]) => hasFileValue(file))
+
+  const buildApprovePayload = (stageData) => {
+    const selectedFiles = Object.entries({
+      panelPhoto: stageForm.panelPhoto,
+      inverterBoxPhoto: stageForm.inverterBoxPhoto,
+      earthingPhoto: stageForm.earthingPhoto,
+      columnConcretePhoto: stageForm.columnConcretePhoto,
+      customerShortVideo: stageForm.customerShortVideo,
+      netMeteringPdf: stageForm.netMeteringPdf,
+      subsidyPhoto: stageForm.subsidyPhoto,
+      subsidyPhotoTwo: stageForm.subsidyPhotoTwo,
+      subsidyReadingPhoto: stageForm.subsidyReadingPhoto,
+    }).filter(([, file]) => file)
+
+    if (!selectedFiles.length) {
+      return {
+        note: note || 'Approved',
+        ...(Object.keys(stageData).length ? { stageData } : {}),
+      }
+    }
+
+    const payload = new FormData()
+    payload.append('note', note || 'Approved')
+    if (Object.keys(stageData).length) payload.append('stageData', JSON.stringify(stageData))
+    selectedFiles.forEach(([field, file]) => payload.append(field, file))
+    return payload
+  }
 
   const doApprove = async () => {
     if (showInstallationField) {
@@ -113,10 +155,7 @@ export default function LeadDetailPage() {
         stageData.photoName = stageForm.subsidyReadingPhoto?.name || lead.subsidyReadingData?.photoName || ''
       }
 
-      await leadsAPI.approve(id, {
-        note: note || 'Approved',
-        ...(Object.keys(stageData).length ? { stageData } : {}),
-      })
+      await leadsAPI.approve(id, buildApprovePayload(stageData))
       toast.success(`Moved to ${STAGES[ci + 1]}`)
       fetch()
     } catch (error) {
@@ -208,6 +247,17 @@ export default function LeadDetailPage() {
             </div>
           )}
 
+          {uploadedFileItems.length > 0 && (
+            <div className="crm-card" style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Uploaded Files</div>
+              <div className="dashboard-stack">
+                {uploadedFileItems.map(([label, file]) => (
+                  <FilePreview key={label} file={file} label={label} compact />
+                ))}
+              </div>
+            </div>
+          )}
+
           {canAct && lead.status === 'active' && (
             <div className="crm-card" style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Actions</div>
@@ -234,7 +284,10 @@ export default function LeadDetailPage() {
                   <div>
                     <label className="form-label">Panel Pic</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(event) => setStageForm((prev) => ({ ...prev, panelPhoto: event.target.files?.[0] || null }))} />
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.panelPhoto?.name || lead.installationData?.panelPhotoName || 'Panel pic pending'}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <FilePreview file={stageForm.panelPhoto || lead.installationData?.panelPhotoFile || lead.installationData?.panelPhotoName} label="Panel pic" compact />
+                      {!hasFileValue(stageForm.panelPhoto || lead.installationData?.panelPhotoFile || lead.installationData?.panelPhotoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>Panel pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Panel Number</label>
@@ -251,22 +304,34 @@ export default function LeadDetailPage() {
                   <div>
                     <label className="form-label">Inverter AC+DC Box</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(event) => setStageForm((prev) => ({ ...prev, inverterBoxPhoto: event.target.files?.[0] || null }))} />
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.inverterBoxPhoto?.name || lead.installationData?.inverterBoxPhotoName || 'AC+DC box pic pending'}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <FilePreview file={stageForm.inverterBoxPhoto || lead.installationData?.inverterBoxPhotoFile || lead.installationData?.inverterBoxPhotoName} label="AC+DC box" compact />
+                      {!hasFileValue(stageForm.inverterBoxPhoto || lead.installationData?.inverterBoxPhotoFile || lead.installationData?.inverterBoxPhotoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>AC+DC box pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Earthing Pic</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(event) => setStageForm((prev) => ({ ...prev, earthingPhoto: event.target.files?.[0] || null }))} />
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.earthingPhoto?.name || lead.installationData?.earthingPhotoName || 'Earthing pic pending'}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <FilePreview file={stageForm.earthingPhoto || lead.installationData?.earthingPhotoFile || lead.installationData?.earthingPhotoName} label="Earthing pic" compact />
+                      {!hasFileValue(stageForm.earthingPhoto || lead.installationData?.earthingPhotoFile || lead.installationData?.earthingPhotoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>Earthing pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Column Concrete</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(event) => setStageForm((prev) => ({ ...prev, columnConcretePhoto: event.target.files?.[0] || null }))} />
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.columnConcretePhoto?.name || lead.installationData?.columnConcretePhotoName || 'Column concrete pic pending'}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <FilePreview file={stageForm.columnConcretePhoto || lead.installationData?.columnConcretePhotoFile || lead.installationData?.columnConcretePhotoName} label="Column concrete" compact />
+                      {!hasFileValue(stageForm.columnConcretePhoto || lead.installationData?.columnConcretePhotoFile || lead.installationData?.columnConcretePhotoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>Column concrete pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Short Video With Customer</label>
                     <input className="crm-input" type="file" accept="video/*" onChange={(event) => setStageForm((prev) => ({ ...prev, customerShortVideo: event.target.files?.[0] || null }))} />
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.customerShortVideo?.name || lead.installationData?.customerShortVideoName || 'Video pending'}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <FilePreview file={stageForm.customerShortVideo || lead.installationData?.customerShortVideoFile || lead.installationData?.customerShortVideoName} label="Short video" compact />
+                      {!hasFileValue(stageForm.customerShortVideo || lead.installationData?.customerShortVideoFile || lead.installationData?.customerShortVideoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>Video pending</div>}
+                    </div>
                   </div>
                 </div>
               )}
@@ -279,7 +344,10 @@ export default function LeadDetailPage() {
                   <div>
                     <label className="form-label">Upload PDF</label>
                     <input className="crm-input" type="file" accept="application/pdf,.pdf" onChange={(event) => setStageForm((prev) => ({ ...prev, netMeteringPdf: event.target.files?.[0] || null }))} />
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.netMeteringPdf?.name || lead.netMeteringData?.pdfName || 'PDF pending'}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <FilePreview file={stageForm.netMeteringPdf || lead.netMeteringData?.pdfFile || lead.netMeteringData?.pdfName} label="Net metering PDF" compact />
+                      {!hasFileValue(stageForm.netMeteringPdf || lead.netMeteringData?.pdfFile || lead.netMeteringData?.pdfName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>PDF pending</div>}
+                    </div>
                   </div>
                 </div>
               )}
@@ -287,17 +355,26 @@ export default function LeadDetailPage() {
                 <div style={{ marginBottom: 12 }}>
                   <label className="form-label">Subsidy Photo</label>
                   <input className="crm-input" type="file" accept="image/*" onChange={(event) => setStageForm((prev) => ({ ...prev, subsidyPhoto: event.target.files?.[0] || null }))} />
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.subsidyPhoto?.name || lead.subsidyData?.photoName || 'Photo pending'}</div>
+                  <div style={{ marginTop: 8 }}>
+                    <FilePreview file={stageForm.subsidyPhoto || lead.subsidyData?.photoFile || lead.subsidyData?.photoName} label="Subsidy photo" compact />
+                    {!hasFileValue(stageForm.subsidyPhoto || lead.subsidyData?.photoFile || lead.subsidyData?.photoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>Photo pending</div>}
+                  </div>
                   <label className="form-label" style={{ marginTop: 12 }}>Subsidy Photo 2</label>
                   <input className="crm-input" type="file" accept="image/*" onChange={(event) => setStageForm((prev) => ({ ...prev, subsidyPhotoTwo: event.target.files?.[0] || null }))} />
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.subsidyPhotoTwo?.name || lead.subsidyData?.photoTwoName || 'Photo 2 pending'}</div>
+                  <div style={{ marginTop: 8 }}>
+                    <FilePreview file={stageForm.subsidyPhotoTwo || lead.subsidyData?.photoTwoFile || lead.subsidyData?.photoTwoName} label="Subsidy photo 2" compact />
+                    {!hasFileValue(stageForm.subsidyPhotoTwo || lead.subsidyData?.photoTwoFile || lead.subsidyData?.photoTwoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>Photo 2 pending</div>}
+                  </div>
                 </div>
               )}
               {showSubsidyReadingField && (
                 <div style={{ marginBottom: 12 }}>
                   <label className="form-label">Subsidy Reading Photo</label>
                   <input className="crm-input" type="file" accept="image/*" onChange={(event) => setStageForm((prev) => ({ ...prev, subsidyReadingPhoto: event.target.files?.[0] || null }))} />
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>{stageForm.subsidyReadingPhoto?.name || lead.subsidyReadingData?.photoName || 'Photo pending'}</div>
+                  <div style={{ marginTop: 8 }}>
+                    <FilePreview file={stageForm.subsidyReadingPhoto || lead.subsidyReadingData?.photoFile || lead.subsidyReadingData?.photoName} label="Subsidy reading photo" compact />
+                    {!hasFileValue(stageForm.subsidyReadingPhoto || lead.subsidyReadingData?.photoFile || lead.subsidyReadingData?.photoName) && <div style={{ fontSize: 12, color: 'var(--muted)', wordBreak: 'break-word' }}>Photo pending</div>}
+                  </div>
                 </div>
               )}
               <textarea className="crm-input" rows={2} placeholder="Add a note or reason..." value={note} onChange={(event) => setNote(event.target.value)} style={{ marginBottom: 12 }} />

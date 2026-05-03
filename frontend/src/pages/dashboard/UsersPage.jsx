@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { FaBell, FaChartLine, FaCheck, FaClipboardList, FaDownload, FaEdit, FaExchangeAlt, FaEye, FaFileInvoice, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTimes, FaTrash, FaUser, FaUserShield, FaUsers, FaWrench } from 'react-icons/fa'
+import { FaBell, FaChartLine, FaCheck, FaClipboardList, FaEdit, FaExchangeAlt, FaEye, FaFileInvoice, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTimes, FaTrash, FaUser, FaUserShield, FaUsers, FaWrench } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { usersAPI, dashboardAPI, authAPI, getPublicFileUrl } from '../../services/api'
-import { EmptyState, PageHeader, SearchableSelect, Spinner } from '../../components/common'
+import { EmptyState, FilePreview, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import { getCitiesForState, ROLE_STAGE_MAP, STAGE_COLORS, STATE_OPTIONS } from '../../utils/constants'
 import { useAuthStore } from '../../store'
+import { getFileDisplayName } from '../../utils/files'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell,
@@ -45,7 +46,7 @@ const getApprovalBadgeClass = (user) => {
 
 const getDocumentName = (filePath) => {
   if (!filePath) return ''
-  return String(filePath).split('/').filter(Boolean).pop() || 'document'
+  return getFileDisplayName(filePath, 'document')
 }
 
 const detailItems = (items) => items.filter(([, value]) => value !== '-' && value !== '' && value !== null && value !== undefined)
@@ -53,8 +54,9 @@ const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const normalizeIndianPhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 
 function UserDetailsModal({ user, onClose }) {
-  const documentUrl = user.documents ? getPublicFileUrl(user.documents) : ''
-  const documentName = getDocumentName(user.documents)
+  const documentFile = user.documentsFile || user.documents
+  const documentUrl = documentFile ? getPublicFileUrl(documentFile) : ''
+  const documentName = getDocumentName(documentFile)
   const profileItems = [
     ['Name', user.name || '-'],
     ['Email', user.email || '-'],
@@ -87,27 +89,6 @@ function UserDetailsModal({ user, onClose }) {
     ['Date of Joining', formatDate(user.dateOfJoining)],
     ['Job Title', user.jobTitle || '-'],
   ])
-
-  const handleDownload = async () => {
-    if (!documentUrl) return
-
-    try {
-      const response = await fetch(documentUrl)
-      if (!response.ok) throw new Error('Failed to download document')
-
-      const blob = await response.blob()
-      const blobUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = blobUrl
-      link.download = documentName
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(blobUrl)
-    } catch (error) {
-      toast.error(error.message || 'Unable to download document')
-    }
-  }
 
   const renderSection = (title, items) => (
     <div className="crm-card-sm">
@@ -177,29 +158,7 @@ function UserDetailsModal({ user, onClose }) {
             <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>
               Registration Document
             </div>
-            <div className="dashboard-split-row" style={{ gap:12 }}>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:13, fontWeight:500, wordBreak:'break-word' }}>{documentName}</div>
-                <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Uploaded registration file</div>
-              </div>
-              <div className="dashboard-inline-actions" style={{ marginLeft:'auto' }}>
-                <a
-                  href={documentUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-ghost btn-sm"
-                >
-                  <FaEye /> Open
-                </a>
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  className="btn btn-secondary btn-sm"
-                >
-                  <FaDownload /> Download
-                </button>
-              </div>
-            </div>
+            <FilePreview file={documentFile} label="Uploaded registration file" fallbackName={documentName} />
           </div>
         )}
       </div>

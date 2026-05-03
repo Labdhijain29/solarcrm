@@ -105,6 +105,7 @@ app.use('/api/enquiries', require('./routes/enquiry.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/product', require('./routes/product.routes'));
 app.use('/api/dispatch', require('./routes/dispatch.routes'));
+app.use('/api/settings', require('./routes/settings.routes'));
 
 // ─── Health Check ────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({

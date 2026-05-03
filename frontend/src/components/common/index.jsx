@@ -2,6 +2,7 @@ import { isValidElement, useEffect, useId, useMemo, useRef, useState } from 'rea
 import { createPortal } from 'react-dom'
 import { FaCheck, FaSearch, FaTimes } from 'react-icons/fa'
 import { STAGES, stageColor, stageIndex, STATUS_BADGE } from '../../utils/constants'
+export { default as FilePreview } from './FilePreview'
 
 export function PipelineBar({ lead }) {
   const ci = stageIndex(lead.currentStage)

@@ -8,6 +8,16 @@ const ROLES = [
   'Service Manager'
 ];
 
+const fileAssetSchema = new mongoose.Schema({
+  fileUrl: { type: String, trim: true, default: '' },
+  fileKey: { type: String, trim: true, default: '' },
+  provider: { type: String, trim: true, default: '' },
+  resourceType: { type: String, trim: true, default: '' },
+  originalName: { type: String, trim: true, default: '' },
+  mimeType: { type: String, trim: true, default: '' },
+  size: { type: Number, default: 0 },
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   name: { type: String, required: [true, 'Name is required'], trim: true },
   email: {
@@ -31,6 +41,7 @@ const userSchema = new mongoose.Schema({
   jobTitle: { type: String, trim: true },
   resume: { type: String, trim: true },
   documents: { type: String, trim: true },
+  documentsFile: fileAssetSchema,
   dateOfJoining: { type: Date },
   role: { type: String, enum: ROLES, required: [true, 'Role is required'] },
   isActive: { type: Boolean, default: true },

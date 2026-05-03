@@ -214,6 +214,24 @@ npm run build   # outputs to dist/
 ```
 Set `VITE_API_URL=https://your-api-domain.com/api`
 
+### Cloudinary File Storage
+
+Backend uploads use Cloudinary through `backend/services/storage/storageService.js`.
+The frontend still sends files to the backend with `multipart/form-data`; it never uploads directly to Cloudinary.
+
+Required backend environment variables:
+
+```bash
+STORAGE_PROVIDER=cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_FOLDER=your_app_folder
+```
+
+New uploads are stored as Cloudinary metadata (`fileUrl`, `fileKey`, `provider`, original name, mime type, and size).
+Legacy `/uploads/...` values remain supported for existing test data and are still served by the backend when present.
+
 ---
 
 ## 📦 Features Summary

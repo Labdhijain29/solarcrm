@@ -5,6 +5,16 @@ const STAGES = [
   'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed'
 ];
 
+const fileAssetSchema = new mongoose.Schema({
+  fileUrl: { type: String, trim: true, default: '' },
+  fileKey: { type: String, trim: true, default: '' },
+  provider: { type: String, trim: true, default: '' },
+  resourceType: { type: String, trim: true, default: '' },
+  originalName: { type: String, trim: true, default: '' },
+  mimeType: { type: String, trim: true, default: '' },
+  size: { type: Number, default: 0 },
+}, { _id: false });
+
 const historySchema = new mongoose.Schema({
   stage: { type: String, enum: STAGES },
   action: { type: String, enum: ['Created', 'In Progress', 'Approved', 'Rejected', 'Updated', 'Note Added', 'Completed'] },
@@ -50,7 +60,10 @@ const leadSchema = new mongoose.Schema({
     other: { type: String, trim: true, default: '' },
     photoOneName: { type: String, trim: true, default: '' },
     photoTwoName: { type: String, trim: true, default: '' },
-    documentPdfName: { type: String, trim: true, default: '' }
+    documentPdfName: { type: String, trim: true, default: '' },
+    photoOneFile: fileAssetSchema,
+    photoTwoFile: fileAssetSchema,
+    documentPdfFile: fileAssetSchema
   },
 
   // ─── Assignment & Stage ──────────────────────────────────────
@@ -70,6 +83,7 @@ const leadSchema = new mongoose.Schema({
   registrationData: {
     regNumber: String,
     documents: [String],
+    documentFiles: [fileAssetSchema],
     approvedAt: Date
   },
   bankData: {
@@ -109,15 +123,21 @@ const leadSchema = new mongoose.Schema({
     inverterBoxPhotoName: { type: String, trim: true, default: '' },
     earthingPhotoName: { type: String, trim: true, default: '' },
     columnConcretePhotoName: { type: String, trim: true, default: '' },
+    panelPhotoFile: fileAssetSchema,
+    inverterBoxPhotoFile: fileAssetSchema,
+    earthingPhotoFile: fileAssetSchema,
+    columnConcretePhotoFile: fileAssetSchema,
     panelNumber: { type: String, trim: true, default: '' },
     inverterNumber: { type: String, trim: true, default: '' },
     brand: { type: String, trim: true, default: '' },
     customerShortVideoName: { type: String, trim: true, default: '' },
+    customerShortVideoFile: fileAssetSchema,
     completedAt: Date
   },
   netMeteringData: {
     meterNumber: { type: String, trim: true, default: '' },
     pdfName: { type: String, trim: true, default: '' },
+    pdfFile: fileAssetSchema,
     applicationDate: Date,
     approvedAt: Date
   },
@@ -126,10 +146,13 @@ const leadSchema = new mongoose.Schema({
     applicationRef: String,
     photoName: { type: String, trim: true, default: '' },
     photoTwoName: { type: String, trim: true, default: '' },
+    photoFile: fileAssetSchema,
+    photoTwoFile: fileAssetSchema,
     receivedAt: Date
   },
   subsidyReadingData: {
     photoName: { type: String, trim: true, default: '' },
+    photoFile: fileAssetSchema,
     completedAt: Date
   },
 

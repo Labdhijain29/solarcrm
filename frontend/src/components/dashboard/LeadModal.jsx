@@ -3,7 +3,8 @@ import toast from 'react-hot-toast'
 import { leadsAPI } from '../../services/api'
 import { canActOnStage, formatDate, STAGES, stageIndex } from '../../utils/constants'
 import { getLeadViewSections } from '../../utils/leadDetails'
-import { StageBadge, StageProgress, StatusBadge } from '../common'
+import { hasFileValue } from '../../utils/files'
+import { FilePreview, StageBadge, StageProgress, StatusBadge } from '../common'
 
 export default function LeadModal({
   lead,
@@ -63,6 +64,48 @@ export default function LeadModal({
     if (label === 'Application ID') return showLoanApplicationInput && !canAddLoanApplication
     return true
   })
+  const uploadedFileItems = [
+    ['Photo 1', salesExecutiveData.photoOneFile || salesExecutiveData.photoOneName],
+    ['Photo 2', salesExecutiveData.photoTwoFile || salesExecutiveData.photoTwoName],
+    ['Document PDF', salesExecutiveData.documentPdfFile || salesExecutiveData.documentPdfName],
+    ['Panel Photo', lead.installationData?.panelPhotoFile || lead.installationData?.panelPhotoName],
+    ['Inverter AC+DC Box', lead.installationData?.inverterBoxPhotoFile || lead.installationData?.inverterBoxPhotoName],
+    ['Earthing Photo', lead.installationData?.earthingPhotoFile || lead.installationData?.earthingPhotoName],
+    ['Column Concrete', lead.installationData?.columnConcretePhotoFile || lead.installationData?.columnConcretePhotoName],
+    ['Customer Short Video', lead.installationData?.customerShortVideoFile || lead.installationData?.customerShortVideoName],
+    ['Net Metering PDF', lead.netMeteringData?.pdfFile || lead.netMeteringData?.pdfName],
+    ['Subsidy Photo', lead.subsidyData?.photoFile || lead.subsidyData?.photoName],
+    ['Subsidy Photo 2', lead.subsidyData?.photoTwoFile || lead.subsidyData?.photoTwoName],
+    ['Subsidy Reading Photo', lead.subsidyReadingData?.photoFile || lead.subsidyReadingData?.photoName],
+  ].filter(([, file]) => hasFileValue(file))
+
+  const selectedStageFiles = {
+    panelPhoto: stageForm.panelPhoto,
+    inverterBoxPhoto: stageForm.inverterBoxPhoto,
+    earthingPhoto: stageForm.earthingPhoto,
+    columnConcretePhoto: stageForm.columnConcretePhoto,
+    customerShortVideo: stageForm.customerShortVideo,
+    netMeteringPdf: stageForm.netMeteringPdf,
+    subsidyPhoto: stageForm.subsidyPhoto,
+    subsidyPhotoTwo: stageForm.subsidyPhotoTwo,
+    subsidyReadingPhoto: stageForm.subsidyReadingPhoto,
+  }
+
+  const buildApprovePayload = (stageData) => {
+    const selectedFiles = Object.entries(selectedStageFiles).filter(([, file]) => file)
+    if (!selectedFiles.length) {
+      return {
+        note: note || 'Approved',
+        ...(Object.keys(stageData).length ? { stageData } : {}),
+      }
+    }
+
+    const payload = new FormData()
+    payload.append('note', note || 'Approved')
+    if (Object.keys(stageData).length) payload.append('stageData', JSON.stringify(stageData))
+    selectedFiles.forEach(([field, file]) => payload.append(field, file))
+    return payload
+  }
 
   const doApprove = async () => {
     if (canAddLoanApplication && !stageForm.applicationId.trim()) {
@@ -111,10 +154,7 @@ export default function LeadModal({
         stageData.photoName = stageForm.subsidyReadingPhoto?.name || lead.subsidyReadingData?.photoName || ''
       }
 
-      await leadsAPI.approve(lead._id, {
-        note: note || 'Approved',
-        ...(Object.keys(stageData).length ? { stageData } : {}),
-      })
+      await leadsAPI.approve(lead._id, buildApprovePayload(stageData))
       toast.success(`Moved to ${STAGES[currentIndex + 1]}`)
       onUpdated?.()
       onClose()
@@ -170,10 +210,13 @@ export default function LeadModal({
         photoTwoName: registrationPhotos.photoTwo?.name || salesExecutiveData.photoTwoName || '',
       }
 
-      await leadsAPI.update(lead._id, {
-        salesExecutiveData: nextSalesExecutiveData,
-        updateNote: `Registration photos updated: Photo 1 - ${nextSalesExecutiveData.photoOneName || 'Pending'}, Photo 2 - ${nextSalesExecutiveData.photoTwoName || 'Pending'}`,
-      })
+      const payload = new FormData()
+      payload.append('salesExecutiveData', JSON.stringify(nextSalesExecutiveData))
+      payload.append('updateNote', `Registration photos updated: Photo 1 - ${nextSalesExecutiveData.photoOneName || 'Pending'}, Photo 2 - ${nextSalesExecutiveData.photoTwoName || 'Pending'}`)
+      if (registrationPhotos.photoOne) payload.append('photoOne', registrationPhotos.photoOne)
+      if (registrationPhotos.photoTwo) payload.append('photoTwo', registrationPhotos.photoTwo)
+
+      await leadsAPI.update(lead._id, payload)
       toast.success('Registration photos saved')
       setRegistrationPhotos({ photoOne: null, photoTwo: null })
       onUpdated?.()
@@ -242,6 +285,17 @@ export default function LeadModal({
           </div>
         )}
 
+        {uploadedFileItems.length > 0 && (
+          <div className="crm-card-sm" style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Uploaded Files</div>
+            <div className="dashboard-mini-grid-2">
+              {uploadedFileItems.map(([label, file]) => (
+                <FilePreview key={label} file={file} label={label} compact />
+              ))}
+            </div>
+          </div>
+        )}
+
         {(lead.dispatchData?.items || []).length > 0 && (
           <div className="crm-card-sm" style={{ marginBottom:14 }}>
             <div className="dashboard-split-row" style={{ marginBottom:10 }}>
@@ -272,8 +326,11 @@ export default function LeadModal({
                   accept="image/*"
                   onChange={(e) => setRegistrationPhotos((prev) => ({ ...prev, photoOne: e.target.files?.[0] || null }))}
                 />
-                <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>
-                  {registrationPhotos.photoOne?.name || salesExecutiveData.photoOneName || 'Photo 1 pending'}
+                <div style={{ marginTop:8 }}>
+                  <FilePreview file={registrationPhotos.photoOne || salesExecutiveData.photoOneFile || salesExecutiveData.photoOneName} label="Photo 1" compact />
+                  {!hasFileValue(registrationPhotos.photoOne || salesExecutiveData.photoOneFile || salesExecutiveData.photoOneName) && (
+                    <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Photo 1 pending</div>
+                  )}
                 </div>
               </div>
               <div>
@@ -284,8 +341,11 @@ export default function LeadModal({
                   accept="image/*"
                   onChange={(e) => setRegistrationPhotos((prev) => ({ ...prev, photoTwo: e.target.files?.[0] || null }))}
                 />
-                <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>
-                  {registrationPhotos.photoTwo?.name || salesExecutiveData.photoTwoName || 'Photo 2 pending'}
+                <div style={{ marginTop:8 }}>
+                  <FilePreview file={registrationPhotos.photoTwo || salesExecutiveData.photoTwoFile || salesExecutiveData.photoTwoName} label="Photo 2" compact />
+                  {!hasFileValue(registrationPhotos.photoTwo || salesExecutiveData.photoTwoFile || salesExecutiveData.photoTwoName) && (
+                    <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Photo 2 pending</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -356,7 +416,10 @@ export default function LeadModal({
                   <div>
                     <label className="form-label">Panel Pic</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, panelPhoto: e.target.files?.[0] || null }))} />
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.panelPhoto?.name || lead.installationData?.panelPhotoName || 'Panel pic pending'}</div>
+                    <div style={{ marginTop:8 }}>
+                      <FilePreview file={stageForm.panelPhoto || lead.installationData?.panelPhotoFile || lead.installationData?.panelPhotoName} label="Panel pic" compact />
+                      {!hasFileValue(stageForm.panelPhoto || lead.installationData?.panelPhotoFile || lead.installationData?.panelPhotoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Panel pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Panel Number</label>
@@ -373,22 +436,34 @@ export default function LeadModal({
                   <div>
                     <label className="form-label">Inverter AC+DC Box</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, inverterBoxPhoto: e.target.files?.[0] || null }))} />
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.inverterBoxPhoto?.name || lead.installationData?.inverterBoxPhotoName || 'AC+DC box pic pending'}</div>
+                    <div style={{ marginTop:8 }}>
+                      <FilePreview file={stageForm.inverterBoxPhoto || lead.installationData?.inverterBoxPhotoFile || lead.installationData?.inverterBoxPhotoName} label="AC+DC box" compact />
+                      {!hasFileValue(stageForm.inverterBoxPhoto || lead.installationData?.inverterBoxPhotoFile || lead.installationData?.inverterBoxPhotoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>AC+DC box pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Earthing Pic</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, earthingPhoto: e.target.files?.[0] || null }))} />
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.earthingPhoto?.name || lead.installationData?.earthingPhotoName || 'Earthing pic pending'}</div>
+                    <div style={{ marginTop:8 }}>
+                      <FilePreview file={stageForm.earthingPhoto || lead.installationData?.earthingPhotoFile || lead.installationData?.earthingPhotoName} label="Earthing pic" compact />
+                      {!hasFileValue(stageForm.earthingPhoto || lead.installationData?.earthingPhotoFile || lead.installationData?.earthingPhotoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Earthing pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Column Concrete</label>
                     <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, columnConcretePhoto: e.target.files?.[0] || null }))} />
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.columnConcretePhoto?.name || lead.installationData?.columnConcretePhotoName || 'Column concrete pic pending'}</div>
+                    <div style={{ marginTop:8 }}>
+                      <FilePreview file={stageForm.columnConcretePhoto || lead.installationData?.columnConcretePhotoFile || lead.installationData?.columnConcretePhotoName} label="Column concrete" compact />
+                      {!hasFileValue(stageForm.columnConcretePhoto || lead.installationData?.columnConcretePhotoFile || lead.installationData?.columnConcretePhotoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Column concrete pic pending</div>}
+                    </div>
                   </div>
                   <div>
                     <label className="form-label">Short Video With Customer</label>
                     <input className="crm-input" type="file" accept="video/*" onChange={(e) => setStageForm((prev) => ({ ...prev, customerShortVideo: e.target.files?.[0] || null }))} />
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.customerShortVideo?.name || lead.installationData?.customerShortVideoName || 'Video pending'}</div>
+                    <div style={{ marginTop:8 }}>
+                      <FilePreview file={stageForm.customerShortVideo || lead.installationData?.customerShortVideoFile || lead.installationData?.customerShortVideoName} label="Short video" compact />
+                      {!hasFileValue(stageForm.customerShortVideo || lead.installationData?.customerShortVideoFile || lead.installationData?.customerShortVideoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Video pending</div>}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -404,7 +479,10 @@ export default function LeadModal({
                   <div>
                     <label className="form-label">Upload PDF</label>
                     <input className="crm-input" type="file" accept="application/pdf,.pdf" onChange={(e) => setStageForm((prev) => ({ ...prev, netMeteringPdf: e.target.files?.[0] || null }))} />
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.netMeteringPdf?.name || lead.netMeteringData?.pdfName || 'PDF pending'}</div>
+                    <div style={{ marginTop:8 }}>
+                      <FilePreview file={stageForm.netMeteringPdf || lead.netMeteringData?.pdfFile || lead.netMeteringData?.pdfName} label="Net metering PDF" compact />
+                      {!hasFileValue(stageForm.netMeteringPdf || lead.netMeteringData?.pdfFile || lead.netMeteringData?.pdfName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>PDF pending</div>}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -415,12 +493,18 @@ export default function LeadModal({
                 <div>
                   <label className="form-label">Subsidy Photo</label>
                   <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, subsidyPhoto: e.target.files?.[0] || null }))} />
-                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.subsidyPhoto?.name || lead.subsidyData?.photoName || 'Photo pending'}</div>
+                  <div style={{ marginTop:8 }}>
+                    <FilePreview file={stageForm.subsidyPhoto || lead.subsidyData?.photoFile || lead.subsidyData?.photoName} label="Subsidy photo" compact />
+                    {!hasFileValue(stageForm.subsidyPhoto || lead.subsidyData?.photoFile || lead.subsidyData?.photoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Photo pending</div>}
+                  </div>
                 </div>
                 <div style={{ marginTop:12 }}>
                   <label className="form-label">Subsidy Photo 2</label>
                   <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, subsidyPhotoTwo: e.target.files?.[0] || null }))} />
-                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.subsidyPhotoTwo?.name || lead.subsidyData?.photoTwoName || 'Photo 2 pending'}</div>
+                  <div style={{ marginTop:8 }}>
+                    <FilePreview file={stageForm.subsidyPhotoTwo || lead.subsidyData?.photoTwoFile || lead.subsidyData?.photoTwoName} label="Subsidy photo 2" compact />
+                    {!hasFileValue(stageForm.subsidyPhotoTwo || lead.subsidyData?.photoTwoFile || lead.subsidyData?.photoTwoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Photo 2 pending</div>}
+                  </div>
                 </div>
               </div>
             )}
@@ -430,7 +514,10 @@ export default function LeadModal({
                 <div>
                   <label className="form-label">Subsidy Reading Photo</label>
                   <input className="crm-input" type="file" accept="image/*" onChange={(e) => setStageForm((prev) => ({ ...prev, subsidyReadingPhoto: e.target.files?.[0] || null }))} />
-                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:6, wordBreak:'break-word' }}>{stageForm.subsidyReadingPhoto?.name || lead.subsidyReadingData?.photoName || 'Photo pending'}</div>
+                  <div style={{ marginTop:8 }}>
+                    <FilePreview file={stageForm.subsidyReadingPhoto || lead.subsidyReadingData?.photoFile || lead.subsidyReadingData?.photoName} label="Subsidy reading photo" compact />
+                    {!hasFileValue(stageForm.subsidyReadingPhoto || lead.subsidyReadingData?.photoFile || lead.subsidyReadingData?.photoName) && <div style={{ fontSize:12, color:'var(--muted)', wordBreak:'break-word' }}>Photo pending</div>}
+                  </div>
                 </div>
               </div>
             )}

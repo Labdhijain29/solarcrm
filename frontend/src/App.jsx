@@ -35,6 +35,7 @@ import EnquiriesPage from './pages/dashboard/EnquiriesPage'
 import AnalyticsPage from './pages/dashboard/AnalyticsPage'
 import ProfilePage from './pages/dashboard/ProfilePage'
 import InventoryDispatchPage from './pages/dashboard/InventoryDispatchPage'
+import TechUploadSettingsPage from './pages/dashboard/TechUploadSettingsPage'
 
 const ADMIN_STAGE_DASHBOARD_ROUTES = [
   { path: 'stage/registration-executive', element: <RegistrationDashboard /> },
@@ -152,6 +153,17 @@ export default function App() {
             <PublicAuthRoute>
               <LoginPage />
             </PublicAuthRoute>
+          )}
+        />
+
+        <Route
+          path="/tech/settings"
+          element={(
+            <PrivateRoute>
+              <AdminOnlyRoute>
+                <TechUploadSettingsPage />
+              </AdminOnlyRoute>
+            </PrivateRoute>
           )}
         />
 
