@@ -23,7 +23,6 @@ import DispatchManagerDashboard from './pages/dashboard/DispatchManagerDashboard
 import RegistrationDashboard from './pages/dashboard/RegistrationDashboard'
 import BankFinanceDashboard from './pages/dashboard/BankFinanceDashboard'
 import LoanOfficerDashboard from './pages/dashboard/LoanOfficerDashboard'
-import InstallationManagerDashboard from './pages/dashboard/InstallationManagerDashboard'
 import NetMeteringDashboard from './pages/dashboard/NetMeteringDashboard'
 import SubsidyDashboard from './pages/dashboard/SubsidyDashboard'
 import SubsidyReadingDashboard from './pages/dashboard/SubsidyReadingDashboard'
@@ -42,7 +41,7 @@ const ADMIN_STAGE_DASHBOARD_ROUTES = [
   { path: 'stage/bank-finance-executive', element: <BankFinanceDashboard /> },
   { path: 'stage/loan-officer', element: <LoanOfficerDashboard /> },
   { path: 'stage/dispatch-manager', element: <DispatchManagerDashboard defaultTab="dispatch" /> },
-  { path: 'stage/installation-manager', element: <InstallationManagerDashboard /> },
+  { path: 'stage/installation-manager', element: <StageDashboard roleOverride="Installation Manager" /> },
   { path: 'stage/net-metering-officer', element: <NetMeteringDashboard /> },
   { path: 'stage/subsidy-officer', element: <SubsidyDashboard /> },
   { path: 'stage/subsidy-reading-officer', element: <SubsidyReadingDashboard /> },
@@ -111,7 +110,7 @@ function DashboardRouter() {
   if (role === 'sales manager') return <SalesManagerDashboard />
   if (role === 'stock manager') return <StockManagerDashboard />
   if (role === 'dispatch manager') return <DispatchManagerDashboard />
-  if (role === 'installation manager') return <InstallationManagerDashboard />
+  if (role === 'installation manager') return <StageDashboard />
   if (role === 'service manager') return <ServiceManagerDashboard />
   return <StageDashboard />
 }

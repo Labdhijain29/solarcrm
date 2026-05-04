@@ -211,6 +211,7 @@ const emptyProduct = {
   type: 'DCR P-Type',
   capacity: '530WP',
   quantity: '',
+  price: '',
   unit: 'pcs',
   lowStockThreshold: 10,
 }
@@ -493,6 +494,25 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     }))
   }, [stats])
 
+  const recentlyAddedProductIds = useMemo(
+    () => new Set((stockReceipt?.items || []).map(item => String(item.productId))),
+    [stockReceipt]
+  )
+
+  const stockSectionProducts = useMemo(() => (
+    [...products].sort((a, b) => {
+      const aRecent = recentlyAddedProductIds.has(String(a._id)) ? 1 : 0
+      const bRecent = recentlyAddedProductIds.has(String(b._id)) ? 1 : 0
+      if (aRecent !== bRecent) return bRecent - aRecent
+
+      const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime()
+      const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime()
+      if (aTime !== bTime) return bTime - aTime
+
+      return String(a.name || '').localeCompare(String(b.name || ''))
+    })
+  ), [products, recentlyAddedProductIds])
+
   const leadDispatches = useMemo(() => {
     if (!leadSearch.trim()) return []
     const term = leadSearch.trim().toLowerCase()
@@ -637,6 +657,21 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     }))
   }
 
+  const setDispatchCartQuantity = (productId, value) => {
+    const product = products.find(item => item._id === productId)
+    const nextQuantity = Number(value || 0)
+
+    setDispatchCart(prev => prev.flatMap((item) => {
+      if (item.productId !== productId) return [item]
+      if (nextQuantity <= 0) return []
+      if (product && nextQuantity > Number(product.quantity || 0)) {
+        toast.error('Selected quantity cannot exceed available stock')
+        return [{ ...item, quantity: Number(product.quantity || item.quantity || 1) }]
+      }
+      return [{ ...item, quantity: nextQuantity }]
+    }))
+  }
+
   const removeDispatchCartItem = (productId) => {
     setDispatchCart(prev => prev.filter(item => item.productId !== productId))
   }
@@ -742,6 +777,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     ...source,
     name: String(source.name || '').trim() || [source.brand, source.type, source.capacity].filter(Boolean).join(' '),
     quantity: Number(source.quantity || 0),
+    price: Number(source.price || 0),
     lowStockThreshold: Number(source.lowStockThreshold || 10),
   })
 
@@ -781,6 +817,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       type: structuredType,
       capacity: moduleProduct || inverterProduct || acDcProduct || cableTryProduct || structureProduct || headParlinProduct || cChannelProduct || basePlateProduct || fastnerProduct || ssNutBoltProduct || earthingKitProduct || pipeProduct || albaProduct || teProduct ? structuredCapacities.find(capacity => normalizeModuleValue(capacity) === normalizeModuleValue(product.capacity)) || product.capacity || structuredCapacities[0] : product.capacity || '',
       quantity: product.quantity ?? 0,
+      price: product.price ?? 0,
       unit: product.unit || 'pcs',
       lowStockThreshold: product.lowStockThreshold ?? 10,
     })
@@ -835,6 +872,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       setStockReceipt(data.data)
       setStockBillItems([])
       setProductForm(getInitialProductForm())
+      setFilters({ search: '', category: '' })
+      setTab('stock')
       toast.success('Stock bill saved')
       loadData()
     } catch (err) {
@@ -1083,7 +1122,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   const exportCsv = () => {
     const rows = [
       ['Item Name', 'Category', 'Brand', 'Type', 'Capacity', 'Quantity', 'Unit', 'Status'],
-      ...products.map(item => [item.name, item.category, item.brand, item.type, item.capacity, item.quantity, item.unit, item.status]),
+      ...stockSectionProducts.map(item => [item.name, item.category, item.brand, item.type, item.capacity, item.quantity, item.unit, item.status]),
     ]
     const csv = rows.map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
@@ -1218,6 +1257,27 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
 
       {tab === 'stock' && (
         <div className="crm-card">
+          {stockReceipt && (
+            <div className="crm-card-sm" style={{ marginBottom:16, borderColor:'rgba(16,185,129,.35)', background:'rgba(16,185,129,.06)' }}>
+              <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                <div>
+                  <strong style={{ fontSize:13 }}>Recently Added Stock</strong>
+                  <div style={{ fontSize:11, color:'var(--muted)', marginTop:3 }}>Receipt {stockReceipt.receiptNo}</div>
+                </div>
+                <span className="badge badge-green">+{stockReceipt.totalAdded} stock added</span>
+              </div>
+              <div className="dashboard-stack" style={{ gap:0 }}>
+                {stockReceipt.items.map(item => (
+                  <div key={`${stockReceipt.receiptNo}-${item.productId}`} style={{ display:'grid', gridTemplateColumns:'1.4fr repeat(3, minmax(90px, .5fr))', gap:10, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
+                    <span>{item.name}<div style={{ color:'var(--muted)', fontSize:11 }}>{[item.category, item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div></span>
+                    <strong>Added: {item.addedQuantity} {item.unit}</strong>
+                    <span>Before: {item.previousQuantity}</span>
+                    <span>Now: {item.currentQuantity}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="dashboard-table-filters" style={{ marginBottom:16 }}>
             <div className="dashboard-search"><FaSearch /><input value={filters.search} onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))} placeholder="Search stock..." /></div>
             <div style={{ minWidth: 240, flex: '0 0 240px' }}>
@@ -1237,8 +1297,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
             <table className="crm-table">
               <thead><tr><th>Item Name</th><th>Category</th><th>Brand</th><th>Type</th><th>Capacity</th><th>Quantity</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
-                {products.map(product => (
-                  <tr key={product._id}>
+                {stockSectionProducts.map(product => (
+                  <tr key={product._id} style={recentlyAddedProductIds.has(String(product._id)) ? { background:'rgba(16,185,129,.06)' } : undefined}>
                     <td>{product.name}</td>
                     <td>{product.category}</td>
                     <td>{product.brand || '-'}</td>
@@ -1360,24 +1420,42 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                       <table className="crm-table">
                         <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Subtotal</th><th>Action</th></tr></thead>
                         <tbody>
-                          {dispatchCartBill.items.map(item => (
-                            <tr key={item.productId}>
-                              <td>
-                                <strong>{item.productName}</strong>
-                                <div style={{ fontSize:11, color:'var(--muted)' }}>{[item.category, item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div>
-                              </td>
-                              <td>
-                                <div className="dashboard-inline-actions">
-                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, -1)}><FaMinus /></button>
-                                  <strong>{item.quantity} {item.unit}</strong>
-                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, 1)}><FaPlus /></button>
-                                </div>
-                              </td>
-                              <td>Rs. {Number(item.price || 0).toLocaleString('en-IN')}</td>
-                              <td>Rs. {Number(item.lineTotal || 0).toLocaleString('en-IN')}</td>
-                              <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => removeDispatchCartItem(item.productId)}><FaTrash /> Remove</button></td>
-                            </tr>
-                          ))}
+                          {dispatchCartBill.items.map(item => {
+                            const product = products.find(productItem => productItem._id === item.productId)
+                            const available = Number(product?.quantity || 0)
+                            const remainingAfterBill = Math.max(available - Number(item.quantity || 0), 0)
+
+                            return (
+                              <tr key={item.productId}>
+                                <td>
+                                  <strong>{item.productName}</strong>
+                                  <div style={{ fontSize:11, color:'var(--muted)' }}>{[item.category, item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div>
+                                </td>
+                                <td>
+                                  <div className="dashboard-inline-actions" style={{ flexWrap:'nowrap' }}>
+                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, -1)}><FaMinus /></button>
+                                    <input
+                                      className="crm-input"
+                                      type="number"
+                                      min="1"
+                                      max={available || undefined}
+                                      value={item.quantity}
+                                      onChange={e => setDispatchCartQuantity(item.productId, e.target.value)}
+                                      style={{ width:82, height:34, padding:'6px 8px', textAlign:'center' }}
+                                      aria-label={`${item.productName} dispatch quantity`}
+                                    />
+                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, 1)}><FaPlus /></button>
+                                  </div>
+                                  <div style={{ fontSize:11, color:Number(item.quantity || 0) > available ? 'var(--red)' : 'var(--muted)', marginTop:5 }}>
+                                    {item.unit || 'pcs'} | Available: {available} | Left: {remainingAfterBill}
+                                  </div>
+                                </td>
+                                <td>Rs. {Number(item.price || 0).toLocaleString('en-IN')}</td>
+                                <td>Rs. {Number(item.lineTotal || 0).toLocaleString('en-IN')}</td>
+                                <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => removeDispatchCartItem(item.productId)}><FaTrash /> Remove</button></td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1610,6 +1688,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
               )}
               <div style={{ gridColumn:'1/-1' }}><label className="form-label">Item Name</label><input className="crm-input" value={productForm.name} onChange={e => setProductField('name', e.target.value)} placeholder="Auto name bhi chalega, ya custom item name likhein" /></div>
               <div><label className="form-label">Quantity</label><input className="crm-input" type="number" min="0" value={productForm.quantity} onChange={e => setProductField('quantity', e.target.value)} required /></div>
+              <div><label className="form-label">Price / Unit</label><input className="crm-input" type="number" min="0" step="0.01" value={productForm.price} onChange={e => setProductField('price', e.target.value)} placeholder="0" /></div>
               <div>
                 <label className="form-label">Unit</label>
                 <select className="crm-input" value={productForm.unit} onChange={e => setProductField('unit', e.target.value)}>
@@ -1638,10 +1717,11 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                   ) : (
                     <div className="dashboard-stack">
                       {stockBillItems.map((item, index) => (
-                        <div key={item.lineId} style={{ display:'grid', gridTemplateColumns:'40px 1fr 110px 44px', gap:10, alignItems:'center', fontSize:12, padding:'8px 0', borderTop:'1px solid var(--border)' }}>
+                        <div key={item.lineId} style={{ display:'grid', gridTemplateColumns:'40px 1fr 110px 110px 44px', gap:10, alignItems:'center', fontSize:12, padding:'8px 0', borderTop:'1px solid var(--border)' }}>
                           <strong>#{index + 1}</strong>
                           <span>{item.name}<div style={{ color:'var(--muted)', fontSize:11 }}>{item.category} | {[item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div></span>
                           <strong>{item.quantity} {item.unit}</strong>
+                          <span>Rs. {Number(item.price || 0).toLocaleString('en-IN')}</span>
                           <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeStockLine(item.lineId)}><FaTrash /></button>
                         </div>
                       ))}

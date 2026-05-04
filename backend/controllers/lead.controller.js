@@ -238,11 +238,13 @@ const buildQuery = (query, user) => {
     q.currentStage = stageAccess;
   }
 
-  if (role === 'Sales Executive' && salesExecutiveOnly) {
-    q.$or = [
-      { assignedTo: user._id },
-      { createdBy: user._id }
-    ];
+  if (salesExecutiveOnly) {
+    if (role === 'Sales Executive') {
+      q.$or = [
+        { assignedTo: user._id },
+        { createdBy: user._id }
+      ];
+    }
     q.tags = 'sales-executive';
     delete q.currentStage;
   }

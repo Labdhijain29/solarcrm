@@ -13,20 +13,20 @@ const compareIvrs = (a, b, direction = 'asc') => {
   return direction === 'desc' ? -result : result
 }
 
-export default function LeadsTable({ leads = [], loading, onView, extraActions }) {
+export default function LeadsTable({ leads = [], loading, onView, extraActions, defaultSort = 'ivrs-asc' }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [srcFilter, setSrc] = useState('All')
   const [statusFilter, setStatus] = useState('All')
   const [stageFilter, setStage] = useState('All')
-  const [sortBy, setSortBy] = useState('ivrs-asc')
+  const [sortBy, setSortBy] = useState(defaultSort)
 
   const hasActiveFilters =
     search.trim() !== '' ||
     srcFilter !== 'All' ||
     statusFilter !== 'All' ||
     stageFilter !== 'All' ||
-    sortBy !== 'ivrs-asc'
+    sortBy !== defaultSort
 
   const filtered = leads
     .filter((lead) => {
@@ -66,7 +66,7 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions }
     setSrc('All')
     setStatus('All')
     setStage('All')
-    setSortBy('ivrs-asc')
+    setSortBy(defaultSort)
   }
 
   if (loading) {

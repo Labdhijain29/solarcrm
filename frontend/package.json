@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Mahaveer Multi Engeering CRM Frontend – React + Vite + Tailwind CSS",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
