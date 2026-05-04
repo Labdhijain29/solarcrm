@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
+import { FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaMinus, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dispatchAPI, leadsAPI, productAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
@@ -435,6 +435,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   const [stockSaving, setStockSaving] = useState(false)
   const [dispatchFormOpen, setDispatchFormOpen] = useState(false)
   const [dispatchForm, setDispatchForm] = useState(emptyDispatch)
+  const [dispatchCart, setDispatchCart] = useState([])
+  const [dispatchStockSearch, setDispatchStockSearch] = useState('')
   const [dispatchSaving, setDispatchSaving] = useState(false)
   const [editingDispatch, setEditingDispatch] = useState(null)
   const [dispatchEditForm, setDispatchEditForm] = useState(null)
@@ -449,8 +451,9 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
 
   const loadData = () => {
     setLoading(true)
+    const productFilters = tab === 'stock' ? filters : {}
     Promise.all([
-      productAPI.getAll(filters),
+      productAPI.getAll(productFilters),
       dispatchAPI.getAll(),
       productAPI.getStats(),
       leadsAPI.getAll({ stage: 'Dispatch' }),
@@ -467,7 +470,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
 
   useEffect(() => {
     loadData()
-  }, [filters.category])
+  }, [tab, filters.category])
 
   useEffect(() => {
     const id = setTimeout(loadData, 300)
@@ -531,6 +534,45 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     return Number(product?.quantity || 0) + getReservedQuantityForEdit(productId)
   }
 
+  const dispatchCartBill = useMemo(() => {
+    const items = dispatchCart.map((item) => ({
+      ...item,
+      lineTotal: Number(item.quantity || 0) * Number(item.price || 0),
+    }))
+
+    return {
+      items,
+      totalQuantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+      grandTotal: items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0),
+    }
+  }, [dispatchCart])
+
+  const visibleDispatchProducts = useMemo(() => {
+    const term = dispatchStockSearch.trim().toLowerCase()
+
+    return products
+      .map((product) => {
+        const cartItem = dispatchCart.find(item => item.productId === product._id)
+        return {
+          ...product,
+          cartQuantity: Number(cartItem?.quantity || 0),
+          availableQuantity: Number(product.quantity || 0) - Number(cartItem?.quantity || 0),
+        }
+      })
+      .filter((product) => {
+        if (!term) return true
+        return [
+          product.name,
+          product.category,
+          product.brand,
+          product.type,
+          product.capacity,
+          product.unit,
+        ].some(value => String(value || '').toLowerCase().includes(term))
+      })
+      .sort((a, b) => Number(b.availableQuantity || 0) - Number(a.availableQuantity || 0) || String(a.name || '').localeCompare(String(b.name || '')))
+  }, [dispatchCart, dispatchStockSearch, products])
+
   const openDispatchBill = (lead = null) => {
     setDispatchForm({
       ...emptyDispatch,
@@ -539,8 +581,96 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       leadId: lead ? (lead.ivrsNo || lead._id) : '',
       mobile: lead ? normalizePhone(lead.phone) : '',
       siteAddress: lead?.address || '',
+      items: [],
     })
-    setDispatchFormOpen(true)
+    setDispatchCart([])
+    setTab('dispatch')
+    setDispatchFormOpen(false)
+    toast.success(lead ? 'Dispatch bill workspace ready for selected lead' : 'New dispatch bill workspace ready')
+  }
+
+  const setDispatchField = (key, value) => {
+    setDispatchForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const addProductToDispatchCart = (product) => {
+    if (Number(product.availableQuantity ?? product.quantity ?? 0) <= 0) {
+      toast.error('No stock available for this item')
+      return
+    }
+
+    setDispatchCart(prev => {
+      const existing = prev.find(item => item.productId === product._id)
+      if (existing) {
+        if (existing.quantity + 1 > Number(product.quantity || 0)) {
+          toast.error('Selected quantity cannot exceed available stock')
+          return prev
+        }
+        return prev.map(item => item.productId === product._id ? { ...item, quantity: item.quantity + 1 } : item)
+      }
+
+      return [...prev, {
+        productId: product._id,
+        productName: product.name,
+        category: product.category,
+        brand: product.brand,
+        type: product.type,
+        capacity: product.capacity,
+        unit: product.unit || 'pcs',
+        quantity: 1,
+        price: Number(product.price || 0),
+      }]
+    })
+  }
+
+  const changeDispatchCartQuantity = (productId, delta) => {
+    const product = products.find(item => item._id === productId)
+    setDispatchCart(prev => prev.flatMap((item) => {
+      if (item.productId !== productId) return [item]
+      const nextQuantity = Number(item.quantity || 0) + delta
+      if (nextQuantity <= 0) return []
+      if (product && nextQuantity > Number(product.quantity || 0)) {
+        toast.error('Selected quantity cannot exceed available stock')
+        return [item]
+      }
+      return [{ ...item, quantity: nextQuantity }]
+    }))
+  }
+
+  const removeDispatchCartItem = (productId) => {
+    setDispatchCart(prev => prev.filter(item => item.productId !== productId))
+  }
+
+  const clearDispatchCart = () => {
+    setDispatchCart([])
+  }
+
+  const confirmDispatchCart = async () => {
+    if (!dispatchCart.length) {
+      toast.error('Dispatch bill me kam se kam ek material add karein.')
+      return
+    }
+    if (!dispatchForm.customerName || !dispatchForm.engineerName || !dispatchForm.siteAddress || !dispatchForm.mobile) {
+      toast.error('Customer, mobile, engineer and site address required.')
+      return
+    }
+
+    setDispatchSaving(true)
+    try {
+      await dispatchAPI.create({
+        ...dispatchForm,
+        mobile: normalizePhone(dispatchForm.mobile),
+        items: dispatchCart.map(item => ({ productId: item.productId, quantity: Number(item.quantity || 0) })),
+      })
+      toast.success('Pending dispatch bill confirmed and stock reduced')
+      setDispatchForm(emptyDispatch)
+      setDispatchCart([])
+      loadData()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Dispatch confirmation failed')
+    } finally {
+      setDispatchSaving(false)
+    }
   }
 
   const setProductField = (key, value) => {
@@ -1139,13 +1269,141 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
             <MetricCard icon={<FaWarehouse />} label="Total Dispatch Qty" value={dispatches.reduce((sum, dispatch) => sum + getDispatchTotalQuantity(dispatch), 0)} change="All bills" changeColor="var(--green)" />
           </div>
 
+          {canDispatch && (
+            <div style={{ display:'grid', gridTemplateColumns:'minmax(280px, 380px) minmax(0, 1fr)', gap:16, alignItems:'start' }}>
+              <aside className="crm-card" style={{ position:'sticky', top:82 }}>
+                <div className="dashboard-split-row" style={{ marginBottom:14 }}>
+                  <div>
+                    <h3 style={{ fontSize:15, fontWeight:700 }}>Available Stock</h3>
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Select items directly from inventory.</div>
+                  </div>
+                  <span className="badge badge-blue">{visibleDispatchProducts.length} items</span>
+                </div>
+
+                <div className="dashboard-search" style={{ marginBottom:14 }}>
+                  <FaSearch />
+                  <input value={dispatchStockSearch} onChange={e => setDispatchStockSearch(e.target.value)} placeholder="Search stock..." />
+                </div>
+
+                <div className="dashboard-stack" style={{ maxHeight:'70vh', overflowY:'auto', paddingRight:4 }}>
+                  {visibleDispatchProducts.length === 0 ? (
+                    <EmptyState title="No stock found" subtitle="Search term badal kar try karein." />
+                  ) : visibleDispatchProducts.map(product => (
+                    <div key={product._id} className="crm-card-sm">
+                      <div className="dashboard-split-row" style={{ gap:10, alignItems:'flex-start' }}>
+                        <div style={{ minWidth:0 }}>
+                          <strong style={{ display:'block', fontSize:13 }}>{product.name}</strong>
+                          <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>
+                            {[product.category, product.brand, product.type, product.capacity].filter(Boolean).join(' | ')}
+                          </div>
+                          <div style={{ fontSize:11, color:'var(--dim)', marginTop:4 }}>
+                            Rs. {Number(product.price || 0).toLocaleString('en-IN')} / {product.unit || 'pcs'}
+                          </div>
+                        </div>
+                        <span className={`badge ${product.availableQuantity > 0 ? 'badge-green' : 'badge-red'}`}>
+                          {product.availableQuantity} {product.unit || 'pcs'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ width:'100%', justifyContent:'center', marginTop:10 }}
+                        onClick={() => addProductToDispatchCart(product)}
+                        disabled={product.availableQuantity <= 0}
+                      >
+                        <FaPlus /> Add to Bill
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </aside>
+
+              <main className="dashboard-stack">
+                <div className="crm-card">
+                  <div className="dashboard-split-row" style={{ marginBottom:16 }}>
+                    <div>
+                      <h3 style={{ fontSize:15, fontWeight:700 }}>Dispatch Customer Details</h3>
+                      <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Confirm Dispatch saves a pending bill and reduces stock.</div>
+                    </div>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => openDispatchBill()}>
+                      New Bill
+                    </button>
+                  </div>
+
+                  <div className="dashboard-form-grid">
+                    <div><label className="form-label">Bill No.</label><input className="crm-input" value={dispatchForm.billNo} onChange={e => setDispatchField('billNo', e.target.value)} placeholder="Auto if blank" /></div>
+                    <div><label className="form-label">Customer Name</label><input className="crm-input" value={dispatchForm.customerName} onChange={e => setDispatchField('customerName', e.target.value)} required /></div>
+                    <div><label className="form-label">Lead ID / IVRS No.</label><input className="crm-input" value={dispatchForm.leadId} onChange={e => setDispatchField('leadId', e.target.value)} placeholder="IVRS, short lead ID, deal no." /></div>
+                    <div><label className="form-label">Installation Engineer</label><input className="crm-input" value={dispatchForm.engineerName} onChange={e => setDispatchField('engineerName', e.target.value)} required /></div>
+                    <div><label className="form-label">Mobile Number</label><input className="crm-input" value={dispatchForm.mobile} onChange={e => setDispatchField('mobile', normalizePhone(e.target.value))} maxLength={10} required /></div>
+                    <div><label className="form-label">Dispatch Date</label><input className="crm-input" type="date" value={dispatchForm.dispatchDate} onChange={e => setDispatchField('dispatchDate', e.target.value)} /></div>
+                    <div style={{ gridColumn:'1/-1' }}><label className="form-label">Site Address</label><textarea className="crm-input" rows={2} value={dispatchForm.siteAddress} onChange={e => setDispatchField('siteAddress', e.target.value)} required /></div>
+                  </div>
+                </div>
+
+                <div className="crm-card">
+                  <div className="dashboard-split-row" style={{ marginBottom:16 }}>
+                    <div>
+                      <h3 style={{ fontSize:15, fontWeight:700 }}>Generated Bill</h3>
+                      <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Items selected from stock appear here automatically.</div>
+                    </div>
+                    <div className="dashboard-inline-actions">
+                      <span className="badge badge-sun">{dispatchCartBill.totalQuantity} qty</span>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={clearDispatchCart} disabled={!dispatchCart.length}>Clear</button>
+                    </div>
+                  </div>
+
+                  {!dispatchCartBill.items.length ? (
+                    <EmptyState title="Bill is empty" subtitle="Left sidebar se stock item select karein." />
+                  ) : (
+                    <div className="crm-table-wrap">
+                      <table className="crm-table">
+                        <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Subtotal</th><th>Action</th></tr></thead>
+                        <tbody>
+                          {dispatchCartBill.items.map(item => (
+                            <tr key={item.productId}>
+                              <td>
+                                <strong>{item.productName}</strong>
+                                <div style={{ fontSize:11, color:'var(--muted)' }}>{[item.category, item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div>
+                              </td>
+                              <td>
+                                <div className="dashboard-inline-actions">
+                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, -1)}><FaMinus /></button>
+                                  <strong>{item.quantity} {item.unit}</strong>
+                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, 1)}><FaPlus /></button>
+                                </div>
+                              </td>
+                              <td>Rs. {Number(item.price || 0).toLocaleString('en-IN')}</td>
+                              <td>Rs. {Number(item.lineTotal || 0).toLocaleString('en-IN')}</td>
+                              <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => removeDispatchCartItem(item.productId)}><FaTrash /> Remove</button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="dashboard-split-row" style={{ marginTop:18, paddingTop:16, borderTop:'1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize:12, color:'var(--muted)' }}>Grand Total</div>
+                      <strong style={{ fontSize:20 }}>Rs. {dispatchCartBill.grandTotal.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <button type="button" className="btn btn-primary" onClick={confirmDispatchCart} disabled={dispatchSaving || !dispatchCart.length}>
+                      <FaCheck /> {dispatchSaving ? 'Confirming...' : 'Confirm Dispatch'}
+                    </button>
+                  </div>
+                </div>
+              </main>
+            </div>
+          )}
+
           <div className="crm-card">
             <div className="dashboard-split-row" style={{ marginBottom:16 }}>
               <div>
                 <h3 style={{ fontSize:15, fontWeight:700 }}>Dispatch Bills</h3>
                 <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Pending bills can be edited before approval. Approved bills are locked.</div>
               </div>
-              {canDispatch && <button className="btn btn-primary btn-sm" onClick={() => openDispatchBill()}><FaShippingFast /> New Pending Bill</button>}
+              {canDispatch && <button className="btn btn-primary btn-sm" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>}
             </div>
             {!dispatches.length ? (
               <EmptyState title="No dispatch bills yet" subtitle="Create a bill to reserve stock and start approval." />
