@@ -93,5 +93,13 @@ exports.updateEnquiry = async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
+exports.deleteEnquiry = async (req, res) => {
+  try {
+    const enquiry = await Enquiry.findByIdAndDelete(req.params.id);
+    if (!enquiry) return res.status(404).json({ success: false, message: 'Enquiry not found' });
+    res.json({ success: true, message: 'Enquiry deleted' });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};
+
 exports.buildEnquiryQueryForRole = buildEnquiryQueryForRole;
 exports.isServiceEnquiryType = isServiceEnquiryType;

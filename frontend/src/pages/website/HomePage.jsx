@@ -172,7 +172,7 @@ export default function HomePage() {
             <div>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
                 <div style={{ width:32, height:32, background:'linear-gradient(135deg,#F59E0B,#F97316)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>SP</div>
-                <span style={{ fontFamily:'Syne,sans-serif', fontWeight:800, fontSize:18 }}>Mahaveer Multi Engineering India</span>
+                <span style={{ fontFamily:'Syne,sans-serif', fontWeight:800, fontSize:18 }}>Mahaveer Multi Engineering </span>
               </div>
               <p style={{ fontSize:13, color:'var(--muted)', lineHeight:1.75, maxWidth:260 }}>Trusted solar energy solutions provider making clean energy accessible across India.</p>
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FaBan, FaCalendarAlt, FaClipboardList, FaExclamationTriangle, FaLayerGroup } from 'react-icons/fa'
+import toast from 'react-hot-toast'
 import { leadsAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, StageBadge } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
@@ -21,6 +22,7 @@ export default function RejectedLeadsPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const { user } = useAuthStore()
+  const canDelete = ['Admin', 'Manager'].includes(user?.role)
 
   const fetchRejectedLeads = () => {
     setLoading(true)
@@ -32,6 +34,19 @@ export default function RejectedLeadsPage() {
   }
 
   useEffect(fetchRejectedLeads, [])
+
+  const deleteLead = async (lead) => {
+    if (!canDelete) return
+    if (!window.confirm(`Delete rejected lead "${lead.name}" permanently?`)) return
+    try {
+      await leadsAPI.delete(lead._id)
+      toast.success('Rejected lead deleted')
+      if (selected?._id === lead._id) setSelected(null)
+      fetchRejectedLeads()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete lead')
+    }
+  }
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -125,7 +140,7 @@ export default function RejectedLeadsPage() {
 
       <div className="crm-card">
         <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Rejected Leads ({stats.total})</h3>
-        <LeadsTable leads={leads} loading={loading} onView={setSelected} />
+        <LeadsTable leads={leads} loading={loading} onView={setSelected} onDelete={canDelete ? deleteLead : undefined} />
       </div>
 
       {selected && (

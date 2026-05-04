@@ -13,7 +13,7 @@ const compareIvrs = (a, b, direction = 'asc') => {
   return direction === 'desc' ? -result : result
 }
 
-export default function LeadsTable({ leads = [], loading, onView, extraActions, defaultSort = 'ivrs-asc' }) {
+export default function LeadsTable({ leads = [], loading, onView, onDelete, extraActions, defaultSort = 'ivrs-asc' }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [srcFilter, setSrc] = useState('All')
@@ -149,6 +149,7 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions, 
                     <td>
                       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => handleView(lead)}>View</button>
+                        {onDelete && <button className="btn btn-danger btn-sm" onClick={() => onDelete(lead)}>Delete</button>}
                         {extraActions && extraActions(lead)}
                       </div>
                     </td>
@@ -196,6 +197,7 @@ export default function LeadsTable({ leads = [], loading, onView, extraActions, 
 
                   <div className="dashboard-inline-actions" style={{ marginTop:10 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => handleView(lead)}>View</button>
+                    {onDelete && <button className="btn btn-danger btn-sm" onClick={() => onDelete(lead)}>Delete</button>}
                     {extraActions && extraActions(lead)}
                   </div>
                 </div>

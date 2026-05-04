@@ -4,6 +4,7 @@ import { FaBan, FaBell, FaBoxOpen, FaBriefcase, FaClipboardList, FaCog, FaExchan
 import { useAuthStore, useAppStore } from '../../store'
 import { ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
 import { usersAPI } from '../../services/api'
+import mahaveerSolarLogo from '../../assets/mahaveer-solar-logo.svg'
 
 const ADMIN_DASHBOARD_ITEMS = [
   { to: '/dashboard/admin', icon: FaTachometerAlt, label: 'Admin Dashboard' },
@@ -26,7 +27,6 @@ const COMMON_NAV_ITEMS = [
   { to: '/dashboard/rejected-leads', icon: FaBan, label: 'Rejected Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager'] },
   { to: '/dashboard/inventory', icon: FaBoxOpen, label: 'Inventory', roles: ['Admin', 'Stock Manager', 'Dispatch Manager'] },
-  { to: '/dashboard/dispatch-erp', icon: FaShippingFast, label: 'Dispatch ERP', roles: ['Admin', 'Dispatch Manager'] },
   { to: '/dashboard/users', icon: FaUsers, label: 'Users', roles: ['Admin'] },
   { to: '/dashboard/profile', icon: FaUser, label: 'Profile', roles: null },
 ]
@@ -50,14 +50,8 @@ const ROLE_ICON_MAP = {
 
 function SidebarLogo() {
   return (
-    <div style={{ padding:'20px 16px', borderBottom:'1px solid var(--border)' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        <div style={{ width:36, height:36, background:'linear-gradient(135deg,#F59E0B,#F97316)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>SP</div>
-        <div>
-          <div style={{ fontFamily:'Syne,sans-serif', fontWeight:800, fontSize:16, color:'var(--text)' }}>SolarPro</div>
-          <div style={{ fontSize:10, color:'var(--muted)', letterSpacing:.5, textTransform:'uppercase' }}>CRM System</div>
-        </div>
-      </div>
+    <div className="dashboard-brand">
+      <img className="dashboard-brand-logo" src={mahaveerSolarLogo} alt="Mahavir Solar" />
     </div>
   )
 }
@@ -221,7 +215,7 @@ export default function DashboardLayout() {
         <header className="app-topbar">
           <button onClick={toggleSidebar} className="btn btn-ghost btn-icon" style={{ display:'flex' }}>|||</button>
 
-          <span style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:14, flex:1 }}>SolarPro CRM</span>
+          <span style={{ fontFamily:'Syne,sans-serif', fontWeight:400, fontSize:14, flex:1 }}>Mahaveer Multi Engineering</span>
 
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             <div ref={notificationsRef} style={{ position:'relative' }}>

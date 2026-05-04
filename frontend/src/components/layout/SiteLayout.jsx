@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { FaMoon, FaSun } from 'react-icons/fa'
 import { useAppStore } from '../../store'
 import EnquiryForm from '../website/EnquiryForm'
+import mahaveerSolarLogo from '../../assets/mahaveer-solar-logo.svg'
 
 const links = [
   { to: '/', label: 'Home' },
@@ -27,8 +28,7 @@ export default function SiteLayout() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <nav className="site-nav">
         <Link to="/" className="site-brand">
-          <div className="site-brand-mark">MM</div>
-          <span className="site-brand-text">Mahaveer Multi Engineering</span>
+          <img className="site-brand-logo" src={mahaveerSolarLogo} alt="Mahavir Solar" />
         </Link>
 
         <button className="btn btn-ghost btn-sm site-nav-toggle" onClick={() => setMenuOpen(prev => !prev)}>
@@ -56,7 +56,7 @@ export default function SiteLayout() {
             <ThemeIcon />
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/login')}>
-            CRM Login
+            Login
           </button>
         </div>
       </nav>

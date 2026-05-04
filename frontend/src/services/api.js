@@ -102,6 +102,17 @@ export const enquiriesAPI = {
   create: (data) => api.post('/enquiries', data),
   convertToLead: (id) => api.post(`/enquiries/${id}/convert`),
   update: (id, data) => api.put(`/enquiries/${id}`, data),
+  delete: async (id) => {
+    try {
+      return await api.delete(`/enquiries/${id}`)
+    } catch (error) {
+      const message = String(error.response?.data?.message || '').toLowerCase()
+      if (error.response?.status === 404 || message.includes('route not found')) {
+        return api.post(`/enquiries/${id}/delete`)
+      }
+      throw error
+    }
+  },
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────

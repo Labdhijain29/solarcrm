@@ -33,6 +33,8 @@ const dispatchSchema = new mongoose.Schema({
   installationUpdatedAt: { type: Date, default: null },
   installationUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   installationUpdatedByName: { type: String, trim: true, default: '' },
+  installationAssignee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+  installationAssigneeName: { type: String, trim: true, default: '' },
   dispatchDate: { type: Date, default: Date.now },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdByName: { type: String, trim: true, default: '' },

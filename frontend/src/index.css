@@ -760,30 +760,33 @@ textarea.crm-input { resize: vertical; }
   gap: 12px;
   text-decoration: none;
   min-width: 0;
+  flex: 0 0 auto;
+  max-width: 150px;
 }
 
-.site-brand-mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #F59E0B, #F97316);
-  color: #0A0E1A;
-  font-size: 14px;
-  font-weight: 800;
-  box-shadow: 0 10px 24px rgba(245,158,11,.26);
+.site-brand-logo {
+  width: 100%;
+  height: auto;
+  max-height: 64px;
+  display: block;
+  object-fit: contain;
   flex: 0 0 auto;
 }
 
-.site-brand-text {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
-  font-size: 18px;
-  letter-spacing: -.02em;
-  color: var(--text);
-  line-height: 1.1;
+.dashboard-brand {
+  min-height: 82px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-brand-logo {
+  width: 148px;
+  height: 54px;
+  display: block;
+  object-fit: contain;
 }
 
 .site-nav-link {
@@ -1174,25 +1177,29 @@ textarea.crm-input { resize: vertical; }
   }
 
   .site-nav {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     gap: 12px;
     padding: 12px 16px;
   }
 
   .site-brand {
-    flex: 1 1 auto;
+    max-width: 140px;
   }
 
-  .site-brand-text {
-    font-size: 16px;
+  .site-brand-logo {
+    max-height: 60px;
   }
 
   .site-nav-toggle {
     display: inline-flex;
+    justify-self: end;
   }
 
   .site-nav-links {
     display: none;
+    grid-column: 1 / -1;
     width: 100%;
     flex-direction: column;
     align-items: flex-start;
@@ -1205,13 +1212,14 @@ textarea.crm-input { resize: vertical; }
   }
 
   .site-nav-actions {
-    margin-left: auto;
+    grid-column: 1 / -1;
+    margin-left: 0;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
 
   .site-page {
-    padding-top: 92px;
+    padding-top: 124px;
   }
 
   .site-section {
@@ -1349,7 +1357,6 @@ textarea.crm-input { resize: vertical; }
 
   .site-nav-actions {
     width: 100%;
-    margin-left: 0;
     justify-content: stretch;
   }
 

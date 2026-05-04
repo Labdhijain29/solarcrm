@@ -8,6 +8,7 @@ const normalizeDigits = (value) => String(value || '').replace(/\D/g, '');
 const normalizeMobile = (value) => normalizeDigits(value).replace(/^91(?=[6-9]\d{9}$)/, '');
 const normalizeLookupText = (value) => String(value || '').trim();
 const INSTALLATION_STATUSES = ['Pending', 'In Progress', 'Completed'];
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const rollbackStock = async (updates) => {
   await Promise.all(updates.map((item) => Product.findByIdAndUpdate(item.productId, { $inc: { quantity: item.quantity } })));
@@ -86,6 +87,21 @@ const findDispatchLead = async (leadId, mobile) => {
   return Lead.findOne({ $or: or }).sort({ updatedAt: -1 });
 };
 
+const findInstallationAssignee = async (engineerName) => {
+  const name = normalizeLookupText(engineerName);
+  if (!name) return null;
+
+  return User.findOne({
+    role: 'Installation Manager',
+    isActive: true,
+    $or: [
+      { name: new RegExp(`^${escapeRegex(name)}$`, 'i') },
+      { email: name.toLowerCase() },
+      { phone: normalizeMobile(name) },
+    ],
+  }).sort({ createdAt: 1 });
+};
+
 exports.createDispatch = async (req, res) => {
   const decremented = [];
   let dispatch = null;
@@ -153,6 +169,8 @@ exports.createDispatch = async (req, res) => {
 
     const grandTotal = snapshots.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
 
+    const installationAssignee = await findInstallationAssignee(engineerName);
+
     dispatch = await Dispatch.create({
       billNo,
       customerName,
@@ -167,6 +185,8 @@ exports.createDispatch = async (req, res) => {
       approvalStatus: 'Pending',
       billLocked: false,
       installationStatus: 'Pending',
+      installationAssignee: installationAssignee?._id || null,
+      installationAssigneeName: installationAssignee?.name || engineerName,
       createdBy: req.user._id,
       createdByName: req.user.name,
     });
@@ -282,10 +302,14 @@ exports.updateDispatch = async (req, res) => {
     const snapshots = buildDispatchSnapshots(updatedProducts, normalizedItems);
     const grandTotal = snapshots.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
 
+    const installationAssignee = await findInstallationAssignee(engineerName);
+
     dispatch.billNo = billNo || dispatch.billNo || `DSP-${Date.now()}`;
     dispatch.customerName = customerName;
     dispatch.leadId = lead?._id?.toString() || leadId || '';
     dispatch.engineerName = engineerName;
+    dispatch.installationAssignee = installationAssignee?._id || null;
+    dispatch.installationAssigneeName = installationAssignee?.name || engineerName;
     dispatch.siteAddress = siteAddress;
     dispatch.mobile = mobile;
     dispatch.dispatchDate = dispatchDate || dispatch.dispatchDate || new Date();
@@ -339,7 +363,9 @@ exports.approveDispatch = async (req, res) => {
       };
       lead.approveStage(req.user._id, req.user.name, `Dispatch bill ${dispatch.billNo} approved`);
 
-      const installationManager = await User.findOne({ role: 'Installation Manager', isActive: true }).sort({ createdAt: 1 });
+      const installationManager = dispatch.installationAssignee
+        ? await User.findById(dispatch.installationAssignee)
+        : await findInstallationAssignee(dispatch.engineerName) || await User.findOne({ role: 'Installation Manager', isActive: true }).sort({ createdAt: 1 });
       lead.assignedTo = installationManager ? installationManager._id : null;
       await lead.save();
 
@@ -389,7 +415,7 @@ exports.updateInstallationStatus = async (req, res) => {
 
 exports.getDispatches = async (req, res) => {
   try {
-    const q = {};
+    let q = {};
     if (req.query.leadId) q.leadId = req.query.leadId;
     if (req.query.approvalStatus) q.approvalStatus = req.query.approvalStatus;
     if (req.query.installationStatus) q.installationStatus = req.query.installationStatus;
@@ -401,6 +427,16 @@ exports.getDispatches = async (req, res) => {
         { engineerName: new RegExp(req.query.search, 'i') },
         { mobile: new RegExp(req.query.search, 'i') },
       ];
+    }
+
+    if (req.user.role === 'Installation Manager') {
+      const personFilter = {
+        $or: [
+          { installationAssignee: req.user._id },
+          { engineerName: new RegExp(`^${escapeRegex(req.user.name)}$`, 'i') },
+        ],
+      };
+      q = Object.keys(q).length ? { $and: [q, personFilter] } : personFilter;
     }
 
     const dispatches = await Dispatch.find(q).sort({ dispatchDate: -1, createdAt: -1 });

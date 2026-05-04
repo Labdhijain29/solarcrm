@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { FaChartLine, FaCheckCircle, FaClipboardList, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase } from 'react-icons/fa'
-import { leadsAPI } from '../../services/api'
-import { MetricCard, PageHeader, Spinner, EmptyState, SearchableSelect } from '../../components/common'
+import { FaChartLine, FaCheckCircle, FaClipboardList, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase, FaShippingFast } from 'react-icons/fa'
+import { dispatchAPI, leadsAPI } from '../../services/api'
+import { FilePreview, MetricCard, PageHeader, Spinner, EmptyState, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
@@ -9,6 +9,33 @@ import { CITIES, STAGES, ROLE_STAGE_MAP, stageColor } from '../../utils/constant
 import toast from 'react-hot-toast'
 
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
+const PHONE_REGEX = /^[6-9]\d{9}$/
+const PINCODE_REGEX = /^\d{6}$/
+const INITIAL_MANAGER_LEAD = {
+  name: '',
+  phone: '',
+  email: '',
+  state: '',
+  city: '',
+  address: '',
+  pincode: '',
+  ivrsNo: '',
+  source: 'Website',
+  generatedThrough: '',
+  capacity: '3kW',
+  roofType: 'Concrete',
+  monthlyBill: '',
+  dealNo: '',
+  brand: '',
+  panCardNo: '',
+  aadharNo: '',
+  accountNo: '',
+  other: '',
+  photoOne: null,
+  photoTwo: null,
+  documentPdf: null,
+}
+const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 
 function KanbanPipeline({ leads, onView }) {
   return (
@@ -44,7 +71,7 @@ export function ManagerDashboard() {
   const [tab, setTab] = useState('leads')
   const [selected, setSelected] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [newLead, setNewLead] = useState({ name: '', phone: '', city: '', source: 'Website', generatedThrough: '', capacity: '3kW' })
+  const [newLead, setNewLead] = useState(INITIAL_MANAGER_LEAD)
   const { user } = useAuthStore()
 
   const fetchLeads = () => {
@@ -66,20 +93,77 @@ export function ManagerDashboard() {
   }, [])
 
   const createLead = async () => {
-    const phone = String(newLead.phone || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '')
+    const phone = normalizePhone(newLead.phone)
     if (!newLead.name.trim() || !phone) return toast.error('Name and phone are required')
-    if (!/^[6-9]\d{9}$/.test(phone)) return toast.error('Enter a valid 10-digit mobile number')
+    if (!PHONE_REGEX.test(phone)) return toast.error('Enter a valid 10-digit mobile number')
+    if (!newLead.state.trim() || !newLead.city.trim()) return toast.error('State and city are required')
+    if (newLead.pincode && !PINCODE_REGEX.test(newLead.pincode)) return toast.error('Pincode must be 6 digits.')
+    if (newLead.ivrsNo && !/^\d{10}$/.test(newLead.ivrsNo)) return toast.error('IVRS number must be 10 digits.')
+
+    const salesExecutiveData = {
+      contact: phone,
+      state: newLead.state.trim(),
+      city: newLead.city.trim(),
+      addressdu: newLead.address.trim(),
+      pincode: newLead.pincode,
+      dealNo: newLead.dealNo.trim(),
+      brand: newLead.brand.trim(),
+      panCardNo: newLead.panCardNo.trim(),
+      aadharNo: newLead.aadharNo.trim(),
+      accountNo: newLead.accountNo.trim(),
+      other: newLead.other.trim(),
+      photoOneName: newLead.photoOne?.name || '',
+      photoTwoName: newLead.photoTwo?.name || '',
+      documentPdfName: newLead.documentPdf?.name || '',
+    }
+
+    const payload = new FormData()
+    payload.append('name', newLead.name.trim())
+    payload.append('phone', phone)
+    payload.append('email', newLead.email.trim().toLowerCase())
+    payload.append('state', newLead.state.trim())
+    payload.append('city', newLead.city.trim())
+    payload.append('address', newLead.address.trim())
+    payload.append('pincode', newLead.pincode)
+    payload.append('ivrsNo', newLead.ivrsNo)
+    payload.append('source', newLead.source)
+    payload.append('generatedThrough', newLead.generatedThrough.trim())
+    payload.append('capacity', newLead.capacity.trim() || '3kW')
+    payload.append('roofType', newLead.roofType)
+    payload.append('monthlyBill', newLead.monthlyBill || 0)
+    payload.append('notes', newLead.other.trim() ? `Other: ${newLead.other.trim()}` : '')
+    payload.append('salesExecutiveData', JSON.stringify(salesExecutiveData))
+    if (newLead.photoOne) payload.append('photoOne', newLead.photoOne)
+    if (newLead.photoTwo) payload.append('photoTwo', newLead.photoTwo)
+    if (newLead.documentPdf) payload.append('documentPdf', newLead.documentPdf)
 
     try {
-      await leadsAPI.create({ ...newLead, name: newLead.name.trim(), phone })
+      await leadsAPI.create(payload)
       toast.success('Lead created!')
       setShowCreate(false)
-      setNewLead({ name: '', phone: '', city: '', source: 'Website', generatedThrough: '', capacity: '3kW' })
+      setNewLead(INITIAL_MANAGER_LEAD)
       fetchLeads()
     } catch (e) {
       const validationMessage = e.response?.data?.errors?.[0]?.message
       toast.error(validationMessage || e.response?.data?.message || 'Failed to create lead')
     }
+  }
+
+  const updateNewLeadField = (event) => {
+    const { name, files } = event.target
+    let { value } = event.target
+
+    if (files) {
+      setNewLead((prev) => ({ ...prev, [name]: files?.[0] || null }))
+      return
+    }
+    if (name === 'phone') value = normalizePhone(value)
+    if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
+    if (name === 'ivrsNo') value = String(value || '').replace(/\D/g, '').slice(0, 10)
+    if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
+    if (name === 'monthlyBill') value = String(value || '').replace(/[^\d.]/g, '')
+
+    setNewLead((prev) => ({ ...prev, [name]: value }))
   }
 
   const stats = {
@@ -117,20 +201,41 @@ export function ManagerDashboard() {
 
       {showCreate && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowCreate(false)}>
-          <div className="modal-box">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <h2 style={{ fontFamily: 'Syne,sans-serif', fontSize: 20, fontWeight: 700 }}>Create New Lead</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--dim)', cursor: 'pointer' }}>x</button>
-            </div>
-            <div className="dashboard-form-grid">
-              {[['Full Name', 'name', 'text'], ['Phone', 'phone', 'tel'], ['Capacity', 'capacity', 'text'], ['By / Through', 'generatedThrough', 'text']].map(([label, key, type]) => (
-                <div key={key}>
-                  <label className="form-label">{label}</label>
-                  <input className="crm-input" type={type} value={newLead[key]} onChange={e => setNewLead(p => ({ ...p, [key]: key === 'phone' ? String(e.target.value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10) : e.target.value }))} placeholder={key === 'phone' ? '9876543210 or +91 98765 43210' : key === 'generatedThrough' ? 'Campaign, partner, employee, referral...' : ''} maxLength={key === 'phone' ? 10 : undefined} />
-                </div>
-              ))}
+          <div className="modal-box sales-exec-modal">
+            <div className="sales-exec-hero">
               <div>
-                <label className="form-label">City</label>
+                <div className="sales-exec-kicker">Customer Registration</div>
+                <h2>Create New Lead</h2>
+                <p>Add customer details, IVRS, project data and uploaded documents.</p>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowCreate(false)}>Close</button>
+            </div>
+
+            <form className="sales-exec-form" onSubmit={(event) => { event.preventDefault(); createLead() }}>
+              <p className="sales-exec-section full">Customer Details</p>
+
+              <label>
+                Customer Name
+                <input className="crm-input" name="name" value={newLead.name} onChange={updateNewLeadField} placeholder="Enter customer name" required />
+              </label>
+
+              <label>
+                Contact
+                <input className="crm-input" type="tel" name="phone" value={newLead.phone} onChange={updateNewLeadField} placeholder="9876543210" maxLength={10} required />
+              </label>
+
+              <label>
+                Email
+                <input className="crm-input" type="email" name="email" value={newLead.email} onChange={updateNewLeadField} placeholder="Optional" />
+              </label>
+
+              <label>
+                State
+                <input className="crm-input" name="state" value={newLead.state} onChange={updateNewLeadField} placeholder="Enter state" required />
+              </label>
+
+              <label>
+                City
                 <SearchableSelect
                   name="city"
                   value={newLead.city}
@@ -139,9 +244,74 @@ export function ManagerDashboard() {
                   placeholder="Select city..."
                   searchPlaceholder="Search city..."
                 />
-              </div>
-              <div>
-                <label className="form-label">Source</label>
+              </label>
+
+              <label>
+                Pincode
+                <input className="crm-input" name="pincode" value={newLead.pincode} onChange={updateNewLeadField} placeholder="6-digit pincode" maxLength={6} />
+              </label>
+
+              <label className="full">
+                Address
+                <textarea className="crm-input" name="address" value={newLead.address} onChange={updateNewLeadField} placeholder="Enter customer address" rows={2} />
+              </label>
+
+              <p className="sales-exec-section full">Project & KYC Details</p>
+
+              <label>
+                Deal No.
+                <input className="crm-input" name="dealNo" value={newLead.dealNo} onChange={updateNewLeadField} placeholder="Deal number" />
+              </label>
+
+              <label>
+                Brand
+                <input className="crm-input" name="brand" value={newLead.brand} onChange={updateNewLeadField} placeholder="Panel / inverter brand" />
+              </label>
+
+              <label>
+                IVRS No.
+                <input className="crm-input" name="ivrsNo" value={newLead.ivrsNo} onChange={updateNewLeadField} placeholder="10-digit IVRS" maxLength={10} />
+              </label>
+
+              <label>
+                Capacity
+                <input className="crm-input" name="capacity" value={newLead.capacity} onChange={updateNewLeadField} placeholder="3kW" />
+              </label>
+
+              <label>
+                Roof Type
+                <select className="crm-input" name="roofType" value={newLead.roofType} onChange={updateNewLeadField}>
+                  {['Concrete', 'Metal Sheet', 'RCC', 'Tin', 'Other'].map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+
+              <label>
+                Monthly Bill
+                <input className="crm-input" name="monthlyBill" value={newLead.monthlyBill} onChange={updateNewLeadField} placeholder="Amount" />
+              </label>
+
+              <label>
+                PAN Card No.
+                <input className="crm-input" name="panCardNo" value={newLead.panCardNo} onChange={updateNewLeadField} placeholder="PAN number" />
+              </label>
+
+              <label>
+                Aadhar No.
+                <input className="crm-input" name="aadharNo" value={newLead.aadharNo} onChange={updateNewLeadField} placeholder="12-digit Aadhar" maxLength={12} />
+              </label>
+
+              <label>
+                Account No.
+                <input className="crm-input" name="accountNo" value={newLead.accountNo} onChange={updateNewLeadField} placeholder="Bank account number" />
+              </label>
+
+              <label>
+                By / Through
+                <input className="crm-input" name="generatedThrough" value={newLead.generatedThrough} onChange={updateNewLeadField} placeholder="Campaign, partner, employee, referral..." />
+              </label>
+
+              <label>
+                Source
                 <SearchableSelect
                   name="source"
                   value={newLead.source}
@@ -150,9 +320,38 @@ export function ManagerDashboard() {
                   placeholder="Select source..."
                   searchPlaceholder="Search source..."
                 />
+              </label>
+
+              <label className="full">
+                Other
+                <textarea className="crm-input" name="other" value={newLead.other} onChange={updateNewLeadField} placeholder="Any extra detail" rows={2} />
+              </label>
+
+              <p className="sales-exec-section full">Uploads</p>
+
+              <label>
+                Photo 1
+                <input className="crm-input" type="file" name="photoOne" accept=".png,.jpg,.jpeg,.webp" onChange={updateNewLeadField} />
+              </label>
+
+              <label>
+                Photo 2
+                <input className="crm-input" type="file" name="photoTwo" accept=".png,.jpg,.jpeg,.webp" onChange={updateNewLeadField} />
+              </label>
+
+              <label>
+                Document PDF
+                <input className="crm-input" type="file" name="documentPdf" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateNewLeadField} />
+              </label>
+
+              <div className="sales-exec-file-strip full">
+                <FilePreview file={newLead.photoOne} label="Photo 1" compact />
+                <FilePreview file={newLead.photoTwo} label="Photo 2" compact />
+                <FilePreview file={newLead.documentPdf} label="Document PDF" compact />
               </div>
-            </div>
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 16 }} onClick={createLead}>Create Lead</button>
+
+              <button type="submit" className="btn btn-primary sales-exec-submit">Create Lead</button>
+            </form>
           </div>
         </div>
       )}
@@ -207,6 +406,8 @@ const STAGE_ROLE_ICONS = {
   'Subsidy Reading Officer': FaFileInvoice,
 }
 
+const INSTALLATION_DISPATCH_STATUSES = ['Pending', 'In Progress', 'Completed']
+
 export function StageDashboard({ roleOverride }) {
   const [leads, setLeads] = useState([])
   const [completedCount, setCompletedCount] = useState(0)
@@ -214,21 +415,29 @@ export function StageDashboard({ roleOverride }) {
   const [selected, setSelected] = useState(null)
   const [panelNumbers, setPanelNumbers] = useState({})
   const [savingPanelId, setSavingPanelId] = useState('')
+  const [installationDispatches, setInstallationDispatches] = useState([])
+  const [selectedDispatch, setSelectedDispatch] = useState(null)
+  const [savingDispatchId, setSavingDispatchId] = useState('')
   const { user } = useAuthStore()
   const dashboardRole = roleOverride || user?.role
   const myStage = ROLE_STAGE_MAP[dashboardRole]
+  const showPanelNumberRows = dashboardRole === 'Installation Manager'
 
   const fetchLeads = () => {
     setLoading(true)
-    Promise.all([
+    const requests = [
       leadsAPI.getAll({ stage: myStage, sort: 'ivrs-asc' }),
       leadsAPI.getAll({ completedStage: myStage, sort: 'ivrs-asc' }),
-    ])
-      .then(([activeRes, completedRes]) => {
+    ]
+    if (showPanelNumberRows) requests.push(dispatchAPI.getAll())
+
+    Promise.all(requests)
+      .then(([activeRes, completedRes, dispatchRes]) => {
         const nextLeads = activeRes.data.data || []
         setLeads(nextLeads)
         setPanelNumbers(Object.fromEntries(nextLeads.map((lead) => [lead._id, lead.installationData?.panelNumber || ''])))
         setCompletedCount(completedRes.data.pagination?.total ?? completedRes.data.data?.length ?? 0)
+        setInstallationDispatches(dispatchRes?.data?.data || [])
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -237,7 +446,22 @@ export function StageDashboard({ roleOverride }) {
   useEffect(fetchLeads, [myStage])
 
   const activeLeads = leads.filter((lead) => lead.status === 'active')
-  const showPanelNumberRows = dashboardRole === 'Installation Manager'
+  const approvedInstallationDispatches = installationDispatches.filter((dispatch) => dispatch.approvalStatus === 'Approved')
+
+  const getLeadDispatch = (lead) => {
+    const leadKeys = [
+      lead._id,
+      lead.ivrsNo,
+      String(lead._id || '').slice(-6),
+    ].filter(Boolean).map((value) => String(value).toLowerCase())
+    const phone = String(lead.phone || '').replace(/\D/g, '')
+
+    return installationDispatches.find((dispatch) => {
+      const dispatchLeadId = String(dispatch.leadId || '').toLowerCase()
+      const dispatchMobile = String(dispatch.mobile || '').replace(/\D/g, '')
+      return leadKeys.includes(dispatchLeadId) || (phone && dispatchMobile === phone)
+    })
+  }
 
   const savePanelNumber = async (lead) => {
     const panelNumber = String(panelNumbers[lead._id] || '').trim()
@@ -263,9 +487,15 @@ export function StageDashboard({ roleOverride }) {
 
   const installationPanelAction = (lead) => {
     if (!showPanelNumberRows || lead.currentStage !== 'Installation') return null
+    const dispatch = getLeadDispatch(lead)
 
     return (
       <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+        {dispatch && (
+          <button className="btn btn-ghost btn-sm" type="button" onClick={() => setSelectedDispatch(dispatch)}>
+            View Bill
+          </button>
+        )}
         <input
           className="crm-input"
           inputMode="numeric"
@@ -285,6 +515,24 @@ export function StageDashboard({ roleOverride }) {
     )
   }
 
+  const updateDispatchInstallationStatus = async (dispatch, status) => {
+    setSavingDispatchId(dispatch._id)
+    try {
+      const response = await dispatchAPI.updateInstallationStatus(dispatch._id, status)
+      const updatedDispatch = response.data.data
+      if (updatedDispatch?._id) {
+        setInstallationDispatches((prev) => prev.map((item) => item._id === updatedDispatch._id ? updatedDispatch : item))
+        setSelectedDispatch((prev) => prev?._id === updatedDispatch._id ? updatedDispatch : prev)
+      }
+      toast.success('Installation status updated')
+      fetchLeads()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Status update failed')
+    } finally {
+      setSavingDispatchId('')
+    }
+  }
+
   return (
     <div className="dashboard-page">
       <PageHeader
@@ -298,6 +546,7 @@ export function StageDashboard({ roleOverride }) {
         <MetricCard icon={<FaCheckCircle />} label="Completed Leads" value={completedCount} changeColor="var(--green)" />
         <MetricCard icon={<FaWrench />} label="My Stage" value={myStage?.split(' ')[0]} />
         <MetricCard icon={<FaUserCheck />} label="Assigned to" value={roleOverride ? dashboardRole.split(' ')[0] : user?.name?.split(' ')[0]} />
+        {showPanelNumberRows && <MetricCard icon={<FaShippingFast />} label="Dispatch Bills" value={installationDispatches.length} change={`${approvedInstallationDispatches.length} approved`} changeColor="var(--blue)" />}
       </div>
 
       {loading ? <Spinner /> : activeLeads.length === 0 ? (
@@ -325,6 +574,67 @@ export function StageDashboard({ roleOverride }) {
           showSubsidyInput={dashboardRole === 'Subsidy Officer'}
           showSubsidyReadingInput={dashboardRole === 'Subsidy Reading Officer'}
         />
+      )}
+
+      {selectedDispatch && (
+        <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && setSelectedDispatch(null)}>
+          <div className="modal-box" style={{ maxWidth: 880 }}>
+            <div className="dashboard-split-row" style={{ marginBottom: 16 }}>
+              <div>
+                <h2 style={{ fontFamily: 'Syne,sans-serif', fontSize: 20, fontWeight: 700 }}>{selectedDispatch.billNo || 'Dispatch Bill'}</h2>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  {selectedDispatch.customerName} | {selectedDispatch.mobile} | {selectedDispatch.siteAddress}
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => setSelectedDispatch(null)}>Close</button>
+            </div>
+
+            <div className="dashboard-grid-metrics" style={{ marginBottom: 16 }}>
+              <MetricCard icon={<FaShippingFast />} label="Approval" value={selectedDispatch.approvalStatus || 'Pending'} change={selectedDispatch.billLocked ? 'Bill locked' : 'Waiting'} changeColor="var(--blue)" />
+              <MetricCard icon={<FaSolarPanel />} label="Installation" value={selectedDispatch.installationStatus || 'Pending'} change="Current status" changeColor="var(--sun)" />
+              <MetricCard icon={<FaClipboardList />} label="Material Qty" value={(selectedDispatch.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} change="Total items" />
+              <MetricCard icon={<FaMoneyBillWave />} label="Grand Total" value={`Rs. ${Number(selectedDispatch.grandTotal || 0).toLocaleString('en-IN')}`} change="Bill amount" changeColor="var(--green)" />
+            </div>
+
+            <div className="dashboard-form-grid" style={{ marginBottom: 16 }}>
+              <div><label className="form-label">Lead ID / IVRS</label><div className="crm-input" style={{ height: 'auto' }}>{selectedDispatch.leadId || '-'}</div></div>
+              <div><label className="form-label">Engineer</label><div className="crm-input" style={{ height: 'auto' }}>{selectedDispatch.installationAssigneeName || selectedDispatch.engineerName || '-'}</div></div>
+              <div><label className="form-label">Dispatch Date</label><div className="crm-input" style={{ height: 'auto' }}>{selectedDispatch.dispatchDate ? new Date(selectedDispatch.dispatchDate).toLocaleDateString('en-IN') : '-'}</div></div>
+              <div>
+                <label className="form-label">Installation Status</label>
+                <select
+                  className="crm-input"
+                  value={selectedDispatch.installationStatus || 'Pending'}
+                  disabled={selectedDispatch.approvalStatus !== 'Approved' || savingDispatchId === selectedDispatch._id}
+                  onChange={(event) => updateDispatchInstallationStatus(selectedDispatch, event.target.value)}
+                >
+                  {INSTALLATION_DISPATCH_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="crm-table-wrap">
+              <table className="crm-table">
+                <thead>
+                  <tr><th>Item</th><th>Category</th><th>Brand</th><th>Capacity</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+                </thead>
+                <tbody>
+                  {(selectedDispatch.items || []).map((item) => (
+                    <tr key={`${selectedDispatch._id}-${item.productId}`}>
+                      <td>{item.productName}</td>
+                      <td>{item.category || '-'}</td>
+                      <td>{item.brand || '-'}</td>
+                      <td>{item.capacity || '-'}</td>
+                      <td>{item.quantity} {item.unit}</td>
+                      <td>Rs. {Number(item.price || 0).toLocaleString('en-IN')}</td>
+                      <td>Rs. {Number(item.lineTotal || 0).toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

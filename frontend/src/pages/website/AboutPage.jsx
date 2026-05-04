@@ -12,7 +12,7 @@ export function AboutPage() {
   return (
     <div className="site-page">
       <div className="site-container site-section">
-        <SectionTag>About SolarPro</SectionTag>
+        <SectionTag>About Mahavir Multi Engineering</SectionTag>
         <h1 style={{ fontFamily:'Syne,sans-serif', fontSize:'clamp(30px,4vw,48px)', fontWeight:800, marginBottom:16 }}>Powering India's Solar Revolution</h1>
         <p style={{ fontSize:16, color:'var(--muted)', lineHeight:1.8, marginBottom:48, maxWidth:680 }}>
           Founded in 2015, Mahaveer Multi Engeering has grown into one of the country’s trusted solar energy companies, helping homes and businesses adopt clean, affordable energy.
@@ -134,9 +134,9 @@ export function ContactPage() {
             <div className="crm-card" style={{ marginTop:20 }}>
               <h3 style={{ fontFamily:'Syne,sans-serif', fontSize:16, fontWeight:700, marginBottom:16 }}>Contact Information</h3>
               {[
-                ['Phone', '1800-XXX-XXXX (Toll Free)'],
+                ['Phone', '+91 88270 08014'],
                 ['Email', 'info@solarproindia.com'],
-                ['Head Office', 'Solar Tower, BKC, Mumbai - 400051'],
+                ['Head Office', 'Mahavir Multi Engineering Mid Town Old Bypass Ratlam -457001'],
                 ['Hours', 'Mon-Sat: 9AM - 6PM'],
               ].map(([label, value]) => (
                 <div key={label} className="site-info-row" style={{ marginBottom:14 }}>
@@ -148,15 +148,21 @@ export function ContactPage() {
           </div>
 
           <div>
-            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, minHeight:280, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'var(--muted)', marginBottom:16, padding:'24px', textAlign:'center' }}>
-              <div style={{ fontSize:32, marginBottom:12, fontWeight:700 }}>MAP</div>
-              <div style={{ fontWeight:600, marginBottom:6 }}>Interactive Map</div>
-              <div style={{ fontSize:13 }}>Solar Tower, BKC, Mumbai</div>
-              <div style={{ fontSize:12, marginTop:6, color:'var(--dim)' }}>Connect Google Maps API in production</div>
+            <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, minHeight:320, overflow:'hidden', marginBottom:16 }}>
+              <iframe
+                title="Mahavir Multi Engineering location map"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3663.566232892859!2d75.0562179753668!3d23.33149187895854!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3963ff19953f70c3%3A0x4a200fe5ef6a362d!2sMahavir%20Multi%20engineering!5e0!3m2!1sen!2sin!4v1777915343351!5m2!1sen!2sin"
+                width="100%"
+                height="320"
+                style={{ border:0, display:'block' }}
+                allowFullScreen=""
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
             </div>
             <div className="crm-card">
               <h3 style={{ fontFamily:'Syne,sans-serif', fontSize:15, fontWeight:700, marginBottom:14 }}>Our Offices</h3>
-              {['Mumbai (HQ)', 'Delhi', 'Bangalore', 'Pune', 'Hyderabad', 'Jaipur'].map(city => (
+              {['Ratlam (HQ)', 'Mandsaur', 'Dewas', 'Jhabua', 'Barnagar', 'Nagda', 'Badnawar','Dhar', 'Piploda'].map(city => (
                 <div key={city} style={{ display:'flex', gap:8, alignItems:'center', padding:'9px 0', borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
                   <span style={{ fontSize:13, fontWeight:500 }}>{city}</span>
                   <span className="badge badge-green" style={{ marginLeft:'auto' }}>Open</span>

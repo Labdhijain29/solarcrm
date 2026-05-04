@@ -33,7 +33,8 @@ export default function EnquiriesPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('latest')
 
-  const canEdit = user?.role === 'Admin'
+  const canEdit = ['Admin', 'Manager'].includes(user?.role)
+  const canDelete = ['Admin', 'Manager'].includes(user?.role)
   const canConvert = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(user?.role)
 
   const fetchData = async () => {
@@ -105,6 +106,19 @@ export default function EnquiriesPage() {
       toast.error(err.response?.data?.message || 'Failed to update enquiry')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const deleteEnquiry = async (enquiry) => {
+    if (!canDelete) return
+    if (!window.confirm(`Delete enquiry "${enquiry.name}" permanently?`)) return
+    try {
+      await enquiriesAPI.delete(enquiry._id)
+      toast.success('Enquiry deleted')
+      if (editing?._id === enquiry._id) closeEdit()
+      fetchData()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete enquiry')
     }
   }
 
@@ -198,6 +212,7 @@ export default function EnquiriesPage() {
                     {enquiry.convertedTo && <span className="badge badge-green">Converted</span>}
                     {enquiry.enquiryType === 'Service Enquiry' && <span className="badge badge-blue">Service Queue</span>}
                     {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
+                    {canDelete && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
                   </div>
                 </td>
               </tr>
@@ -241,6 +256,7 @@ export default function EnquiriesPage() {
                 {enquiry.convertedTo && <span className="badge badge-green">Converted</span>}
                 {enquiry.enquiryType === 'Service Enquiry' && <span className="badge badge-blue">Service Queue</span>}
                 {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
+                {canDelete && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
               </div>
             </div>
           ))}

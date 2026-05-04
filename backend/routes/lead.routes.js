@@ -17,7 +17,7 @@ router.route('/')
 router.route('/:id')
   .get(getLead)
   .put(uploadLeadFiles, normalizeMultipartBody, updateLead)
-  .delete(authorize('Admin'), deleteLead);
+  .delete(authorize('Admin', 'Manager'), deleteLead);
 
 router.post('/:id/approve', uploadLeadFiles, normalizeMultipartBody, approveLead);
 router.post('/:id/reject', rejectLead);

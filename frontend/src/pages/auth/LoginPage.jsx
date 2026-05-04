@@ -178,7 +178,7 @@ export default function LoginPage() {
           <div style={{ width:60, height:60, background:'linear-gradient(135deg,#F59E0B,#F97316)', borderRadius:18, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, margin:'0 auto 12px', color:'#111827' }}>
             <FaSolarPanel />
           </div>
-          <h2 style={{ fontFamily:'Syne,sans-serif', fontSize:26, fontWeight:800, marginBottom:6 }}>SolarPro CRM</h2>
+          <h2 style={{ fontFamily:'Syne,sans-serif', fontSize:26, fontWeight:600, marginBottom:6 }}>Mahaveer Multi Engineering</h2>
           <p style={{ fontSize:14, color:'var(--muted)' }}>
             {mode === 'login' ? 'Login to access your dashboard' : 'Create your account to continue'}
           </p>
