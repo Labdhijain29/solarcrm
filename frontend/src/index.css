@@ -1503,3 +1503,152 @@ textarea.crm-input { resize: vertical; }
     padding-right: 12px;
   }
 }
+
+/* Dispatch dashboard responsiveness */
+.dispatch-builder-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.dispatch-stock-panel {
+  position: sticky;
+  top: 82px;
+}
+
+.dispatch-quantity-actions {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.dispatch-quantity-actions .btn {
+  flex: 0 0 38px;
+  width: 38px;
+  min-width: 38px;
+  padding-inline: 0;
+}
+
+.dispatch-quantity-actions .crm-input {
+  flex: 1 1 90px;
+  min-width: 72px;
+  text-align: center;
+}
+
+.dispatch-report-item,
+.dispatch-receipt-row,
+.dispatch-stock-line {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Profile page responsiveness */
+.profile-page {
+  max-width: 1080px;
+}
+
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.profile-info-list {
+  display: grid;
+  gap: 0;
+}
+
+.profile-info-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-info-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.profile-info-value {
+  font-size: 14px;
+  font-weight: 500;
+  justify-self: end;
+  text-align: right;
+  word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .dispatch-builder-grid {
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .dispatch-builder-grid,
+  .profile-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dispatch-stock-panel {
+    position: static;
+  }
+
+  .dispatch-stock-panel .dashboard-stack {
+    max-height: 420px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-form-grid > * {
+    grid-column: 1 / -1 !important;
+  }
+
+  .dispatch-receipt-row,
+  .dispatch-stock-line {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dispatch-report-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profile-info-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .profile-info-value {
+    justify-self: start;
+    text-align: left;
+  }
+}
+
+@media (max-width: 520px) {
+  .dispatch-dashboard-page .dashboard-inline-actions:not(.dispatch-quantity-actions) {
+    width: 100%;
+  }
+
+  .dispatch-quantity-actions {
+    width: 100%;
+  }
+
+  .dispatch-quantity-actions .btn {
+    flex: 0 0 40px !important;
+    width: 40px !important;
+  }
+
+  .dispatch-quantity-actions .crm-input {
+    flex: 1 1 auto;
+  }
+
+  .profile-form-actions .btn {
+    width: 100%;
+  }
+}

@@ -699,10 +699,10 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="dashboard-page" style={{ maxWidth: 1080 }}>
+    <div className="dashboard-page profile-page">
       <PageHeader icon={<ProfileIcon />} title="My Profile" subtitle="Your account information and security settings" />
 
-      <div className="dashboard-grid-two" style={{ gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, .95fr)', alignItems: 'start' }}>
+      <div className="profile-layout">
         {isEditingProfile ? (
           <div className="crm-card">
             <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, marginBottom: 18, flexWrap:'wrap' }}>
@@ -781,7 +781,7 @@ export function ProfilePage() {
                 </div>
               </div>
 
-              <div className="dashboard-inline-actions" style={{ marginTop: 16 }}>
+              <div className="dashboard-inline-actions profile-form-actions" style={{ marginTop: 16 }}>
                 <button type="submit" className="btn btn-primary" disabled={savingProfile}>
                   {savingProfile ? 'Saving...' : 'Save Profile'}
                 </button>
@@ -808,11 +808,11 @@ export function ProfilePage() {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gap: 0 }}>
+            <div className="profile-info-list">
               {infoItems.map(([label, value]) => (
-                <div key={label} style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 180px) minmax(0, 1fr)', gap: 12, alignItems: 'start', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</span>
-                  <span style={{ fontSize: 14, fontWeight: 500, justifySelf: 'end', textAlign: 'right', wordBreak: 'break-word' }}>{value}</span>
+                <div key={label} className="profile-info-row">
+                  <span className="profile-info-label">{label}</span>
+                  <span className="profile-info-value">{value}</span>
                 </div>
               ))}
             </div>

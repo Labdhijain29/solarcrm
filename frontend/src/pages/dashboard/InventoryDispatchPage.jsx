@@ -1146,7 +1146,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   if (loading && !products.length) return <Spinner size={48} />
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page dispatch-dashboard-page">
       <PageHeader
         icon={<FaWarehouse />}
         title={user?.role === 'Dispatch Manager' ? 'Dispatch Management' : 'Solar Inventory ERP'}
@@ -1210,6 +1210,26 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                       ))}
                     </tbody>
                   </table>
+                  <div className="crm-mobile-cards">
+                    {activeDispatchLeads.map(lead => (
+                      <div key={lead._id} className="crm-mobile-card">
+                        <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                          <div style={{ minWidth:0 }}>
+                            <strong>{lead.name}</strong>
+                            <div style={{ fontSize:11, color:'var(--muted)' }}>{lead._id.slice(-6)}</div>
+                          </div>
+                          <span className="badge badge-blue">{lead.capacity || 'No capacity'}</span>
+                        </div>
+                        <div className="crm-mobile-row"><span className="crm-mobile-label">Phone</span><span>{lead.phone || '-'}</span></div>
+                        <div className="crm-mobile-row"><span className="crm-mobile-label">IVRS</span><span>{lead.ivrsNo || '-'}</span></div>
+                        <div className="crm-mobile-row"><span className="crm-mobile-label">City</span><span>{lead.city || '-'}</span></div>
+                        <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setSelectedLead(lead)}>View / Approve</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => openDispatchBill(lead)}>Create Bill</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1268,7 +1288,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
               </div>
               <div className="dashboard-stack" style={{ gap:0 }}>
                 {stockReceipt.items.map(item => (
-                  <div key={`${stockReceipt.receiptNo}-${item.productId}`} style={{ display:'grid', gridTemplateColumns:'1.4fr repeat(3, minmax(90px, .5fr))', gap:10, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
+                  <div key={`${stockReceipt.receiptNo}-${item.productId}`} className="dispatch-receipt-row" style={{ display:'grid', gridTemplateColumns:'1.4fr repeat(3, minmax(90px, .5fr))', gap:10, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
                     <span>{item.name}<div style={{ color:'var(--muted)', fontSize:11 }}>{[item.category, item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div></span>
                     <strong>Added: {item.addedQuantity} {item.unit}</strong>
                     <span>Before: {item.previousQuantity}</span>
@@ -1330,8 +1350,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
           </div>
 
           {canDispatch && (
-            <div style={{ display:'grid', gridTemplateColumns:'minmax(280px, 380px) minmax(0, 1fr)', gap:16, alignItems:'start' }}>
-              <aside className="crm-card" style={{ position:'sticky', top:82 }}>
+            <div className="dispatch-builder-grid">
+              <aside className="crm-card dispatch-stock-panel">
                 <div className="dashboard-split-row" style={{ marginBottom:14 }}>
                   <div>
                     <h3 style={{ fontSize:15, fontWeight:700 }}>Available Stock</h3>
@@ -1458,6 +1478,41 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                           })}
                         </tbody>
                       </table>
+                      <div className="crm-mobile-cards">
+                        {dispatchCartBill.items.map(item => {
+                          const product = products.find(productItem => productItem._id === item.productId)
+                          const available = Number(product?.quantity || 0)
+                          const remainingAfterBill = Math.max(available - Number(item.quantity || 0), 0)
+
+                          return (
+                            <div key={item.productId} className="crm-mobile-card">
+                              <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                                <div style={{ minWidth:0 }}>
+                                  <strong>{item.productName}</strong>
+                                  <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{[item.category, item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div>
+                                </div>
+                                <span className="badge badge-sun">Rs. {Number(item.lineTotal || 0).toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="dashboard-inline-actions dispatch-quantity-actions" style={{ marginBottom:8 }}>
+                                <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, -1)}><FaMinus /></button>
+                                <input
+                                  className="crm-input"
+                                  type="number"
+                                  min="1"
+                                  max={available || undefined}
+                                  value={item.quantity}
+                                  onChange={e => setDispatchCartQuantity(item.productId, e.target.value)}
+                                  aria-label={`${item.productName} dispatch quantity`}
+                                />
+                                <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeDispatchCartQuantity(item.productId, 1)}><FaPlus /></button>
+                              </div>
+                              <div className="crm-mobile-row"><span className="crm-mobile-label">Price</span><span>Rs. {Number(item.price || 0).toLocaleString('en-IN')}</span></div>
+                              <div className="crm-mobile-row"><span className="crm-mobile-label">Stock</span><span>{item.unit || 'pcs'} | Available: {available} | Left: {remainingAfterBill}</span></div>
+                              <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop:10 }} onClick={() => removeDispatchCartItem(item.productId)}><FaTrash /> Remove</button>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -1518,6 +1573,34 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                     ))}
                   </tbody>
                 </table>
+                <div className="crm-mobile-cards">
+                  {dispatches.map(dispatch => (
+                    <div key={dispatch._id} className="crm-mobile-card">
+                      <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                        <div style={{ minWidth:0 }}>
+                          <strong>{dispatch.billNo || '-'}</strong>
+                          <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{dispatch.customerName} | {dispatch.leadId || dispatch.mobile}</div>
+                        </div>
+                        <span className={`badge ${getApprovalBadgeClass(dispatch.approvalStatus)}`}>{dispatch.approvalStatus}</span>
+                      </div>
+                      <div className="crm-mobile-row"><span className="crm-mobile-label">Engineer</span><span>{dispatch.engineerName || '-'}</span></div>
+                      <div className="crm-mobile-row"><span className="crm-mobile-label">Qty</span><span>{getDispatchTotalQuantity(dispatch)}</span></div>
+                      <div className="crm-mobile-row"><span className="crm-mobile-label">Total</span><span>Rs. {Number(dispatch.grandTotal || 0).toLocaleString('en-IN')}</span></div>
+                      <div className="crm-mobile-row"><span className="crm-mobile-label">Date</span><span>{formatDate(dispatch.dispatchDate)}</span></div>
+                      <div className="crm-mobile-row"><span className="crm-mobile-label">Items</span><span>{dispatch.items.map(item => `${item.productName} (${item.quantity} ${item.unit})`).join(', ')}</span></div>
+                      <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openDispatchEditor(dispatch)}>
+                          {dispatch.approvalStatus === 'Pending' ? <FaEdit /> : <FaSearch />} {dispatch.approvalStatus === 'Pending' ? 'Review' : 'View'}
+                        </button>
+                        {canDispatch && dispatch.approvalStatus === 'Pending' && (
+                          <button className="btn btn-secondary btn-sm" onClick={() => approvePendingDispatch(dispatch)} disabled={approvalSavingId === dispatch._id}>
+                            <FaCheck /> {approvalSavingId === dispatch._id ? 'Approving...' : 'Approve'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1542,7 +1625,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                     </div>
                     <div style={{ fontSize:12, color:'var(--muted)', marginBottom:8 }}>{dispatch.engineerName} | {dispatch.siteAddress}</div>
                     {dispatch.items.map(item => (
-                      <div key={`${dispatch._id}-${item.productId}`} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'6px 0', borderTop:'1px solid var(--border)' }}>
+                    <div key={`${dispatch._id}-${item.productId}`} className="dispatch-report-item" style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'6px 0', borderTop:'1px solid var(--border)' }}>
                         <span>{item.productName}</span>
                         <strong>{item.quantity} {item.unit} | Left {item.remainingQuantity ?? '-'}</strong>
                       </div>
@@ -1588,7 +1671,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                 </div>
                 <div className="dashboard-stack">
                   {stockReceipt.items.map(item => (
-                    <div key={`${stockReceipt.receiptNo}-${item.productId}`} style={{ display:'grid', gridTemplateColumns:'1.5fr repeat(3, minmax(90px, .5fr))', gap:10, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
+                    <div key={`${stockReceipt.receiptNo}-${item.productId}`} className="dispatch-receipt-row" style={{ display:'grid', gridTemplateColumns:'1.5fr repeat(3, minmax(90px, .5fr))', gap:10, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
                       <span>{item.name}</span>
                       <strong>Added: {item.addedQuantity} {item.unit}</strong>
                       <span>Before: {item.previousQuantity}</span>
@@ -1717,7 +1800,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                   ) : (
                     <div className="dashboard-stack">
                       {stockBillItems.map((item, index) => (
-                        <div key={item.lineId} style={{ display:'grid', gridTemplateColumns:'40px 1fr 110px 110px 44px', gap:10, alignItems:'center', fontSize:12, padding:'8px 0', borderTop:'1px solid var(--border)' }}>
+                        <div key={item.lineId} className="dispatch-stock-line" style={{ display:'grid', gridTemplateColumns:'40px 1fr 110px 110px 44px', gap:10, alignItems:'center', fontSize:12, padding:'8px 0', borderTop:'1px solid var(--border)' }}>
                           <strong>#{index + 1}</strong>
                           <span>{item.name}<div style={{ color:'var(--muted)', fontSize:11 }}>{item.category} | {[item.brand, item.type, item.capacity].filter(Boolean).join(' | ')}</div></span>
                           <strong>{item.quantity} {item.unit}</strong>
@@ -2011,7 +2094,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
                 {dispatchForm.items.filter(item => item.productId).map((item, index) => {
                   const selected = products.find(product => product._id === item.productId)
                   return (
-                    <div key={`${item.productId}-${index}`} style={{ display:'flex', justifyContent:'space-between', gap:12, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
+                    <div key={`${item.productId}-${index}`} className="dispatch-report-item" style={{ display:'flex', justifyContent:'space-between', gap:12, fontSize:12, padding:'7px 0', borderTop:'1px solid var(--border)' }}>
                       <span>{selected?.name || 'Selected item'}</span>
                       <strong>{Number(item.quantity || 0)} {selected?.unit || 'pcs'}</strong>
                     </div>
