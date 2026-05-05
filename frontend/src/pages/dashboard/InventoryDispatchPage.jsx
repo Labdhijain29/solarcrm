@@ -1149,7 +1149,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
     <div className="dashboard-page dispatch-dashboard-page">
       <PageHeader
         icon={<FaWarehouse />}
-        title={user?.role === 'Dispatch Manager' ? 'Dispatch Management' : 'Solar Inventory ERP'}
+        title={user?.role === 'Dispatch Manager' ? 'Dispatch Management' : 'Stock Manager Dashboard'}
         subtitle="Inventory, dispatch, remaining stock, customer-wise material tracking"
         action={(
           <div className="dashboard-inline-actions">

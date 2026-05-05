@@ -2,7 +2,7 @@ import EnquiryForm from '../../components/website/EnquiryForm'
 import { SectionTag } from '../../components/common'
 
 const team = [
-  { name:'Dr. Arjun Sharma', role:'Founder & CEO', icon:'CEO', desc:'20+ years in renewable energy and long-term solar strategy.' },
+  { name:'Ashish Patel', role:'Founder & CEO', icon:'CEO', desc:'20+ years in renewable energy and long-term solar strategy.' },
   { name:'Priya Verma', role:'CTO', icon:'CTO', desc:'Deep expertise in photovoltaic technology and performance engineering.' },
   { name:'Rohit Patel', role:'COO', icon:'OPS', desc:'Leads nationwide delivery and customer operations.' },
   { name:'Sneha Gupta', role:'CFO', icon:'FIN', desc:'Green finance specialist managing solar project funding.' },

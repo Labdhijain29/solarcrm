@@ -420,13 +420,19 @@ textarea.crm-input { resize: vertical; }
 .sales-exec-section {
   padding: 10px 12px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(15,118,110,.18), rgba(14,165,164,.08));
-  border: 1px solid rgba(20,184,166,.12);
-  color: #99f6e4;
+  background: linear-gradient(135deg, rgba(15,118,110,.14), rgba(20,184,166,.08));
+  border: 1px solid rgba(15,118,110,.24);
+  color: #0f766e;
   font-size: 12px;
   letter-spacing: .12em;
   text-transform: uppercase;
   font-weight: 800;
+}
+
+.dark .sales-exec-section {
+  background: linear-gradient(135deg, rgba(20,184,166,.20), rgba(45,212,191,.10));
+  border-color: rgba(45,212,191,.22);
+  color: #99f6e4;
 }
 
 .sales-exec-form .full {

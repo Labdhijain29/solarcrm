@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { FaChartLine, FaCheckCircle, FaClipboardList, FaPlus, FaUsers } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
-import { FilePreview, MetricCard, PageHeader } from '../../components/common'
+import { FilePreview, MetricCard, PageHeader, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
+import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 
 const PINCODE_REGEX = /^\d{6}$/
 const PHONE_REGEX = /^[6-9]\d{9}$/
+const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 
 const INITIAL_FORM = {
   name: '',
@@ -73,6 +75,13 @@ function SalesExecutiveForm({ onClose, onCreated }) {
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
 
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const setLocationField = (key, value) => {
+    setFormData((prev) => {
+      if (key === 'state') return { ...prev, state: value, city: '' }
+      return { ...prev, [key]: value }
+    })
   }
 
   const onFileChange = (event) => {
@@ -183,12 +192,30 @@ function SalesExecutiveForm({ onClose, onCreated }) {
 
           <label>
             State
-            <input className="crm-input" name="state" value={formData.state} onChange={onInputChange} placeholder="Enter state" required />
+            <SearchableSelect
+              name="sales-executive-state"
+              value={formData.state}
+              onChange={(value) => setLocationField('state', value)}
+              options={toOptions(STATE_OPTIONS)}
+              placeholder="Select state..."
+              searchPlaceholder="Search state..."
+              required
+            />
           </label>
 
           <label>
             City
-            <input className="crm-input" name="city" value={formData.city} onChange={onInputChange} placeholder="Enter city" required />
+            <SearchableSelect
+              name="sales-executive-city"
+              value={formData.city}
+              onChange={(value) => setLocationField('city', value)}
+              options={toOptions(getCitiesForState(formData.state))}
+              placeholder={formData.state ? 'Select city...' : 'Select state first'}
+              searchPlaceholder="Search city..."
+              noOptionsText={formData.state ? 'No cities found' : 'Select state first'}
+              disabled={!formData.state}
+              required
+            />
           </label>
 
           <label>
@@ -263,6 +290,13 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     if (name === 'monthlyBill') value = String(value || '').replace(/[^\d.]/g, '')
 
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const setLocationField = (key, value) => {
+    setFormData((prev) => {
+      if (key === 'state') return { ...prev, state: value, city: '' }
+      return { ...prev, [key]: value }
+    })
   }
 
   const onFileChange = (event) => {
@@ -370,12 +404,30 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
           <label>
             State
-            <input className="crm-input" name="state" value={formData.state} onChange={onInputChange} placeholder="Enter state" required />
+            <SearchableSelect
+              name="sales-registration-state"
+              value={formData.state}
+              onChange={(value) => setLocationField('state', value)}
+              options={toOptions(STATE_OPTIONS)}
+              placeholder="Select state..."
+              searchPlaceholder="Search state..."
+              required
+            />
           </label>
 
           <label>
             City
-            <input className="crm-input" name="city" value={formData.city} onChange={onInputChange} placeholder="Enter city" required />
+            <SearchableSelect
+              name="sales-registration-city"
+              value={formData.city}
+              onChange={(value) => setLocationField('city', value)}
+              options={toOptions(getCitiesForState(formData.state))}
+              placeholder={formData.state ? 'Select city...' : 'Select state first'}
+              searchPlaceholder="Search city..."
+              noOptionsText={formData.state ? 'No cities found' : 'Select state first'}
+              disabled={!formData.state}
+              required
+            />
           </label>
 
           <label>
