@@ -68,7 +68,7 @@ export const authAPI = {
 
 // ─── LEADS ─────────────────────────────────────────────────
 export const leadsAPI = {
-  getAll: (params) => api.get('/leads', { params }),
+  getAll: (params = {}) => api.get('/leads', { params: { limit: 1000, ...params } }),
   getOne: (id) => api.get(`/leads/${id}`),
   create: (data) => api.post('/leads', data, formDataConfig(data)),
   update: (id, data) => api.put(`/leads/${id}`, data, formDataConfig(data)),

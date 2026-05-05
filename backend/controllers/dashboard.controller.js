@@ -5,23 +5,18 @@ const { STAGES } = require('../models/Lead');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
 const { buildEnquiryQueryForRole } = require('./enquiry.controller');
 
-const isSingleStageRole = (role) => {
-  const stageAccess = ROLE_STAGE_MAP[role];
-  return Boolean(stageAccess) && !['Manager', 'Sales Executive', 'Sales Manager'].includes(role);
-};
-
 const buildPersonalLeadQuery = (user) => {
   if (user.role === 'Admin') return {};
   const query = {};
-  if (isSingleStageRole(user.role)) {
-    query.assignedTo = user._id;
-  } else {
+  const stageAccess = ROLE_STAGE_MAP[user.role];
+
+  if (!stageAccess || user.role === 'Sales Executive') {
     query.$or = [
       { assignedTo: user._id },
       { createdBy: user._id }
     ];
   }
-  const stageAccess = ROLE_STAGE_MAP[user.role];
+
   if (stageAccess) query.currentStage = stageAccess;
   return query;
 };

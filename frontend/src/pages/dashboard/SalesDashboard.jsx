@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FaChartLine, FaCheckCircle, FaClipboardList, FaPlus, FaUsers } from 'react-icons/fa'
+import { FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaPlus, FaUsers } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
 import { FilePreview, MetricCard, PageHeader, SearchableSelect } from '../../components/common'
@@ -14,7 +14,12 @@ const PHONE_REGEX = /^[6-9]\d{9}$/
 const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
-const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'permanentAddress', 'address', 'jobTitle', 'brand', 'other'])
+const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'permanentAddress', 'address', 'jobTitle', 'branch', 'brand', 'other'])
+const canEditBeforeApproval = (lead, role) => (
+  ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(role) &&
+  lead?.currentStage === 'Lead' &&
+  lead?.status === 'active'
+)
 
 const INITIAL_FORM = {
   name: '',
@@ -40,6 +45,7 @@ const INITIAL_LEAD_FORM = {
   city: '',
   address: '',
   pincode: '',
+  branch: '',
   ivrsNo: '',
   capacity: '',
   roofType: 'Concrete',
@@ -50,10 +56,14 @@ const INITIAL_LEAD_FORM = {
   panCardNo: '',
   aadharNo: '',
   accountNo: '',
+  ifscCode: '',
   other: '',
   photoOne: null,
   photoTwo: null,
   documentPdf: null,
+  aadharCard: null,
+  panCard: null,
+  bankStatement: null,
 }
 
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
@@ -294,6 +304,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
     if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
+    if (name === 'ifscCode') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11)
     if (name === 'monthlyBill' || name === 'monthlyUnit') value = String(value || '').replace(/[^\d.]/g, '')
     if (CAPITALIZED_FIELDS.has(name)) value = capitalizeFirstLetter(value)
 
@@ -327,6 +338,10 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
       toast.error('IVRS number must be 10 letters or digits.')
       return
     }
+    if (!formData.branch.trim()) {
+      toast.error('Branch is required.')
+      return
+    }
 
     const salesExecutiveData = {
       contact: formData.phone,
@@ -334,16 +349,21 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
       city: formData.city.trim(),
       addressdu: formData.address.trim(),
       pincode: formData.pincode,
+      branch: formData.branch.trim(),
       dealNo: formData.dealNo.trim(),
       brand: formData.brand.trim(),
       monthlyUnit: formData.monthlyUnit,
       panCardNo: formData.panCardNo.trim(),
       aadharNo: formData.aadharNo.trim(),
       accountNo: formData.accountNo.trim(),
+      ifscCode: formData.ifscCode.trim().toUpperCase(),
       other: formData.other.trim(),
       photoOneName: formData.photoOne?.name || '',
       photoTwoName: formData.photoTwo?.name || '',
       documentPdfName: formData.documentPdf?.name || '',
+      aadharCardName: formData.aadharCard?.name || '',
+      panCardName: formData.panCard?.name || '',
+      bankStatementName: formData.bankStatement?.name || '',
     }
 
     const payload = new FormData()
@@ -354,6 +374,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     payload.append('city', formData.city.trim())
     payload.append('address', formData.address.trim())
     payload.append('pincode', formData.pincode)
+    payload.append('branch', formData.branch.trim())
     payload.append('ivrsNo', formData.ivrsNo)
     payload.append('source', 'Other')
     payload.append('generatedThrough', 'Sales Executive Registration')
@@ -366,6 +387,9 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     if (formData.photoOne) payload.append('photoOne', formData.photoOne)
     if (formData.photoTwo) payload.append('photoTwo', formData.photoTwo)
     if (formData.documentPdf) payload.append('documentPdf', formData.documentPdf)
+    if (formData.aadharCard) payload.append('aadharCard', formData.aadharCard)
+    if (formData.panCard) payload.append('panCard', formData.panCard)
+    if (formData.bankStatement) payload.append('bankStatement', formData.bankStatement)
 
     try {
       setSubmitting(true)
@@ -457,6 +481,11 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
           </label>
 
           <label>
+            Branch
+            <input className="crm-input" name="branch" value={formData.branch} onChange={onInputChange} placeholder="Proposal branch" required />
+          </label>
+
+          <label>
             Brand
             <SearchableSelect
               name="sales-registration-brand"
@@ -517,6 +546,11 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
             <input className="crm-input" name="accountNo" value={formData.accountNo} onChange={onInputChange} placeholder="Bank account number" />
           </label>
 
+          <label>
+            IFSC Code
+            <input className="crm-input" name="ifscCode" value={formData.ifscCode} onChange={onInputChange} placeholder="IFSC code" />
+          </label>
+
           <label className="full">
             Other
             <textarea className="crm-input" name="other" value={formData.other} onChange={onInputChange} placeholder="Any extra detail" rows={2} />
@@ -539,10 +573,28 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
             <input className="crm-input" type="file" name="documentPdf" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={onFileChange} />
           </label>
 
+          <label>
+            Aadhar Card
+            <input className="crm-input" type="file" name="aadharCard" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={onFileChange} />
+          </label>
+
+          <label>
+            PAN Card
+            <input className="crm-input" type="file" name="panCard" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={onFileChange} />
+          </label>
+
+          <label>
+            Bank Statement
+            <input className="crm-input" type="file" name="bankStatement" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={onFileChange} />
+          </label>
+
           <div className="sales-exec-file-strip full">
             <FilePreview file={formData.photoOne} label="Photo 1" compact />
             <FilePreview file={formData.photoTwo} label="Photo 2" compact />
             <FilePreview file={formData.documentPdf} label="Document PDF" compact />
+            <FilePreview file={formData.aadharCard} label="Aadhar Card" compact />
+            <FilePreview file={formData.panCard} label="PAN Card" compact />
+            <FilePreview file={formData.bankStatement} label="Bank Statement" compact />
           </div>
 
           <button type="submit" className="btn btn-primary sales-exec-submit" disabled={isSubmitDisabled}>
@@ -559,6 +611,7 @@ export default function SalesDashboard() {
   const [salesExecutives, setSalesExecutives] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+  const [editingLeadId, setEditingLeadId] = useState('')
   const [showExecutiveCreate, setShowExecutiveCreate] = useState(false)
   const [showLeadCreate, setShowLeadCreate] = useState(false)
   const { user } = useAuthStore()
@@ -597,6 +650,22 @@ export default function SalesDashboard() {
     completed: leads.filter((lead) => lead.status === 'completed').length,
     rejected: leads.filter((lead) => lead.status === 'rejected').length,
   }
+
+  const viewLead = (lead) => {
+    setEditingLeadId('')
+    setSelected(lead)
+  }
+
+  const editLead = (lead) => {
+    setEditingLeadId(lead._id)
+    setSelected(lead)
+  }
+
+  const leadRowActions = (lead) => canEditBeforeApproval(lead, user?.role) ? (
+    <button className="btn btn-primary btn-sm" type="button" onClick={() => editLead(lead)} aria-label="Edit lead" title="Edit lead">
+      <FaEdit />
+    </button>
+  ) : null
 
   return (
     <div className="dashboard-page">
@@ -665,12 +734,23 @@ export default function SalesDashboard() {
           </div>
           <span className="badge badge-sun">{user?.role || 'Sales Team'}</span>
         </div>
-        <LeadsTable leads={leads} loading={loading} onView={setSelected} defaultSort="latest" />
+        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} defaultSort="latest" />
       </div>
 
       {showExecutiveCreate && <SalesExecutiveForm onClose={() => setShowExecutiveCreate(false)} onCreated={refreshData} />}
       {showLeadCreate && <SalesExecutiveLeadForm onClose={() => setShowLeadCreate(false)} onCreated={refreshData} />}
-      {selected && <LeadModal lead={selected} onClose={() => setSelected(null)} onUpdated={fetchLeads} currentUser={user} />}
+      {selected && (
+        <LeadModal
+          lead={selected}
+          onClose={() => {
+            setSelected(null)
+            setEditingLeadId('')
+          }}
+          onUpdated={fetchLeads}
+          currentUser={user}
+          startEditing={editingLeadId === selected._id}
+        />
+      )}
     </div>
   )
 }

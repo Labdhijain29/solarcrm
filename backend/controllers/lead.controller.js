@@ -23,6 +23,24 @@ const leadFileFieldMap = {
     fileField: 'documentPdfFile',
     folder: 'sales-executive',
   },
+  aadharCard: {
+    target: 'salesExecutiveData',
+    nameField: 'aadharCardName',
+    fileField: 'aadharCardFile',
+    folder: 'sales-executive',
+  },
+  panCard: {
+    target: 'salesExecutiveData',
+    nameField: 'panCardName',
+    fileField: 'panCardFile',
+    folder: 'sales-executive',
+  },
+  bankStatement: {
+    target: 'salesExecutiveData',
+    nameField: 'bankStatementName',
+    fileField: 'bankStatementFile',
+    folder: 'sales-executive',
+  },
   panelPhoto: {
     target: 'installationData',
     nameField: 'panelPhotoName',
@@ -218,16 +236,18 @@ const buildQuery = (query, user) => {
   const salesExecutiveOnly = query.salesExecutiveOnly === 'true';
   const canViewDispatchQueue = role === 'Dispatch Manager' && query.stage === 'Dispatch' && !completedStage;
   const personalHistoryFilter = {
-    performedBy: user._id,
     stage: completedStage || stageAccess,
     action: { $in: ['Approved', 'Completed'] }
   };
 
-  if (role !== 'Admin' && isSingleStageRole(role) && !canViewDispatchQueue) {
-    q.assignedTo = user._id;
+  if (role !== 'Admin' && !stageAccess && !canViewDispatchQueue) {
+    q.$or = [
+      { assignedTo: user._id },
+      { createdBy: user._id }
+    ];
   }
 
-  if (role !== 'Admin' && !isSingleStageRole(role) && !canViewDispatchQueue) {
+  if (role === 'Sales Executive' && !salesExecutiveOnly && !canViewDispatchQueue) {
     q.$or = [
       { assignedTo: user._id },
       { createdBy: user._id }
@@ -266,6 +286,7 @@ const buildQuery = (query, user) => {
   if (query.generatedThrough) q.generatedThrough = new RegExp(query.generatedThrough, 'i');
   if (query.city) q.city = new RegExp(query.city, 'i');
   if (query.ivrsNo) q.ivrsNo = new RegExp(query.ivrsNo, 'i');
+  if (query.branch) q.branch = new RegExp(query.branch, 'i');
   if (query.assignedTo) q.assignedTo = query.assignedTo;
   if (query.priority) q.priority = query.priority;
 
@@ -274,6 +295,7 @@ const buildQuery = (query, user) => {
       { name: new RegExp(query.search, 'i') },
       { phone: new RegExp(query.search, 'i') },
       { city: new RegExp(query.search, 'i') },
+      { branch: new RegExp(query.search, 'i') },
       { generatedThrough: new RegExp(query.search, 'i') },
       { ivrsNo: new RegExp(query.search, 'i') },
     ];
@@ -301,7 +323,12 @@ exports.getLeads = async (req, res) => {
     };
     const sort = sortMap[req.query.sort] || sortMap.latest;
 
-    let leadsQuery = Lead.find(query).populate('assignedTo', 'name role').sort(sort).skip(skip).limit(limit);
+    let leadsQuery = Lead.find(query)
+      .populate('assignedTo', 'name role')
+      .populate('createdBy', 'name role')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit);
     if (req.query.sort === 'ivrs-asc' || req.query.sort === 'ivrs-desc') {
       leadsQuery = leadsQuery.collation({ locale: 'en', numericOrdering: true });
     }
@@ -340,7 +367,7 @@ exports.getLead = async (req, res) => {
 // @route   POST /api/leads
 exports.createLead = async (req, res) => {
   try {
-    const { name, phone, email, address, city, state, pincode, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, priority, tags, salesExecutiveData } = req.body;
+    const { name, phone, email, address, city, state, pincode, branch, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, priority, tags, salesExecutiveData } = req.body;
 
     await ensureUniqueIvrsNo(ivrsNo);
 
@@ -361,7 +388,7 @@ exports.createLead = async (req, res) => {
     }
 
     const lead = await Lead.create({
-      name, phone, email, address, city, state, pincode, ivrsNo,
+      name, phone, email, address, city, state, pincode, branch, ivrsNo,
       source, generatedThrough, capacity, roofType, monthlyBill, notes, priority, tags,
       salesExecutiveData: isSalesExecutiveLead(req.body) ? salesExecutiveData || {} : undefined,
       assignedTo: resolvedAssignedTo,
@@ -404,7 +431,9 @@ exports.createLead = async (req, res) => {
       }
     }
 
-    const populated = await Lead.findById(lead._id).populate('assignedTo', 'name role');
+    const populated = await Lead.findById(lead._id)
+      .populate('assignedTo', 'name role')
+      .populate('createdBy', 'name role');
     res.status(201).json({
       success: true,
       message: isSalesExecutiveLead(req.body) && assignedManager
@@ -458,7 +487,7 @@ exports.updateLead = async (req, res) => {
     const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
     mergeUploadedPatchesIntoBody(req.body, uploadedFilePatches);
 
-    const allowed = ['name','phone','email','address','city','state','pincode','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags'];
+    const allowed = ['name','phone','email','address','city','state','pincode','branch','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags'];
     allowed.forEach(field => { if (req.body[field] !== undefined) lead[field] = req.body[field]; });
 
     [

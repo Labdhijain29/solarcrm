@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FaClipboardList } from 'react-icons/fa'
+import { FaClipboardList, FaEdit } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { leadsAPI } from '../../services/api'
 import { PageHeader } from '../../components/common'
@@ -7,10 +7,17 @@ import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 
+const canEditBeforeApproval = (lead, role) => (
+  ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(role) &&
+  lead?.currentStage === 'Lead' &&
+  lead?.status === 'active'
+)
+
 export function LeadsPage() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+  const [editingLeadId, setEditingLeadId] = useState('')
   const { user } = useAuthStore()
   const canDelete = ['Admin', 'Manager'].includes(user?.role)
 
@@ -32,13 +39,40 @@ export function LeadsPage() {
     }
   }
 
+  const viewLead = (lead) => {
+    setEditingLeadId('')
+    setSelected(lead)
+  }
+
+  const editLead = (lead) => {
+    setEditingLeadId(lead._id)
+    setSelected(lead)
+  }
+
+  const leadRowActions = (lead) => canEditBeforeApproval(lead, user?.role) ? (
+    <button className="btn btn-primary btn-sm" type="button" onClick={() => editLead(lead)} aria-label="Edit lead" title="Edit lead">
+      <FaEdit />
+    </button>
+  ) : null
+
   return (
     <div style={{ animation: 'fadeIn .4s ease' }}>
       <PageHeader icon={<FaClipboardList />} title="All Leads" subtitle={`${leads.length} total leads in the system`} />
       <div className="crm-card">
-        <LeadsTable leads={leads} loading={loading} onView={setSelected} onDelete={canDelete ? deleteLead : undefined} />
+        <LeadsTable leads={leads} loading={loading} onView={viewLead} onDelete={canDelete ? deleteLead : undefined} extraActions={leadRowActions} />
       </div>
-      {selected && <LeadModal lead={selected} onClose={() => setSelected(null)} onUpdated={fetch} currentUser={user} />}
+      {selected && (
+        <LeadModal
+          lead={selected}
+          onClose={() => {
+            setSelected(null)
+            setEditingLeadId('')
+          }}
+          onUpdated={fetch}
+          currentUser={user}
+          startEditing={editingLeadId === selected._id}
+        />
+      )}
     </div>
   )
 }

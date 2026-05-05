@@ -1,10 +1,21 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { leadsAPI } from '../../services/api'
-import { canActOnStage, formatDate, STAGES, stageIndex } from '../../utils/constants'
+import { canActOnStage, formatDate, getCitiesForState, SOURCES, STAGES, STATE_OPTIONS, stageIndex } from '../../utils/constants'
 import { getLeadViewSections } from '../../utils/leadDetails'
 import { hasFileValue } from '../../utils/files'
-import { FilePreview, StageBadge, StageProgress, StatusBadge } from '../common'
+import { ALL_BRAND_OPTIONS } from '../../pages/dashboard/inventoryStructure'
+import { FilePreview, SearchableSelect, StageBadge, StageProgress, StatusBadge } from '../common'
+
+const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
+const PHONE_REGEX = /^[6-9]\d{9}$/
+const PINCODE_REGEX = /^\d{6}$/
+const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
+const EDITABLE_PRE_APPROVAL_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager']
+const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'other', 'generatedThrough'])
+const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
+const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
 export default function LeadModal({
   lead,
@@ -18,6 +29,7 @@ export default function LeadModal({
   showNetMeteringInput = false,
   showSubsidyInput = false,
   showSubsidyReadingInput = false,
+  startEditing = false,
 }) {
   const [loading, setLoading] = useState(false)
   const [note, setNote] = useState('')
@@ -25,6 +37,39 @@ export default function LeadModal({
   const [registrationPhotos, setRegistrationPhotos] = useState({
     photoOne: null,
     photoTwo: null,
+  })
+  const [isEditing, setIsEditing] = useState(startEditing)
+  const [editFiles, setEditFiles] = useState({
+    photoOne: null,
+    photoTwo: null,
+    documentPdf: null,
+    aadharCard: null,
+    panCard: null,
+    bankStatement: null,
+  })
+  const [editForm, setEditForm] = useState({
+    name: lead.name || '',
+    phone: lead.phone || '',
+    email: lead.email || '',
+    state: lead.state || lead.salesExecutiveData?.state || '',
+    city: lead.city || lead.salesExecutiveData?.city || '',
+    address: lead.address || lead.salesExecutiveData?.addressdu || '',
+    pincode: lead.pincode || lead.salesExecutiveData?.pincode || '',
+    branch: lead.branch || lead.salesExecutiveData?.branch || '',
+    ivrsNo: lead.ivrsNo || '',
+    source: lead.source || 'Other',
+    generatedThrough: lead.generatedThrough || '',
+    capacity: lead.capacity || '',
+    roofType: lead.roofType || 'Concrete',
+    monthlyBill: lead.monthlyBill || '',
+    monthlyUnit: lead.salesExecutiveData?.monthlyUnit || '',
+    dealNo: lead.salesExecutiveData?.dealNo || '',
+    brand: lead.salesExecutiveData?.brand || '',
+    panCardNo: lead.salesExecutiveData?.panCardNo || '',
+    aadharNo: lead.salesExecutiveData?.aadharNo || '',
+    accountNo: lead.salesExecutiveData?.accountNo || '',
+    ifscCode: lead.salesExecutiveData?.ifscCode || '',
+    other: lead.salesExecutiveData?.other || '',
   })
   const [stageForm, setStageForm] = useState({
     remark: lead.bankData?.remark || '',
@@ -49,6 +94,10 @@ export default function LeadModal({
   const blockedSalesExecutiveApproval = isSalesExecutiveLead && lead.currentStage === 'Lead' && currentUser?.role === 'Sales Executive'
   const canAct = canActOnStage(currentUser?.role, lead.currentStage) && !blockedSalesExecutiveApproval
   const canApprove = canAct && lead.status === 'active' && currentIndex < STAGES.length - 1
+  const canEditBeforeApproval = lead.status === 'active' && (
+    (lead.currentStage === 'Lead' && EDITABLE_PRE_APPROVAL_ROLES.includes(currentUser?.role)) ||
+    (lead.currentStage === 'Registration' && ['Admin', 'Registration Executive'].includes(currentUser?.role))
+  )
   const canAddBankRemark = showBankRemarkInput && lead.currentStage === 'Bank Approval'
   const canAddLoanApplication = showLoanApplicationInput && lead.currentStage === 'Loan Disbursement'
   const canAddRegistrationPhotos = showRegistrationPhotoUpload && lead.currentStage === 'Registration'
@@ -68,6 +117,9 @@ export default function LeadModal({
     ['Photo 1', salesExecutiveData.photoOneFile || salesExecutiveData.photoOneName],
     ['Photo 2', salesExecutiveData.photoTwoFile || salesExecutiveData.photoTwoName],
     ['Document PDF', salesExecutiveData.documentPdfFile || salesExecutiveData.documentPdfName],
+    ['Aadhar Card', salesExecutiveData.aadharCardFile || salesExecutiveData.aadharCardName],
+    ['PAN Card', salesExecutiveData.panCardFile || salesExecutiveData.panCardName],
+    ['Bank Statement', salesExecutiveData.bankStatementFile || salesExecutiveData.bankStatementName],
     ['Panel Photo', lead.installationData?.panelPhotoFile || lead.installationData?.panelPhotoName],
     ['Inverter AC+DC Box', lead.installationData?.inverterBoxPhotoFile || lead.installationData?.inverterBoxPhotoName],
     ['Earthing Photo', lead.installationData?.earthingPhotoFile || lead.installationData?.earthingPhotoName],
@@ -228,6 +280,102 @@ export default function LeadModal({
     }
   }
 
+  const updateEditField = (event) => {
+    const { name, files } = event.target
+    if (files) {
+      setEditFiles((prev) => ({ ...prev, [name]: files?.[0] || null }))
+      return
+    }
+
+    let { value } = event.target
+    if (name === 'phone') value = normalizePhone(value)
+    if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
+    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
+    if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
+    if (name === 'ifscCode') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11)
+    if (name === 'monthlyBill' || name === 'monthlyUnit') value = String(value || '').replace(/[^\d.]/g, '')
+    if (CAPITALIZED_FIELDS.has(name)) value = capitalizeFirstLetter(value)
+
+    setEditForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const setEditField = (name, value) => {
+    setEditForm((prev) => {
+      if (name === 'state') return { ...prev, state: value, city: '' }
+      return { ...prev, [name]: value }
+    })
+  }
+
+  const doSavePreApprovalEdit = async () => {
+    if (!editForm.name.trim()) return toast.error('Customer name is required.')
+    if (!PHONE_REGEX.test(editForm.phone)) return toast.error('Contact number must be a valid 10-digit mobile number.')
+    if (!editForm.branch.trim()) return toast.error('Branch is required.')
+    if (editForm.pincode && !PINCODE_REGEX.test(editForm.pincode)) return toast.error('Pincode must be 6 digits.')
+    if (editForm.ivrsNo && !IVRS_REGEX.test(editForm.ivrsNo)) return toast.error('IVRS number must be 10 letters or digits.')
+
+    const nextSalesExecutiveData = {
+      ...salesExecutiveData,
+      contact: editForm.phone,
+      state: editForm.state.trim(),
+      city: editForm.city.trim(),
+      addressdu: editForm.address.trim(),
+      pincode: editForm.pincode,
+      branch: editForm.branch.trim(),
+      dealNo: editForm.dealNo.trim(),
+      brand: editForm.brand.trim(),
+      monthlyUnit: editForm.monthlyUnit,
+      panCardNo: editForm.panCardNo.trim(),
+      aadharNo: editForm.aadharNo.trim(),
+      accountNo: editForm.accountNo.trim(),
+      ifscCode: editForm.ifscCode.trim().toUpperCase(),
+      other: editForm.other.trim(),
+      photoOneName: editFiles.photoOne?.name || salesExecutiveData.photoOneName || '',
+      photoTwoName: editFiles.photoTwo?.name || salesExecutiveData.photoTwoName || '',
+      documentPdfName: editFiles.documentPdf?.name || salesExecutiveData.documentPdfName || '',
+      aadharCardName: editFiles.aadharCard?.name || salesExecutiveData.aadharCardName || '',
+      panCardName: editFiles.panCard?.name || salesExecutiveData.panCardName || '',
+      bankStatementName: editFiles.bankStatement?.name || salesExecutiveData.bankStatementName || '',
+    }
+
+    const payload = new FormData()
+    payload.append('name', editForm.name.trim())
+    payload.append('phone', editForm.phone)
+    payload.append('email', editForm.email.trim().toLowerCase())
+    payload.append('state', editForm.state.trim())
+    payload.append('city', editForm.city.trim())
+    payload.append('address', editForm.address.trim())
+    payload.append('pincode', editForm.pincode)
+    payload.append('branch', editForm.branch.trim())
+    payload.append('ivrsNo', editForm.ivrsNo)
+    payload.append('source', editForm.source || 'Other')
+    payload.append('generatedThrough', editForm.generatedThrough.trim())
+    payload.append('capacity', editForm.capacity.trim() || '3kW')
+    payload.append('roofType', editForm.roofType)
+    payload.append('monthlyBill', editForm.monthlyBill || 0)
+    payload.append('salesExecutiveData', JSON.stringify(nextSalesExecutiveData))
+    payload.append('updateNote', 'Pre-approval registration details edited')
+    if (editFiles.photoOne) payload.append('photoOne', editFiles.photoOne)
+    if (editFiles.photoTwo) payload.append('photoTwo', editFiles.photoTwo)
+    if (editFiles.documentPdf) payload.append('documentPdf', editFiles.documentPdf)
+    if (editFiles.aadharCard) payload.append('aadharCard', editFiles.aadharCard)
+    if (editFiles.panCard) payload.append('panCard', editFiles.panCard)
+    if (editFiles.bankStatement) payload.append('bankStatement', editFiles.bankStatement)
+
+    setLoading(true)
+    try {
+      await leadsAPI.update(lead._id, payload)
+      toast.success('Registration details updated')
+      setIsEditing(false)
+      setEditFiles({ photoOne: null, photoTwo: null, documentPdf: null, aadharCard: null, panCard: null, bankStatement: null })
+      onUpdated?.()
+      onClose()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update lead')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const fields = [
     ...overview,
     ['Created', formatDate(lead.createdAt)],
@@ -245,8 +393,180 @@ export default function LeadModal({
               <StatusBadge status={lead.status} />
             </div>
           </div>
+          {canEditBeforeApproval && (
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={loading}
+              onClick={() => setIsEditing((prev) => !prev)}
+            >
+              {isEditing ? 'Cancel Edit' : 'Edit'}
+            </button>
+          )}
           <button onClick={onClose} style={{ background:'none', border:'none', fontSize:22, color:'var(--dim)', cursor:'pointer' }}>x</button>
         </div>
+
+        {isEditing && canEditBeforeApproval && (
+          <div className="crm-card-sm" style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Edit Registration Before Approval</div>
+            <div className="dashboard-form-grid">
+              <div>
+                <label className="form-label">Customer Name</label>
+                <input className="crm-input" name="name" value={editForm.name} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Contact</label>
+                <input className="crm-input" name="phone" value={editForm.phone} onChange={updateEditField} maxLength={10} />
+              </div>
+              <div>
+                <label className="form-label">Email</label>
+                <input className="crm-input" type="email" name="email" value={editForm.email} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">State</label>
+                <SearchableSelect
+                  name="edit-state"
+                  value={editForm.state}
+                  onChange={(value) => setEditField('state', value)}
+                  options={toOptions(STATE_OPTIONS)}
+                  placeholder="Select state..."
+                  searchPlaceholder="Search state..."
+                />
+              </div>
+              <div>
+                <label className="form-label">City</label>
+                <SearchableSelect
+                  name="edit-city"
+                  value={editForm.city}
+                  onChange={(value) => setEditField('city', value)}
+                  options={toOptions(getCitiesForState(editForm.state))}
+                  placeholder={editForm.state ? 'Select city...' : 'Select state first'}
+                  searchPlaceholder="Search city..."
+                  noOptionsText={editForm.state ? 'No cities found' : 'Select state first'}
+                  disabled={!editForm.state}
+                />
+              </div>
+              <div>
+                <label className="form-label">Pincode</label>
+                <input className="crm-input" name="pincode" value={editForm.pincode} onChange={updateEditField} maxLength={6} />
+              </div>
+              <div className="full">
+                <label className="form-label">Address</label>
+                <textarea className="crm-input" name="address" value={editForm.address} onChange={updateEditField} rows={2} />
+              </div>
+              <div>
+                <label className="form-label">Deal No.</label>
+                <input className="crm-input" name="dealNo" value={editForm.dealNo} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Branch</label>
+                <input className="crm-input" name="branch" value={editForm.branch} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Brand</label>
+                <SearchableSelect
+                  name="edit-brand"
+                  value={editForm.brand}
+                  onChange={(value) => setEditField('brand', value)}
+                  options={toOptions(ALL_BRAND_OPTIONS)}
+                  placeholder="Select brand..."
+                  searchPlaceholder="Search brand..."
+                />
+              </div>
+              <div>
+                <label className="form-label">IVRS No.</label>
+                <input className="crm-input" name="ivrsNo" value={editForm.ivrsNo} onChange={updateEditField} maxLength={10} />
+              </div>
+              <div>
+                <label className="form-label">Capacity</label>
+                <SearchableSelect
+                  name="edit-capacity"
+                  value={editForm.capacity}
+                  onChange={(value) => setEditField('capacity', value)}
+                  options={toOptions(CAPACITY_OPTIONS)}
+                  placeholder="Select capacity..."
+                  searchPlaceholder="Search capacity..."
+                />
+              </div>
+              <div>
+                <label className="form-label">Roof Type</label>
+                <select className="crm-input" name="roofType" value={editForm.roofType} onChange={updateEditField}>
+                  {['Concrete', 'Metal Sheet', 'RCC', 'Tin', 'Other'].map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Monthly Bill</label>
+                <input className="crm-input" name="monthlyBill" value={editForm.monthlyBill} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Monthly Unit</label>
+                <input className="crm-input" name="monthlyUnit" value={editForm.monthlyUnit} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">PAN Card No.</label>
+                <input className="crm-input" name="panCardNo" value={editForm.panCardNo} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Aadhar No.</label>
+                <input className="crm-input" name="aadharNo" value={editForm.aadharNo} onChange={updateEditField} maxLength={12} />
+              </div>
+              <div>
+                <label className="form-label">Account No.</label>
+                <input className="crm-input" name="accountNo" value={editForm.accountNo} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">IFSC Code</label>
+                <input className="crm-input" name="ifscCode" value={editForm.ifscCode} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">By / Through</label>
+                <input className="crm-input" name="generatedThrough" value={editForm.generatedThrough} onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Source</label>
+                <SearchableSelect
+                  name="edit-source"
+                  value={editForm.source}
+                  onChange={(value) => setEditField('source', value)}
+                  options={toOptions(SOURCES)}
+                  placeholder="Select source..."
+                  searchPlaceholder="Search source..."
+                />
+              </div>
+              <div className="full">
+                <label className="form-label">Other</label>
+                <textarea className="crm-input" name="other" value={editForm.other} onChange={updateEditField} rows={2} />
+              </div>
+              <div>
+                <label className="form-label">Photo 1</label>
+                <input className="crm-input" type="file" name="photoOne" accept=".png,.jpg,.jpeg,.webp" onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Photo 2</label>
+                <input className="crm-input" type="file" name="photoTwo" accept=".png,.jpg,.jpeg,.webp" onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Document PDF</label>
+                <input className="crm-input" type="file" name="documentPdf" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Aadhar Card</label>
+                <input className="crm-input" type="file" name="aadharCard" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">PAN Card</label>
+                <input className="crm-input" type="file" name="panCard" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateEditField} />
+              </div>
+              <div>
+                <label className="form-label">Bank Statement</label>
+                <input className="crm-input" type="file" name="bankStatement" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateEditField} />
+              </div>
+            </div>
+            <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
+              <button className="btn btn-primary" disabled={loading} onClick={doSavePreApprovalEdit}>Save Changes</button>
+              <button className="btn btn-ghost btn-sm" disabled={loading} onClick={() => setIsEditing(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
 
         <div className="dashboard-mini-grid-2" style={{ marginBottom:16 }}>
           {fields.map(([label, value]) => (

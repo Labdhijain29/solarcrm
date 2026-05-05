@@ -33,6 +33,7 @@ const leadSchema = new mongoose.Schema({
   city: { type: String, trim: true, default: '' },
   state: { type: String, trim: true, default: '' },
   pincode: { type: String, trim: true, default: '' },
+  branch: { type: String, trim: true, default: '' },
   ivrsNo: { type: String, trim: true, default: '' },
 
   // ─── Lead Info ───────────────────────────────────────────────
@@ -52,19 +53,27 @@ const leadSchema = new mongoose.Schema({
     city: { type: String, trim: true, default: '' },
     addressdu: { type: String, trim: true, default: '' },
     pincode: { type: String, trim: true, default: '' },
+    branch: { type: String, trim: true, default: '' },
     panCardNo: { type: String, trim: true, default: '' },
     aadharNo: { type: String, trim: true, default: '' },
     dealNo: { type: String, trim: true, default: '' },
     brand: { type: String, trim: true, default: '' },
     monthlyUnit: { type: String, trim: true, default: '' },
     accountNo: { type: String, trim: true, default: '' },
+    ifscCode: { type: String, trim: true, default: '' },
     other: { type: String, trim: true, default: '' },
     photoOneName: { type: String, trim: true, default: '' },
     photoTwoName: { type: String, trim: true, default: '' },
     documentPdfName: { type: String, trim: true, default: '' },
+    aadharCardName: { type: String, trim: true, default: '' },
+    panCardName: { type: String, trim: true, default: '' },
+    bankStatementName: { type: String, trim: true, default: '' },
     photoOneFile: fileAssetSchema,
     photoTwoFile: fileAssetSchema,
-    documentPdfFile: fileAssetSchema
+    documentPdfFile: fileAssetSchema,
+    aadharCardFile: fileAssetSchema,
+    panCardFile: fileAssetSchema,
+    bankStatementFile: fileAssetSchema
   },
 
   // ─── Assignment & Stage ──────────────────────────────────────

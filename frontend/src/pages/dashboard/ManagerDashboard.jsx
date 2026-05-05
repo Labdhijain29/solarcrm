@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FaChartLine, FaCheckCircle, FaClipboardList, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase, FaShippingFast } from 'react-icons/fa'
+import { FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase, FaShippingFast } from 'react-icons/fa'
 import { dispatchAPI, leadsAPI } from '../../services/api'
 import { FilePreview, MetricCard, PageHeader, Spinner, EmptyState, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
@@ -14,7 +14,13 @@ const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
 const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
-const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'brand', 'generatedThrough', 'other'])
+const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'generatedThrough', 'other'])
+const canEditBeforeApproval = (lead, role) => (
+  lead?.status === 'active' && (
+    (['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(role) && lead?.currentStage === 'Lead') ||
+    (['Admin', 'Registration Executive'].includes(role) && lead?.currentStage === 'Registration')
+  )
+)
 const INITIAL_MANAGER_LEAD = {
   name: '',
   phone: '',
@@ -23,6 +29,7 @@ const INITIAL_MANAGER_LEAD = {
   city: '',
   address: '',
   pincode: '',
+  branch: '',
   ivrsNo: '',
   source: 'Website',
   generatedThrough: '',
@@ -34,10 +41,14 @@ const INITIAL_MANAGER_LEAD = {
   panCardNo: '',
   aadharNo: '',
   accountNo: '',
+  ifscCode: '',
   other: '',
   photoOne: null,
   photoTwo: null,
   documentPdf: null,
+  aadharCard: null,
+  panCard: null,
+  bankStatement: null,
 }
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
@@ -75,6 +86,7 @@ export function ManagerDashboard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('leads')
   const [selected, setSelected] = useState(null)
+  const [editingLeadId, setEditingLeadId] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [newLead, setNewLead] = useState(INITIAL_MANAGER_LEAD)
   const { user } = useAuthStore()
@@ -84,6 +96,7 @@ export function ManagerDashboard() {
   }
 
   const viewLead = async (lead) => {
+    setEditingLeadId('')
     setSelected(lead)
     try {
       const response = await leadsAPI.getOne(lead._id)
@@ -102,6 +115,7 @@ export function ManagerDashboard() {
     if (!newLead.name.trim() || !phone) return toast.error('Name and phone are required')
     if (!PHONE_REGEX.test(phone)) return toast.error('Enter a valid 10-digit mobile number')
     if (!newLead.state.trim() || !newLead.city.trim()) return toast.error('State and city are required')
+    if (!newLead.branch.trim()) return toast.error('Branch is required.')
     if (newLead.pincode && !PINCODE_REGEX.test(newLead.pincode)) return toast.error('Pincode must be 6 digits.')
     if (newLead.ivrsNo && !IVRS_REGEX.test(newLead.ivrsNo)) return toast.error('IVRS number must be 10 letters or digits.')
 
@@ -111,15 +125,20 @@ export function ManagerDashboard() {
       city: newLead.city.trim(),
       addressdu: newLead.address.trim(),
       pincode: newLead.pincode,
+      branch: newLead.branch.trim(),
       dealNo: newLead.dealNo.trim(),
       brand: newLead.brand.trim(),
       panCardNo: newLead.panCardNo.trim(),
       aadharNo: newLead.aadharNo.trim(),
       accountNo: newLead.accountNo.trim(),
+      ifscCode: newLead.ifscCode.trim().toUpperCase(),
       other: newLead.other.trim(),
       photoOneName: newLead.photoOne?.name || '',
       photoTwoName: newLead.photoTwo?.name || '',
       documentPdfName: newLead.documentPdf?.name || '',
+      aadharCardName: newLead.aadharCard?.name || '',
+      panCardName: newLead.panCard?.name || '',
+      bankStatementName: newLead.bankStatement?.name || '',
     }
 
     const payload = new FormData()
@@ -130,6 +149,7 @@ export function ManagerDashboard() {
     payload.append('city', newLead.city.trim())
     payload.append('address', newLead.address.trim())
     payload.append('pincode', newLead.pincode)
+    payload.append('branch', newLead.branch.trim())
     payload.append('ivrsNo', newLead.ivrsNo)
     payload.append('source', newLead.source)
     payload.append('generatedThrough', newLead.generatedThrough.trim())
@@ -141,6 +161,9 @@ export function ManagerDashboard() {
     if (newLead.photoOne) payload.append('photoOne', newLead.photoOne)
     if (newLead.photoTwo) payload.append('photoTwo', newLead.photoTwo)
     if (newLead.documentPdf) payload.append('documentPdf', newLead.documentPdf)
+    if (newLead.aadharCard) payload.append('aadharCard', newLead.aadharCard)
+    if (newLead.panCard) payload.append('panCard', newLead.panCard)
+    if (newLead.bankStatement) payload.append('bankStatement', newLead.bankStatement)
 
     try {
       await leadsAPI.create(payload)
@@ -151,6 +174,17 @@ export function ManagerDashboard() {
     } catch (e) {
       const validationMessage = e.response?.data?.errors?.[0]?.message
       toast.error(validationMessage || e.response?.data?.message || 'Failed to create lead')
+    }
+  }
+
+  const editLead = async (lead) => {
+    setEditingLeadId(lead._id)
+    setSelected(lead)
+    try {
+      const response = await leadsAPI.getOne(lead._id)
+      setSelected(response.data.data)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to load lead details')
     }
   }
 
@@ -166,6 +200,7 @@ export function ManagerDashboard() {
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
     if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
+    if (name === 'ifscCode') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11)
     if (name === 'monthlyBill') value = String(value || '').replace(/[^\d.]/g, '')
     if (CAPITALIZED_FIELDS.has(name)) value = capitalizeFirstLetter(value)
 
@@ -177,6 +212,12 @@ export function ManagerDashboard() {
     active: leads.filter(l => l.status === 'active').length,
     completed: leads.filter(l => l.status === 'completed').length,
   }
+
+  const leadRowActions = (lead) => canEditBeforeApproval(lead, user?.role) ? (
+    <button className="btn btn-primary btn-sm" type="button" onClick={() => editLead(lead)} aria-label="Edit lead" title="Edit lead">
+      <FaEdit />
+    </button>
+  ) : null
 
   return (
     <div className="dashboard-page">
@@ -202,7 +243,7 @@ export function ManagerDashboard() {
         ))}
       </div>
 
-      {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={viewLead} /></div>}
+      {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} /></div>}
       {tab === 'pipeline' && <KanbanPipeline leads={leads} onView={viewLead} />}
 
       {showCreate && (
@@ -270,6 +311,11 @@ export function ManagerDashboard() {
               </label>
 
               <label>
+                Branch
+                <input className="crm-input" name="branch" value={newLead.branch} onChange={updateNewLeadField} placeholder="Proposal branch" required />
+              </label>
+
+              <label>
                 Brand
                 <SearchableSelect
                   name="manager-lead-brand"
@@ -326,6 +372,11 @@ export function ManagerDashboard() {
               </label>
 
               <label>
+                IFSC Code
+                <input className="crm-input" name="ifscCode" value={newLead.ifscCode} onChange={updateNewLeadField} placeholder="IFSC code" />
+              </label>
+
+              <label>
                 By / Through
                 <input className="crm-input" name="generatedThrough" value={newLead.generatedThrough} onChange={updateNewLeadField} placeholder="Campaign, partner, employee, referral..." />
               </label>
@@ -364,10 +415,28 @@ export function ManagerDashboard() {
                 <input className="crm-input" type="file" name="documentPdf" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateNewLeadField} />
               </label>
 
+              <label>
+                Aadhar Card
+                <input className="crm-input" type="file" name="aadharCard" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateNewLeadField} />
+              </label>
+
+              <label>
+                PAN Card
+                <input className="crm-input" type="file" name="panCard" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateNewLeadField} />
+              </label>
+
+              <label>
+                Bank Statement
+                <input className="crm-input" type="file" name="bankStatement" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateNewLeadField} />
+              </label>
+
               <div className="sales-exec-file-strip full">
                 <FilePreview file={newLead.photoOne} label="Photo 1" compact />
                 <FilePreview file={newLead.photoTwo} label="Photo 2" compact />
                 <FilePreview file={newLead.documentPdf} label="Document PDF" compact />
+                <FilePreview file={newLead.aadharCard} label="Aadhar Card" compact />
+                <FilePreview file={newLead.panCard} label="PAN Card" compact />
+                <FilePreview file={newLead.bankStatement} label="Bank Statement" compact />
               </div>
 
               <button type="submit" className="btn btn-primary sales-exec-submit">Create Lead</button>
@@ -376,7 +445,18 @@ export function ManagerDashboard() {
         </div>
       )}
 
-      {selected && <LeadModal lead={selected} onClose={() => setSelected(null)} onUpdated={fetchLeads} currentUser={user} />}
+      {selected && (
+        <LeadModal
+          lead={selected}
+          onClose={() => {
+            setSelected(null)
+            setEditingLeadId('')
+          }}
+          onUpdated={fetchLeads}
+          currentUser={user}
+          startEditing={editingLeadId === selected._id}
+        />
+      )}
     </div>
   )
 }
@@ -385,10 +465,13 @@ export function SalesDashboard() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+  const [editingLeadId, setEditingLeadId] = useState('')
   const { user } = useAuthStore()
 
+  const fetchLeads = () => leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+
   useEffect(() => {
-    leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+    fetchLeads()
   }, [])
 
   const stats = {
@@ -397,6 +480,22 @@ export function SalesDashboard() {
     completed: leads.filter(l => l.status === 'completed').length,
     rejected: leads.filter(l => l.status === 'rejected').length,
   }
+
+  const viewLead = (lead) => {
+    setEditingLeadId('')
+    setSelected(lead)
+  }
+
+  const editLead = (lead) => {
+    setEditingLeadId(lead._id)
+    setSelected(lead)
+  }
+
+  const leadRowActions = (lead) => canEditBeforeApproval(lead, user?.role) ? (
+    <button className="btn btn-primary btn-sm" type="button" onClick={() => editLead(lead)} aria-label="Edit lead" title="Edit lead">
+      <FaEdit />
+    </button>
+  ) : null
 
   return (
     <div className="dashboard-page">
@@ -408,9 +507,20 @@ export function SalesDashboard() {
         <MetricCard icon={<FaChartLine />} label="Conv. Rate" value={`${stats.total > 0 ? Math.round(stats.completed / stats.total * 100) : 0}%`} changeColor="var(--indigo)" />
       </div>
       <div className="crm-card">
-        <LeadsTable leads={leads} loading={loading} onView={setSelected} />
+        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} />
       </div>
-      {selected && <LeadModal lead={selected} onClose={() => setSelected(null)} onUpdated={() => leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data))} currentUser={user} />}
+      {selected && (
+        <LeadModal
+          lead={selected}
+          onClose={() => {
+            setSelected(null)
+            setEditingLeadId('')
+          }}
+          onUpdated={fetchLeads}
+          currentUser={user}
+          startEditing={editingLeadId === selected._id}
+        />
+      )}
     </div>
   )
 }
@@ -433,6 +543,7 @@ export function StageDashboard({ roleOverride }) {
   const [completedCount, setCompletedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+  const [editingLeadId, setEditingLeadId] = useState('')
   const [panelNumbers, setPanelNumbers] = useState({})
   const [savingPanelId, setSavingPanelId] = useState('')
   const [installationDispatches, setInstallationDispatches] = useState([])
@@ -467,6 +578,16 @@ export function StageDashboard({ roleOverride }) {
 
   const activeLeads = leads.filter((lead) => lead.status === 'active')
   const approvedInstallationDispatches = installationDispatches.filter((dispatch) => dispatch.approvalStatus === 'Approved')
+
+  const viewStageLead = (lead) => {
+    setEditingLeadId('')
+    setSelected(lead)
+  }
+
+  const editStageLead = (lead) => {
+    setEditingLeadId(lead._id)
+    setSelected(lead)
+  }
 
   const getLeadDispatch = (lead) => {
     const leadKeys = [
@@ -535,6 +656,17 @@ export function StageDashboard({ roleOverride }) {
     )
   }
 
+  const stageRowActions = (lead) => (
+    <>
+      {canEditBeforeApproval(lead, user?.role) && (
+        <button className="btn btn-primary btn-sm" type="button" onClick={() => editStageLead(lead)} aria-label="Edit lead" title="Edit lead">
+          <FaEdit />
+        </button>
+      )}
+      {installationPanelAction(lead)}
+    </>
+  )
+
   const updateDispatchInstallationStatus = async (dispatch, status) => {
     setSavingDispatchId(dispatch._id)
     try {
@@ -558,14 +690,14 @@ export function StageDashboard({ roleOverride }) {
       <PageHeader
         icon={(() => { const Icon = STAGE_ROLE_ICONS[dashboardRole] || FaUserCheck; return <Icon /> })()}
         title={`${dashboardRole} Dashboard`}
-        subtitle={<>Stage: <strong style={{ color: stageColor(myStage) }}>{myStage}</strong> - review and action leads assigned to your stage</>}
+        subtitle={<>Stage: <strong style={{ color: stageColor(myStage) }}>{myStage}</strong> - review and action leads for this role</>}
       />
 
       <div className="dashboard-grid-metrics">
         <MetricCard icon={<FaTasks />} label="Pending Action" value={activeLeads.length} changeColor="var(--sun)" />
         <MetricCard icon={<FaCheckCircle />} label="Completed Leads" value={completedCount} changeColor="var(--green)" />
         <MetricCard icon={<FaWrench />} label="My Stage" value={myStage?.split(' ')[0]} />
-        <MetricCard icon={<FaUserCheck />} label="Assigned to" value={roleOverride ? dashboardRole.split(' ')[0] : user?.name?.split(' ')[0]} />
+        <MetricCard icon={<FaUserCheck />} label="Visible To" value={dashboardRole?.split(' ')[0]} />
         {showPanelNumberRows && <MetricCard icon={<FaShippingFast />} label="Dispatch Bills" value={installationDispatches.length} change={`${approvedInstallationDispatches.length} approved`} changeColor="var(--blue)" />}
       </div>
 
@@ -576,16 +708,20 @@ export function StageDashboard({ roleOverride }) {
       ) : (
         <div className="crm-card">
           <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Leads at {myStage} ({activeLeads.length})</h3>
-          <LeadsTable leads={activeLeads} loading={false} onView={setSelected} extraActions={installationPanelAction} />
+          <LeadsTable leads={activeLeads} loading={false} onView={viewStageLead} extraActions={stageRowActions} />
         </div>
       )}
 
       {selected && (
         <LeadModal
           lead={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null)
+            setEditingLeadId('')
+          }}
           onUpdated={fetchLeads}
           currentUser={user}
+          startEditing={editingLeadId === selected._id}
           showRegistrationPhotoUpload={dashboardRole === 'Registration Executive'}
           showBankRemarkInput={dashboardRole === 'Bank/Finance Executive'}
           showLoanApplicationInput={dashboardRole === 'Loan Officer'}
