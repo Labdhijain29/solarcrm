@@ -56,6 +56,7 @@ const leadSchema = new mongoose.Schema({
     aadharNo: { type: String, trim: true, default: '' },
     dealNo: { type: String, trim: true, default: '' },
     brand: { type: String, trim: true, default: '' },
+    monthlyUnit: { type: String, trim: true, default: '' },
     accountNo: { type: String, trim: true, default: '' },
     other: { type: String, trim: true, default: '' },
     photoOneName: { type: String, trim: true, default: '' },

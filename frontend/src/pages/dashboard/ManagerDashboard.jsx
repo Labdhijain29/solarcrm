@@ -7,10 +7,14 @@ import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 import { CITIES, STAGES, ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
 import toast from 'react-hot-toast'
+import { ALL_BRAND_OPTIONS } from './inventoryStructure'
 
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
+const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
+const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
+const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'brand', 'generatedThrough', 'other'])
 const INITIAL_MANAGER_LEAD = {
   name: '',
   phone: '',
@@ -36,6 +40,7 @@ const INITIAL_MANAGER_LEAD = {
   documentPdf: null,
 }
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
 function KanbanPipeline({ leads, onView }) {
   return (
@@ -98,7 +103,7 @@ export function ManagerDashboard() {
     if (!PHONE_REGEX.test(phone)) return toast.error('Enter a valid 10-digit mobile number')
     if (!newLead.state.trim() || !newLead.city.trim()) return toast.error('State and city are required')
     if (newLead.pincode && !PINCODE_REGEX.test(newLead.pincode)) return toast.error('Pincode must be 6 digits.')
-    if (newLead.ivrsNo && !/^\d{10}$/.test(newLead.ivrsNo)) return toast.error('IVRS number must be 10 digits.')
+    if (newLead.ivrsNo && !IVRS_REGEX.test(newLead.ivrsNo)) return toast.error('IVRS number must be 10 letters or digits.')
 
     const salesExecutiveData = {
       contact: phone,
@@ -159,9 +164,10 @@ export function ManagerDashboard() {
     }
     if (name === 'phone') value = normalizePhone(value)
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
-    if (name === 'ivrsNo') value = String(value || '').replace(/\D/g, '').slice(0, 10)
+    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
     if (name === 'monthlyBill') value = String(value || '').replace(/[^\d.]/g, '')
+    if (CAPITALIZED_FIELDS.has(name)) value = capitalizeFirstLetter(value)
 
     setNewLead((prev) => ({ ...prev, [name]: value }))
   }
@@ -265,17 +271,31 @@ export function ManagerDashboard() {
 
               <label>
                 Brand
-                <input className="crm-input" name="brand" value={newLead.brand} onChange={updateNewLeadField} placeholder="Panel / inverter brand" />
+                <SearchableSelect
+                  name="manager-lead-brand"
+                  value={newLead.brand}
+                  onChange={(value) => setNewLead((prev) => ({ ...prev, brand: value }))}
+                  options={toOptions(ALL_BRAND_OPTIONS)}
+                  placeholder="Select brand..."
+                  searchPlaceholder="Search brand..."
+                />
               </label>
 
               <label>
                 IVRS No.
-                <input className="crm-input" name="ivrsNo" value={newLead.ivrsNo} onChange={updateNewLeadField} placeholder="10-digit IVRS" maxLength={10} />
+                <input className="crm-input" name="ivrsNo" value={newLead.ivrsNo} onChange={updateNewLeadField} placeholder="10-character IVRS" maxLength={10} />
               </label>
 
               <label>
                 Capacity
-                <input className="crm-input" name="capacity" value={newLead.capacity} onChange={updateNewLeadField} placeholder="3kW" />
+                <SearchableSelect
+                  name="manager-lead-capacity"
+                  value={newLead.capacity}
+                  onChange={(value) => setNewLead((prev) => ({ ...prev, capacity: value }))}
+                  options={toOptions(CAPACITY_OPTIONS)}
+                  placeholder="Select capacity..."
+                  searchPlaceholder="Search capacity..."
+                />
               </label>
 
               <label>

@@ -7,10 +7,14 @@ import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
+import { ALL_BRAND_OPTIONS } from './inventoryStructure'
 
 const PINCODE_REGEX = /^\d{6}$/
 const PHONE_REGEX = /^[6-9]\d{9}$/
+const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
+const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
+const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'permanentAddress', 'address', 'jobTitle', 'brand', 'other'])
 
 const INITIAL_FORM = {
   name: '',
@@ -40,6 +44,7 @@ const INITIAL_LEAD_FORM = {
   capacity: '',
   roofType: 'Concrete',
   monthlyBill: '',
+  monthlyUnit: '',
   dealNo: '',
   brand: '',
   panCardNo: '',
@@ -52,6 +57,7 @@ const INITIAL_LEAD_FORM = {
 }
 
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
 function SalesExecutiveForm({ onClose, onCreated }) {
   const [formData, setFormData] = useState(INITIAL_FORM)
@@ -73,6 +79,7 @@ function SalesExecutiveForm({ onClose, onCreated }) {
 
     if (name === 'phone' || name === 'alternateContact') value = normalizePhone(value)
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
+    if (CAPITALIZED_FIELDS.has(name)) value = capitalizeFirstLetter(value)
 
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
@@ -285,9 +292,10 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
     if (name === 'phone') value = normalizePhone(value)
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
-    if (name === 'ivrsNo') value = String(value || '').replace(/\D/g, '').slice(0, 10)
+    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
-    if (name === 'monthlyBill') value = String(value || '').replace(/[^\d.]/g, '')
+    if (name === 'monthlyBill' || name === 'monthlyUnit') value = String(value || '').replace(/[^\d.]/g, '')
+    if (CAPITALIZED_FIELDS.has(name)) value = capitalizeFirstLetter(value)
 
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
@@ -315,8 +323,8 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
       toast.error('Pincode must be 6 digits.')
       return
     }
-    if (formData.ivrsNo && !/^\d{10}$/.test(formData.ivrsNo)) {
-      toast.error('IVRS number must be 10 digits.')
+    if (formData.ivrsNo && !IVRS_REGEX.test(formData.ivrsNo)) {
+      toast.error('IVRS number must be 10 letters or digits.')
       return
     }
 
@@ -328,6 +336,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
       pincode: formData.pincode,
       dealNo: formData.dealNo.trim(),
       brand: formData.brand.trim(),
+      monthlyUnit: formData.monthlyUnit,
       panCardNo: formData.panCardNo.trim(),
       aadharNo: formData.aadharNo.trim(),
       accountNo: formData.accountNo.trim(),
@@ -449,17 +458,31 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
           <label>
             Brand
-            <input className="crm-input" name="brand" value={formData.brand} onChange={onInputChange} placeholder="Panel / inverter brand" />
+            <SearchableSelect
+              name="sales-registration-brand"
+              value={formData.brand}
+              onChange={(value) => setFormData((prev) => ({ ...prev, brand: value }))}
+              options={toOptions(ALL_BRAND_OPTIONS)}
+              placeholder="Select brand..."
+              searchPlaceholder="Search brand..."
+            />
           </label>
 
           <label>
             IVRS No.
-            <input className="crm-input" name="ivrsNo" value={formData.ivrsNo} onChange={onInputChange} placeholder="10-digit IVRS" maxLength={10} />
+            <input className="crm-input" name="ivrsNo" value={formData.ivrsNo} onChange={onInputChange} placeholder="10-character IVRS" maxLength={10} />
           </label>
 
           <label>
             Capacity
-            <input className="crm-input" name="capacity" value={formData.capacity} onChange={onInputChange} placeholder="3kW" />
+            <SearchableSelect
+              name="sales-registration-capacity"
+              value={formData.capacity}
+              onChange={(value) => setFormData((prev) => ({ ...prev, capacity: value }))}
+              options={toOptions(CAPACITY_OPTIONS)}
+              placeholder="Select capacity..."
+              searchPlaceholder="Search capacity..."
+            />
           </label>
 
           <label>
@@ -472,6 +495,11 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
           <label>
             Monthly Bill
             <input className="crm-input" name="monthlyBill" value={formData.monthlyBill} onChange={onInputChange} placeholder="Amount" />
+          </label>
+
+          <label>
+            Monthly Unit
+            <input className="crm-input" name="monthlyUnit" value={formData.monthlyUnit} onChange={onInputChange} placeholder="Units" />
           </label>
 
           <label>

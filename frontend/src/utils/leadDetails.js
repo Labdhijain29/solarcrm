@@ -71,6 +71,7 @@ export const getLeadViewSections = (lead) => {
     ['Pincode', salesExecutiveData.pincode || lead?.pincode || '-'],
     ['Deal No.', salesExecutiveData.dealNo || '-'],
     ['Brand', salesExecutiveData.brand || '-'],
+    ['Monthly Unit', salesExecutiveData.monthlyUnit || '-'],
     ['IVRS No.', lead?.ivrsNo || extractValueFromNotes(lead?.notes, 'IVRS No') || '-'],
     ['PAN Card No.', salesExecutiveData.panCardNo || '-'],
     ['Aadhar No.', salesExecutiveData.aadharNo || '-'],

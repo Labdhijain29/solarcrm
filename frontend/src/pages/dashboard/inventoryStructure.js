@@ -40,6 +40,7 @@ export const AC_DC_BRANDS = ['Havells', 'Simons']
 export const AC_DC_PHASES = ['Single Phase', 'Three Phase']
 export const CABLE_TRY_ITEMS = ['Cable Try']
 export const STRUCTURE_BRANDS = ['JSW']
+export const ALL_BRAND_OPTIONS = [...new Set([...MODULE_BRANDS, ...INVERTER_BRANDS, ...AC_DC_BRANDS, ...STRUCTURE_BRANDS])]
 export const STRUCTURE_SIZE = '140*50*2mm'
 export const STRUCTURE_FEET = ['6.5feet', '8.5feet', '13 feet']
 export const HEAD_PARLIN_SIZE = '70*50*1.5mm'
