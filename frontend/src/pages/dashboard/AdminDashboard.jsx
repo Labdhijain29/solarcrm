@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FaBell, FaCheckCircle, FaClipboardList, FaCog, FaTasks, FaUsers, FaWarehouse } from 'react-icons/fa'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { dashboardAPI, enquiriesAPI, leadsAPI, usersAPI } from '../../services/api'
+import { dashboardAPI, enquiriesAPI, leadsAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
@@ -14,17 +14,26 @@ const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const CAPITALIZED_ENQUIRY_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
+const VALID_TABS = ['overview', 'leads', 'analytics']
+const LEADS_PAGE_SIZE = 25
+const normalizeTab = (value) => VALID_TABS.includes(value) ? value : 'overview'
+const getRequestError = (label, error) => `${label}: ${error?.response?.data?.message || error?.message || 'Request failed'}`
+
 export default function AdminDashboard() {
   const { user } = useAuthStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const [stats, setStats] = useState(null)
   const [activity, setActivity] = useState([])
   const [leads, setLeads] = useState([])
-  const [enquiries, setEnquiries] = useState([])
-  const [users, setUsers] = useState([])
-  const [tab, setTab] = useState(searchParams.get('tab') || 'overview')
+  const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'ivrs-asc' })
+  const [tab, setTab] = useState(() => normalizeTab(searchParams.get('tab')))
   const [selectedLead, setSelectedLead] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [dashboardLoading, setDashboardLoading] = useState(true)
+  const [leadsLoading, setLeadsLoading] = useState(false)
+  const [dashboardErrors, setDashboardErrors] = useState([])
+  const [leadError, setLeadError] = useState('')
+  const leadRequestId = useRef(0)
   const [editingEnquiry, setEditingEnquiry] = useState(null)
   const [editForm, setEditForm] = useState({
     name: '',
@@ -40,23 +49,53 @@ export default function AdminDashboard() {
   })
 
   const loadDashboard = () => {
-    setLoading(true)
-    Promise.all([
+    setDashboardLoading(true)
+    setDashboardErrors([])
+    Promise.allSettled([
       dashboardAPI.getStats(),
       dashboardAPI.getActivity(),
-      leadsAPI.getAll(),
-      enquiriesAPI.getAll(),
-      usersAPI.getAll(),
     ])
-      .then(([statsRes, activityRes, leadsRes, enquiriesRes, usersRes]) => {
-        setStats(statsRes.data.data)
-        setActivity(activityRes.data.data || [])
-        setLeads(leadsRes.data.data || [])
-        setEnquiries(enquiriesRes.data.data || [])
-        setUsers(usersRes.data.data || [])
+      .then(([statsResult, activityResult]) => {
+        const errors = []
+
+        if (statsResult.status === 'fulfilled') {
+          setStats(statsResult.value.data.data)
+        } else {
+          errors.push(getRequestError('Stats', statsResult.reason))
+        }
+
+        if (activityResult.status === 'fulfilled') {
+          setActivity(activityResult.value.data.data || [])
+        } else {
+          errors.push(getRequestError('Activity', activityResult.reason))
+        }
+
+        setDashboardErrors(errors)
       })
       .catch(console.error)
-      .finally(() => setLoading(false))
+      .finally(() => setDashboardLoading(false))
+  }
+
+  const loadLeads = (query = leadQuery) => {
+    const requestId = leadRequestId.current + 1
+    leadRequestId.current = requestId
+    setLeadsLoading(true)
+    setLeadError('')
+    leadsAPI.getAll({ limit: LEADS_PAGE_SIZE, ...query })
+      .then((response) => {
+        if (requestId !== leadRequestId.current) return
+        setLeads(response.data.data || [])
+        setLeadPagination(response.data.pagination || { page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .catch((error) => {
+        if (requestId !== leadRequestId.current) return
+        setLeads([])
+        setLeadPagination({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+        setLeadError(error?.response?.data?.message || error?.message || 'Failed to load leads')
+      })
+      .finally(() => {
+        if (requestId === leadRequestId.current) setLeadsLoading(false)
+      })
   }
 
   useEffect(() => {
@@ -64,9 +103,18 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
-    const nextTab = searchParams.get('tab')
+    const rawTab = searchParams.get('tab')
+    if (rawTab && !VALID_TABS.includes(rawTab)) {
+      setSearchParams({}, { replace: true })
+      return
+    }
+    const nextTab = rawTab || 'overview'
     if (nextTab && nextTab !== tab) setTab(nextTab)
-  }, [searchParams, tab])
+  }, [searchParams, setSearchParams, tab])
+
+  useEffect(() => {
+    if (tab === 'leads') loadLeads(leadQuery)
+  }, [tab, leadQuery])
 
   const selectTab = (nextTab) => {
     setTab(nextTab)
@@ -84,14 +132,28 @@ export default function AdminDashboard() {
       .catch(() => setSelectedLead(lead))
   }
 
-  const { summary, stageData, sourceData, monthlyData } = stats || {}
+  const handleLeadQueryChange = (query) => {
+    setLeadQuery({ page: 1, sort: 'ivrs-asc', ...query })
+  }
+
+  const refreshDashboardAndLeads = () => {
+    loadDashboard()
+    if (tab === 'leads') loadLeads(leadQuery)
+  }
+
+  const {
+    summary = {},
+    stageData = [],
+    sourceData = [],
+    monthlyData = [],
+    pendingEnquiries = [],
+    pendingRegistrationCount = 0,
+    pendingRegistrations = [],
+  } = stats || {}
 
   const enquiryStats = useMemo(() => ({
-    total: enquiries.length,
-    fresh: enquiries.filter(item => item.status === 'new').length,
-    converted: enquiries.filter(item => item.status === 'converted').length,
-    pending: enquiries.filter(item => item.status !== 'converted').slice(0, 4),
-  }), [enquiries])
+    pending: pendingEnquiries,
+  }), [pendingEnquiries])
 
   const openEditEnquiry = (enquiry) => {
     setEditingEnquiry(enquiry)
@@ -112,9 +174,8 @@ export default function AdminDashboard() {
   const saveEnquiryEdit = async () => {
     if (!editingEnquiry) return
     await enquiriesAPI.update(editingEnquiry._id, editForm)
-    const enquiriesRes = await enquiriesAPI.getAll()
-    setEnquiries(enquiriesRes.data.data || [])
     setEditingEnquiry(null)
+    loadDashboard()
   }
 
   const updateEnquiryField = (key, value) => {
@@ -126,15 +187,13 @@ export default function AdminDashboard() {
   }
 
   const registrationStats = useMemo(() => {
-    const pending = users.filter(user => user.approvalStatus === 'pending')
-
     return {
-      pendingCount: pending.length,
-      recentPending: pending.slice(0, 5),
+      pendingCount: pendingRegistrationCount,
+      recentPending: pendingRegistrations,
     }
-  }, [users])
+  }, [pendingRegistrationCount, pendingRegistrations])
 
-  if (loading) return <Spinner size={48} />
+  if (dashboardLoading) return <Spinner size={48} />
 
   return (
     <div className="dashboard-page">
@@ -152,17 +211,24 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {dashboardErrors.length > 0 && (
+        <div className="crm-card" style={{ marginBottom:20, borderColor:'rgba(239,68,68,.35)', color:'var(--red)' }}>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:6 }}>Some dashboard data could not be loaded.</div>
+          {dashboardErrors.map((message) => (
+            <div key={message} style={{ fontSize:12 }}>{message}</div>
+          ))}
+        </div>
+      )}
+
       {tab === 'overview' && (
         <div style={{ animation:'fadeIn .3s ease' }}>
           <div className="dashboard-grid-metrics">
-            <MetricCard icon={<FaClipboardList />} label="Total Leads" value={summary?.total} change="+12 this week" changeColor="var(--sun)" />
-            <MetricCard icon={<FaTasks />} label="Active" value={summary?.active} change="In pipeline" changeColor="var(--blue)" />
-            <MetricCard icon={<FaCheckCircle />} label="Completed" value={summary?.completed} change={`${summary?.conversionRate}% conversion`} changeColor="var(--green)" />
-            <MetricCard icon={<FaBell />} label="Enquiries" value={summary?.enquiries} change="Website forms" changeColor="var(--indigo)" />
-            <MetricCard icon={<FaUsers />} label="Pending Registrations" value={registrationStats.pendingCount} change="Admin approval queue" changeColor="var(--red)" />
-            <Link to="/dashboard/stock-manager" style={{ textDecoration:'none' }}>
-              <MetricCard icon={<FaWarehouse />} label="Stock Manager Dashboard" value="Open" change="Inventory & dispatch ERP" changeColor="var(--green)" />
-            </Link>
+            <MetricCard icon={<FaClipboardList />} label="Total Leads" value={summary?.total} change="+12 this week" changeColor="var(--sun)" onClick={() => selectTab('leads')} />
+            <MetricCard icon={<FaTasks />} label="Active" value={summary?.active} change="In pipeline" changeColor="var(--blue)" onClick={() => selectTab('leads')} />
+            <MetricCard icon={<FaCheckCircle />} label="Completed" value={summary?.completed} change={`${summary?.conversionRate}% conversion`} changeColor="var(--green)" onClick={() => selectTab('leads')} />
+            <MetricCard icon={<FaBell />} label="Enquiries" value={summary?.enquiries} change="Website forms" changeColor="var(--indigo)" onClick={() => selectTab('leads')} />
+            <MetricCard icon={<FaUsers />} label="Pending Registrations" value={registrationStats.pendingCount} change="Admin approval queue" changeColor="var(--red)" onClick={() => selectTab('leads')} />
+            <MetricCard icon={<FaWarehouse />} label="Stock Manager Dashboard" value="Open" change="Inventory & dispatch ERP" changeColor="var(--green)" onClick={() => selectTab('leads')} />
           </div>
 
           <div className="dashboard-grid-two" style={{ marginBottom:24 }}>
@@ -275,7 +341,16 @@ export default function AdminDashboard() {
 
       {tab === 'leads' && (
         <div className="crm-card" style={{ animation:'fadeIn .3s ease' }}>
-          <LeadsTable leads={leads} loading={false} onView={viewLead} />
+          {leadError && (
+            <div style={{ color:'var(--red)', fontSize:13, marginBottom:12 }}>{leadError}</div>
+          )}
+          <LeadsTable
+            leads={leads}
+            loading={leadsLoading}
+            onView={viewLead}
+            pagination={leadPagination}
+            onQueryChange={handleLeadQueryChange}
+          />
         </div>
       )}
 
@@ -411,7 +486,7 @@ export default function AdminDashboard() {
         <LeadModal
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
-          onUpdated={loadDashboard}
+          onUpdated={refreshDashboardAndLeads}
           currentUser={user}
         />
       )}

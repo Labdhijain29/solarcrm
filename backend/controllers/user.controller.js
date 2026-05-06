@@ -1,10 +1,18 @@
 // ─── USER CONTROLLER ──────────────────────────────────────────
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
-const { uploadFileAsset } = require('../services/storage/fileAsset');
+const { uploadFileAsset, withFreshFileUrl } = require('../services/storage/fileAsset');
 const storageService = require('../services/storage/storageService');
 
-const buildSessionUser = (user) => ({
+const serializeUser = async (user) => {
+  const plainUser = typeof user.toObject === 'function' ? user.toObject() : { ...user };
+  return {
+    ...plainUser,
+    documentsFile: await withFreshFileUrl(plainUser.documentsFile),
+  };
+};
+
+const buildSessionUser = async (user) => ({
   _id: user._id,
   name: user.name,
   email: user.email,
@@ -24,7 +32,7 @@ const buildSessionUser = (user) => ({
   jobTitle: user.jobTitle,
   resume: user.resume,
   documents: user.documents,
-  documentsFile: user.documentsFile,
+  documentsFile: await withFreshFileUrl(user.documentsFile),
   dateOfJoining: user.dateOfJoining,
   stageAccess: user.stageAccess,
   lastLogin: user.lastLogin,
@@ -33,7 +41,7 @@ const buildSessionUser = (user) => ({
 exports.getUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
-    res.json({ success: true, data: users });
+    res.json({ success: true, data: await Promise.all(users.map(serializeUser)) });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -74,7 +82,7 @@ exports.getUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, data: user });
+    res.json({ success: true, data: await serializeUser(user) });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -100,7 +108,7 @@ exports.createUser = async (req, res) => {
       dateOfJoining: dateOfJoining || undefined
     });
     const safe = await User.findById(user._id).select('-password');
-    res.status(201).json({ success: true, message: 'User created', data: safe });
+    res.status(201).json({ success: true, message: 'User created', data: await serializeUser(safe) });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -129,7 +137,7 @@ exports.updateUser = async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true }).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, data: user });
+    res.json({ success: true, data: await serializeUser(user) });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -174,7 +182,7 @@ exports.updateProfile = async (req, res) => {
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      data: buildSessionUser(user),
+      data: await buildSessionUser(user),
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -201,7 +209,7 @@ exports.approveUser = async (req, res) => {
       approvedBy: req.user._id,
     }, { new: true, runValidators: true }).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, message: 'User approved successfully', data: user });
+    res.json({ success: true, message: 'User approved successfully', data: await serializeUser(user) });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -214,7 +222,7 @@ exports.rejectUser = async (req, res) => {
       approvedBy: req.user._id,
     }, { new: true, runValidators: true }).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, message: 'User rejected successfully', data: user });
+    res.json({ success: true, message: 'User rejected successfully', data: await serializeUser(user) });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 

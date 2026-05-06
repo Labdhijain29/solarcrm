@@ -36,13 +36,34 @@ exports.getStats = async (req, res) => {
     const baseQuery = buildPersonalLeadQuery(req.user);
     const enquiryQuery = buildPersonalEnquiryQuery(req.user);
 
-    const [total, active, completed, rejected, enquiries, users] = await Promise.all([
+    const [
+      total,
+      active,
+      completed,
+      rejected,
+      enquiries,
+      users,
+      pendingEnquiries,
+      pendingRegistrationCount,
+      pendingRegistrations
+    ] = await Promise.all([
       Lead.countDocuments(baseQuery),
       Lead.countDocuments({ ...baseQuery, status: 'active' }),
       Lead.countDocuments({ ...baseQuery, status: 'completed' }),
       Lead.countDocuments({ ...baseQuery, status: 'rejected' }),
       Enquiry.countDocuments(enquiryQuery),
       User.countDocuments({ isActive: true }),
+      Enquiry.find({ ...enquiryQuery, status: { $ne: 'converted' } })
+        .select('name contact phone email address enquiryType state city pincode status notes createdAt')
+        .sort({ createdAt: -1 })
+        .limit(4),
+      req.user.role === 'Admin' ? User.countDocuments({ approvalStatus: 'pending' }) : 0,
+      req.user.role === 'Admin'
+        ? User.find({ approvalStatus: 'pending' })
+            .select('name email phone role approvalStatus createdAt')
+            .sort({ createdAt: -1 })
+            .limit(5)
+        : [],
     ]);
 
     // Stage distribution
@@ -84,7 +105,10 @@ exports.getStats = async (req, res) => {
         monthlyData: monthlyData.map(d => ({
           month: new Date(d._id.year, d._id.month - 1).toLocaleString('en-IN', { month: 'short' }),
           leads: d.count
-        }))
+        })),
+        pendingEnquiries,
+        pendingRegistrationCount,
+        pendingRegistrations
       }
     });
   } catch (err) {

@@ -1,4 +1,5 @@
 const cloudinaryStorage = require('./cloudinaryStorage');
+const { optimizeUploadFile } = require('./mediaOptimizer');
 const { getEffectiveUploadSetting } = require('../uploadSettings.service');
 
 const providers = {
@@ -18,9 +19,19 @@ const getProvider = async () => {
   return provider;
 };
 
-const upload = async (file, options) => (await getProvider()).upload(file, options);
+const upload = async (file, options = {}) => {
+  const optimizedFile = await optimizeUploadFile(file, options.optimization);
+  const storedFile = await (await getProvider()).upload(optimizedFile, options);
+
+  return {
+    ...storedFile,
+    uploadedFile: optimizedFile,
+    originalSize: file?.size || file?.buffer?.length || 0,
+    optimizedSize: optimizedFile?.size || optimizedFile?.buffer?.length || 0,
+  };
+};
 const destroy = async (key) => (await getProvider()).delete(key);
-const getUrl = async (key) => (await getProvider()).getUrl(key);
+const getUrl = async (key, options) => (await getProvider()).getUrl(key, options);
 
 module.exports = {
   upload,

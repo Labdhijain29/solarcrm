@@ -1,9 +1,35 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
-const { uploadFileAsset } = require('../services/storage/fileAsset');
+const { uploadFileAsset, withFreshFileUrl } = require('../services/storage/fileAsset');
 
 const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
+
+const buildSessionUser = async (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  phone: user.phone,
+  alternateContact: user.alternateContact,
+  permanentAddress: user.permanentAddress,
+  address: user.address,
+  state: user.state,
+  city: user.city,
+  pincode: user.pincode,
+  franchiseEnabled: user.franchiseEnabled,
+  franchiseName: user.franchiseName,
+  franchiseState: user.franchiseState,
+  franchiseCity: user.franchiseCity,
+  franchiseSubDistrict: user.franchiseSubDistrict,
+  jobTitle: user.jobTitle,
+  resume: user.resume,
+  documents: user.documents,
+  documentsFile: await withFreshFileUrl(user.documentsFile),
+  dateOfJoining: user.dateOfJoining,
+  stageAccess: ROLE_STAGE_MAP[user.role],
+  lastLogin: user.lastLogin,
+});
 
 const SERVICE_MANAGER_DEMO = {
   name: 'Vikram Service',
@@ -53,31 +79,7 @@ exports.login = async (req, res) => {
     await user.save({ validateBeforeSave: false });
 
     const token = signToken(user._id);
-    const userData = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      alternateContact: user.alternateContact,
-      permanentAddress: user.permanentAddress,
-      address: user.address,
-      state: user.state,
-      city: user.city,
-      pincode: user.pincode,
-      franchiseEnabled: user.franchiseEnabled,
-      franchiseName: user.franchiseName,
-      franchiseState: user.franchiseState,
-      franchiseCity: user.franchiseCity,
-      franchiseSubDistrict: user.franchiseSubDistrict,
-      jobTitle: user.jobTitle,
-      resume: user.resume,
-      documents: user.documents,
-      documentsFile: user.documentsFile,
-      dateOfJoining: user.dateOfJoining,
-      stageAccess: ROLE_STAGE_MAP[user.role],
-      lastLogin: user.lastLogin,
-    };
+    const userData = await buildSessionUser(user);
 
     res.status(200).json({ success: true, message: 'Login successful', token, user: userData });
   } catch (err) {
@@ -158,7 +160,10 @@ exports.register = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Registration submitted. Please wait for admin approval before logging in.',
-      data: safe
+      data: {
+        ...safe.toObject(),
+        documentsFile: await withFreshFileUrl(safe.documentsFile),
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -174,7 +179,7 @@ exports.getMe = async (req, res) => {
     res.status(200).json({
       success: true,
       user: {
-        ...user.toObject(),
+        ...(await buildSessionUser(user)),
         stageAccess: ROLE_STAGE_MAP[user.role],
         password: undefined
       }

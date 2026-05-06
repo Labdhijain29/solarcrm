@@ -25,13 +25,48 @@ const getGeneratedByName = (lead) => {
   return ''
 }
 
-export default function LeadsTable({ leads = [], loading, onView, onDelete, extraActions, defaultSort = 'ivrs-asc' }) {
+export default function LeadsTable({
+  leads = [],
+  loading,
+  onView,
+  onDelete,
+  extraActions,
+  defaultSort = 'ivrs-asc',
+  pagination,
+  onQueryChange,
+}) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [srcFilter, setSrc] = useState('All')
   const [statusFilter, setStatus] = useState('All')
   const [stageFilter, setStage] = useState('All')
   const [sortBy, setSortBy] = useState(defaultSort)
+  const serverMode = typeof onQueryChange === 'function'
+
+  const toServerQuery = (overrides = {}) => {
+    const next = {
+      search,
+      source: srcFilter,
+      status: statusFilter,
+      stage: stageFilter,
+      sort: sortBy,
+      page: 1,
+      ...overrides,
+    }
+
+    return {
+      page: next.page,
+      sort: next.sort,
+      ...(String(next.search || '').trim() ? { search: String(next.search).trim() } : {}),
+      ...(next.source && next.source !== 'All' ? { source: next.source } : {}),
+      ...(next.status && next.status !== 'All' ? { status: next.status } : {}),
+      ...(next.stage && next.stage !== 'All' ? { stage: next.stage } : {}),
+    }
+  }
+
+  const updateServerQuery = (overrides) => {
+    if (serverMode) onQueryChange(toServerQuery(overrides))
+  }
 
   const hasActiveFilters =
     search.trim() !== '' ||
@@ -40,7 +75,7 @@ export default function LeadsTable({ leads = [], loading, onView, onDelete, extr
     stageFilter !== 'All' ||
     sortBy !== defaultSort
 
-  const filtered = leads
+  const filtered = serverMode ? leads : leads
     .filter((lead) => {
       const q = search.toLowerCase()
       if (
@@ -85,6 +120,7 @@ export default function LeadsTable({ leads = [], loading, onView, onDelete, extr
     setStatus('All')
     setStage('All')
     setSortBy(defaultSort)
+    updateServerQuery({ search: '', source: 'All', status: 'All', stage: 'All', sort: defaultSort, page: 1 })
   }
 
   if (loading) {
@@ -101,19 +137,34 @@ export default function LeadsTable({ leads = [], loading, onView, onDelete, extr
             style={{ paddingLeft:34 }}
             placeholder="Search ID, name, phone, city, branch, IVRS..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              updateServerQuery({ search: e.target.value, page: 1 })
+            }}
           />
         </div>
-        <select className="crm-input" style={{ width:'auto' }} value={srcFilter} onChange={(e) => setSrc(e.target.value)}>
+        <select className="crm-input" style={{ width:'auto' }} value={srcFilter} onChange={(e) => {
+          setSrc(e.target.value)
+          updateServerQuery({ source: e.target.value, page: 1 })
+        }}>
           {['All', ...SOURCES].map((item) => <option key={item}>{item}</option>)}
         </select>
-        <select className="crm-input" style={{ width:'auto' }} value={stageFilter} onChange={(e) => setStage(e.target.value)}>
+        <select className="crm-input" style={{ width:'auto' }} value={stageFilter} onChange={(e) => {
+          setStage(e.target.value)
+          updateServerQuery({ stage: e.target.value, page: 1 })
+        }}>
           {['All', ...STAGES].map((item) => <option key={item}>{item}</option>)}
         </select>
-        <select className="crm-input" style={{ width:'auto' }} value={statusFilter} onChange={(e) => setStatus(e.target.value)}>
+        <select className="crm-input" style={{ width:'auto' }} value={statusFilter} onChange={(e) => {
+          setStatus(e.target.value)
+          updateServerQuery({ status: e.target.value, page: 1 })
+        }}>
           {['All', 'active', 'completed', 'rejected', 'on-hold'].map((item) => <option key={item}>{item}</option>)}
         </select>
-        <select className="crm-input" style={{ width:'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+        <select className="crm-input" style={{ width:'auto' }} value={sortBy} onChange={(e) => {
+          setSortBy(e.target.value)
+          updateServerQuery({ sort: e.target.value, page: 1 })
+        }}>
           <option value="latest">Date Newest</option>
           <option value="oldest">Date Oldest</option>
           <option value="id-asc">ID 0-9</option>
@@ -123,7 +174,9 @@ export default function LeadsTable({ leads = [], loading, onView, onDelete, extr
           <option value="ivrs-asc">IVRS 0-9</option>
           <option value="ivrs-desc">IVRS 9-0</option>
         </select>
-        <span style={{ fontSize:12, color:'var(--muted)', whiteSpace:'nowrap' }}>{filtered.length} leads</span>
+        <span style={{ fontSize:12, color:'var(--muted)', whiteSpace:'nowrap' }}>
+          {serverMode && pagination ? `${pagination.total} leads` : `${filtered.length} leads`}
+        </span>
         {hasActiveFilters && (
           <button className="btn btn-ghost btn-sm" type="button" onClick={resetFilters}>
             Reset filters
@@ -235,6 +288,29 @@ export default function LeadsTable({ leads = [], loading, onView, onDelete, extr
           </>
         )}
       </div>
+      {serverMode && pagination && pagination.pages > 1 && (
+        <div className="dashboard-split-row" style={{ marginTop:12 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            type="button"
+            disabled={pagination.page <= 1}
+            onClick={() => updateServerQuery({ page: pagination.page - 1 })}
+          >
+            Previous
+          </button>
+          <span style={{ fontSize:12, color:'var(--muted)' }}>
+            Page {pagination.page} of {pagination.pages}
+          </span>
+          <button
+            className="btn btn-ghost btn-sm"
+            type="button"
+            disabled={pagination.page >= pagination.pages}
+            onClick={() => updateServerQuery({ page: pagination.page + 1 })}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div> 
   )
 }

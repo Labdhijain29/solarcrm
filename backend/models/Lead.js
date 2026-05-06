@@ -10,6 +10,7 @@ const fileAssetSchema = new mongoose.Schema({
   fileKey: { type: String, trim: true, default: '' },
   provider: { type: String, trim: true, default: '' },
   resourceType: { type: String, trim: true, default: '' },
+  deliveryType: { type: String, trim: true, default: '' },
   originalName: { type: String, trim: true, default: '' },
   mimeType: { type: String, trim: true, default: '' },
   size: { type: Number, default: 0 },

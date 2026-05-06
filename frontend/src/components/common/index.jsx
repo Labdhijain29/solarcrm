@@ -83,10 +83,11 @@ export function LeadAvatar({ name, size = 36 }) {
   )
 }
 
-export function MetricCard({ icon, label, value, change, changeColor }) {
+export function MetricCard({ icon, label, value, change, changeColor, onClick }) {
   const isElement = isValidElement(icon)
+  const Component = onClick ? 'button' : 'div'
   return (
-    <div className="metric-card">
+    <Component type={onClick ? 'button' : undefined} className={`metric-card ${onClick ? 'metric-card-clickable' : ''}`} onClick={onClick}>
       {!isElement && <div style={{ position: 'absolute', right: -8, top: -8, fontSize: 72, opacity: .05 }}>{icon}</div>}
       <div style={{ width: 44, height: 44, borderRadius: 12, background: `rgba(245,158,11,.1)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 12 }}>
         {icon}
@@ -96,7 +97,7 @@ export function MetricCard({ icon, label, value, change, changeColor }) {
       {change && (
         <div style={{ fontSize: 12, marginTop: 6, color: changeColor || 'var(--muted)' }}>{change}</div>
       )}
-    </div>
+    </Component>
   )
 }
 

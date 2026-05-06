@@ -45,6 +45,22 @@ const buildFolder = async (folder) => {
     .join('/');
 };
 
+const getUploadResourceType = (file, options = {}) => {
+  if (options.resourceType) return options.resourceType;
+
+  const mimeType = String(file?.mimetype || '').toLowerCase();
+  const fileName = String(file?.originalname || '').toLowerCase();
+  const isDocument = (
+    mimeType === 'application/pdf'
+    || mimeType === 'application/msword'
+    || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    || /\.(pdf|doc|docx)$/.test(fileName)
+  );
+
+  if (isDocument) return 'raw';
+  return 'auto';
+};
+
 const upload = async (file, options = {}) => {
   if (!file?.buffer) {
     const error = new Error('No file buffer found for upload.');
@@ -53,11 +69,14 @@ const upload = async (file, options = {}) => {
   }
 
   const folder = await buildFolder(options.folder);
+  const resourceType = getUploadResourceType(file, options);
+  const deliveryType = options.type || (resourceType === 'raw' ? 'private' : undefined);
 
   return new Promise((resolve, reject) => {
   const uploadStream = cloudinary.uploader.upload_stream(
     {
-      resource_type: 'auto',
+      resource_type: resourceType,
+      ...(deliveryType ? { type: deliveryType } : {}),
       folder,
       use_filename: true,
       unique_filename: true,
@@ -74,6 +93,7 @@ const upload = async (file, options = {}) => {
         key: result.public_id,
         provider: 'cloudinary',
         resourceType: result.resource_type,
+        deliveryType: result.type || deliveryType || 'upload',
       });
     }
   );
@@ -96,9 +116,24 @@ const destroy = async (key) => {
   return fulfilled?.value || null;
 };
 
-const getUrl = async (key) => {
+const getUrl = async (key, options = {}) => {
   if (!key) return '';
   await getConfig();
+
+  if (options.signedDownload) {
+    const publicId = String(key);
+    const extensionMatch = publicId.match(/\.([a-zA-Z0-9]+)$/);
+    const format = extensionMatch?.[1] || options.format || '';
+    const expiresAt = options.expiresAt || Math.floor(Date.now() / 1000) + 60 * 60;
+
+    return cloudinary.utils.private_download_url(publicId, '', {
+      resource_type: options.resourceType || 'raw',
+      type: options.type || 'upload',
+      expires_at: expiresAt,
+      ...(!extensionMatch && format ? { format } : {}),
+    });
+  }
+
   return cloudinary.url(key, { secure: true });
 };
 
