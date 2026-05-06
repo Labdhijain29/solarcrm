@@ -10,7 +10,7 @@ const buildPersonalLeadQuery = (user) => {
   const query = {};
   const stageAccess = ROLE_STAGE_MAP[user.role];
 
-  if (['Manager', 'Sales Manager'].includes(user.role)) {
+  if (['Manager', 'Sales Manager', 'Sales Executive'].includes(user.role)) {
     return {
       $or: [
         { assignedTo: user._id },

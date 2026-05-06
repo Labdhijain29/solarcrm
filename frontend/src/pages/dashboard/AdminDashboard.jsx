@@ -1,22 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FaBell, FaCheckCircle, FaClipboardList, FaCog, FaTasks, FaUsers, FaWarehouse } from 'react-icons/fa'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dashboardAPI, enquiriesAPI, leadsAPI, usersAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
+import LeadModal from '../../components/dashboard/LeadModal'
+import { useAuthStore } from '../../store'
 import { getCitiesForState, STAGE_COLORS, STATE_OPTIONS } from '../../utils/constants'
 
 const TT_STYLE = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, color:'var(--text)' }
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
+const CAPITALIZED_ENQUIRY_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 export default function AdminDashboard() {
+  const { user } = useAuthStore()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [stats, setStats] = useState(null)
   const [activity, setActivity] = useState([])
   const [leads, setLeads] = useState([])
   const [enquiries, setEnquiries] = useState([])
   const [users, setUsers] = useState([])
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState(searchParams.get('tab') || 'overview')
+  const [selectedLead, setSelectedLead] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editingEnquiry, setEditingEnquiry] = useState(null)
   const [editForm, setEditForm] = useState({
@@ -56,6 +63,27 @@ export default function AdminDashboard() {
     loadDashboard()
   }, [])
 
+  useEffect(() => {
+    const nextTab = searchParams.get('tab')
+    if (nextTab && nextTab !== tab) setTab(nextTab)
+  }, [searchParams, tab])
+
+  const selectTab = (nextTab) => {
+    setTab(nextTab)
+    if (nextTab === 'overview') {
+      setSearchParams({})
+      return
+    }
+    setSearchParams({ tab: nextTab })
+  }
+
+  const viewLead = (lead) => {
+    setSelectedLead(lead)
+    leadsAPI.getOne(lead._id)
+      .then((response) => setSelectedLead(response.data.data))
+      .catch(() => setSelectedLead(lead))
+  }
+
   const { summary, stageData, sourceData, monthlyData } = stats || {}
 
   const enquiryStats = useMemo(() => ({
@@ -90,9 +118,10 @@ export default function AdminDashboard() {
   }
 
   const updateEnquiryField = (key, value) => {
+    const nextValue = CAPITALIZED_ENQUIRY_FIELDS.has(key) ? capitalizeFirstLetter(value) : value
     setEditForm((prev) => {
-      if (key === 'state') return { ...prev, state: value, city: '' }
-      return { ...prev, [key]: value }
+      if (key === 'state') return { ...prev, state: nextValue, city: '' }
+      return { ...prev, [key]: nextValue }
     })
   }
 
@@ -117,7 +146,7 @@ export default function AdminDashboard() {
           ['leads', 'Leads'],
           ['analytics', 'Analytics'],
         ].map(([key, label]) => (
-          <button key={key} className={`crm-tab ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
+          <button key={key} className={`crm-tab ${tab === key ? 'active' : ''}`} onClick={() => selectTab(key)}>
             {label}
           </button>
         ))}
@@ -246,7 +275,7 @@ export default function AdminDashboard() {
 
       {tab === 'leads' && (
         <div className="crm-card" style={{ animation:'fadeIn .3s ease' }}>
-          <LeadsTable leads={leads} loading={false} />
+          <LeadsTable leads={leads} loading={false} onView={viewLead} />
         </div>
       )}
 
@@ -376,6 +405,15 @@ export default function AdminDashboard() {
             </button>
           </div>
         </div>
+      )}
+
+      {selectedLead && (
+        <LeadModal
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onUpdated={loadDashboard}
+          currentUser={user}
+        />
       )}
     </div>
   )

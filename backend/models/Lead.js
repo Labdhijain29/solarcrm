@@ -25,6 +25,7 @@ const historySchema = new mongoose.Schema({
 }, { _id: false });
 
 const leadSchema = new mongoose.Schema({
+  leadId: { type: Number, unique: true, sparse: true, index: true },
   // ─── Customer Info ──────────────────────────────────────────
   name: { type: String, required: [true, 'Customer name is required'], trim: true },
   phone: { type: String, required: [true, 'Phone is required'], trim: true },
@@ -138,6 +139,7 @@ const leadSchema = new mongoose.Schema({
     earthingPhotoFile: fileAssetSchema,
     columnConcretePhotoFile: fileAssetSchema,
     panelNumber: { type: String, trim: true, default: '' },
+    modulePanelNumbers: [{ type: String, trim: true }],
     inverterNumber: { type: String, trim: true, default: '' },
     brand: { type: String, trim: true, default: '' },
     customerShortVideoName: { type: String, trim: true, default: '' },

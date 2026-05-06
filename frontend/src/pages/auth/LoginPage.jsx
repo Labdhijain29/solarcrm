@@ -46,6 +46,18 @@ const emptyRegisterForm = {
 
 const normalizeIndianPhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
+const CAPITALIZED_REGISTER_FIELDS = new Set([
+  'name',
+  'permanentAddress',
+  'address',
+  'state',
+  'city',
+  'franchiseName',
+  'franchiseState',
+  'franchiseCity',
+  'franchiseSubDistrict',
+])
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const getApiErrorMessage = (err, fallback = 'Request failed') => {
   const firstValidationError = err.response?.data?.errors?.[0]?.message
   return firstValidationError || err.response?.data?.message || err.message || fallback
@@ -75,12 +87,13 @@ export default function LoginPage() {
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm)
 
   const setRegisterField = (key, value) => {
+    const nextValue = CAPITALIZED_REGISTER_FIELDS.has(key) ? capitalizeFirstLetter(value) : value
     setRegisterForm((prev) => {
       if (key === 'state') {
-        return { ...prev, state: value, city: '' }
+        return { ...prev, state: nextValue, city: '' }
       }
       if (key === 'franchiseEnabled') {
-        if (value) return { ...prev, franchiseEnabled: true }
+        if (nextValue) return { ...prev, franchiseEnabled: true }
         return {
           ...prev,
           franchiseEnabled: false,
@@ -91,12 +104,12 @@ export default function LoginPage() {
         }
       }
       if (key === 'franchiseState') {
-        return { ...prev, franchiseState: value, franchiseCity: '', franchiseSubDistrict: '' }
+        return { ...prev, franchiseState: nextValue, franchiseCity: '', franchiseSubDistrict: '' }
       }
       if (key === 'franchiseCity') {
-        return { ...prev, franchiseCity: value, franchiseSubDistrict: '' }
+        return { ...prev, franchiseCity: nextValue, franchiseSubDistrict: '' }
       }
-      return { ...prev, [key]: value }
+      return { ...prev, [key]: nextValue }
     })
   }
 

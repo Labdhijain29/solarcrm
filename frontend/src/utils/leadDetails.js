@@ -54,7 +54,7 @@ export const getLeadViewSections = (lead) => {
   )
 
   const overview = [
-    ['ID', lead?._id?.slice(-8) || lead?.id || '-'],
+    ['ID', lead?.leadId || lead?._id?.slice(-8) || lead?.id || '-'],
     ['Customer', lead?.name || '-'],
     ['Phone', lead?.phone || '-'],
     ['Email', lead?.email || '-'],
@@ -110,6 +110,12 @@ export const getLeadViewSections = (lead) => {
     ['Application ID', lead?.loanData?.applicationId || '-'],
     ['Panel Photo', lead?.installationData?.panelPhotoName || '-'],
     ['Panel Number', lead?.installationData?.panelNumber || '-'],
+    ['Module Panel No. 1', lead?.installationData?.modulePanelNumbers?.[0] || '-'],
+    ['Module Panel No. 2', lead?.installationData?.modulePanelNumbers?.[1] || '-'],
+    ['Module Panel No. 3', lead?.installationData?.modulePanelNumbers?.[2] || '-'],
+    ['Module Panel No. 4', lead?.installationData?.modulePanelNumbers?.[3] || '-'],
+    ['Module Panel No. 5', lead?.installationData?.modulePanelNumbers?.[4] || '-'],
+    ['Module Panel No. 6', lead?.installationData?.modulePanelNumbers?.[5] || '-'],
     ['Inverter Number', lead?.installationData?.inverterNumber || '-'],
     ['Inverter Brand', lead?.installationData?.brand || '-'],
     ['Inverter AC+DC Box Photo', lead?.installationData?.inverterBoxPhotoName || '-'],

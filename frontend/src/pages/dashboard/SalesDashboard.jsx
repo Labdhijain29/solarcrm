@@ -14,7 +14,7 @@ const PHONE_REGEX = /^[6-9]\d{9}$/
 const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
-const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'permanentAddress', 'address', 'jobTitle', 'branch', 'brand', 'other'])
+const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'permanentAddress', 'address', 'jobTitle', 'branch', 'brand', 'other', 'generatedThrough'])
 const canEditBeforeApproval = (lead, role) => (
   ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(role) &&
   lead?.currentStage === 'Lead' &&

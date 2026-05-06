@@ -11,6 +11,7 @@ const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
 const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
+const MODULE_PANEL_COUNT = 6
 const EDITABLE_PRE_APPROVAL_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager']
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'other', 'generatedThrough'])
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
@@ -86,6 +87,7 @@ export default function LeadModal({
     earthingPhoto: null,
     columnConcretePhoto: null,
     panelNumber: lead.installationData?.panelNumber || '',
+    modulePanelNumbers: Array.from({ length: MODULE_PANEL_COUNT }, (_, index) => lead.installationData?.modulePanelNumbers?.[index] || ''),
     inverterNumber: lead.installationData?.inverterNumber || '',
     brand: lead.installationData?.brand || '',
     customerShortVideo: null,
@@ -219,8 +221,8 @@ export default function LeadModal({
       return
     }
     if (canAddInstallationData) {
-      if (!/^\d{16}$/.test(stageForm.panelNumber.trim())) {
-        toast.error('Panel number must be exactly 16 digits.')
+      if (!stageForm.panelNumber.trim()) {
+        toast.error('Panel number is required.')
         return
       }
       if (!stageForm.inverterNumber.trim()) {
@@ -248,6 +250,7 @@ export default function LeadModal({
         stageData.earthingPhotoName = stageForm.earthingPhoto?.name || lead.installationData?.earthingPhotoName || ''
         stageData.columnConcretePhotoName = stageForm.columnConcretePhoto?.name || lead.installationData?.columnConcretePhotoName || ''
         stageData.panelNumber = stageForm.panelNumber.trim()
+        stageData.modulePanelNumbers = stageForm.modulePanelNumbers.map((item) => item.trim())
         stageData.inverterNumber = stageForm.inverterNumber.trim()
         stageData.brand = stageForm.brand.trim()
         stageData.customerShortVideoName = stageForm.customerShortVideo?.name || lead.installationData?.customerShortVideoName || ''
@@ -801,8 +804,24 @@ export default function LeadModal({
                   </div>
                   <div>
                     <label className="form-label">Panel Number</label>
-                    <input className="crm-input" inputMode="numeric" maxLength={16} value={stageForm.panelNumber} onChange={(e) => setStageForm((prev) => ({ ...prev, panelNumber: e.target.value.replace(/\D/g, '').slice(0, 16) }))} placeholder="16 digit panel number" />
+                    <input className="crm-input" maxLength={32} value={stageForm.panelNumber} onChange={(e) => setStageForm((prev) => ({ ...prev, panelNumber: e.target.value.slice(0, 32) }))} placeholder="Panel number" />
                   </div>
+                  {stageForm.modulePanelNumbers.map((value, index) => (
+                    <div key={`module-panel-${index}`}>
+                      <label className="form-label">Module Panel No. {index + 1}</label>
+                      <input
+                        className="crm-input"
+                        maxLength={32}
+                        value={value}
+                        onChange={(e) => setStageForm((prev) => {
+                          const modulePanelNumbers = [...prev.modulePanelNumbers]
+                          modulePanelNumbers[index] = e.target.value.slice(0, 32)
+                          return { ...prev, modulePanelNumbers }
+                        })}
+                        placeholder={`Module panel no. ${index + 1}`}
+                      />
+                    </div>
+                  ))}
                   <div>
                     <label className="form-label">Inverter Number</label>
                     <input className="crm-input" value={stageForm.inverterNumber} onChange={(e) => setStageForm((prev) => ({ ...prev, inverterNumber: e.target.value }))} placeholder="Unique inverter number" />

@@ -6,6 +6,8 @@ import { SearchableSelect } from '../common'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
+const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city'])
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
 export default function EnquiryForm({ compact = false }) {
   const emptyForm = {
@@ -24,10 +26,11 @@ export default function EnquiryForm({ compact = false }) {
   const [sent, setSent] = useState(false)
 
   const setField = (key, value) => setForm(prev => {
-    if (key === 'state') return { ...prev, state: value, city: '' }
+    const nextValue = CAPITALIZED_FIELDS.has(key) ? capitalizeFirstLetter(value) : value
+    if (key === 'state') return { ...prev, state: nextValue, city: '' }
     if (key === 'contact') return { ...prev, contact: String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10) }
     if (key === 'pincode') return { ...prev, pincode: String(value || '').replace(/\D/g, '').slice(0, 6) }
-    return { ...prev, [key]: value }
+    return { ...prev, [key]: nextValue }
   })
 
   const handleSubmit = async (e) => {

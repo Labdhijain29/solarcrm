@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
 import { FilePreview, StageProgress, StageBadge, StatusBadge, Spinner, PageHeader } from '../../components/common'
@@ -13,13 +13,16 @@ const isAssignableUser = (item, role) => (
   item.isActive !== false &&
   item.approvalStatus !== 'rejected'
 )
+const MODULE_PANEL_COUNT = 6
 
 export default function LeadDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuthStore()
   const [lead, setLead] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [note, setNote] = useState('')
   const [acting, setActing] = useState(false)
   const [nextStageUsers, setNextStageUsers] = useState([])
@@ -32,6 +35,7 @@ export default function LeadDetailPage() {
     earthingPhoto: null,
     columnConcretePhoto: null,
     panelNumber: '',
+    modulePanelNumbers: Array.from({ length: MODULE_PANEL_COUNT }, () => ''),
     inverterNumber: '',
     brand: '',
     customerShortVideo: null,
@@ -42,8 +46,17 @@ export default function LeadDetailPage() {
     subsidyReadingPhoto: null,
   })
 
+  const getBackTarget = () => {
+    if (location.state?.backTo) return location.state.backTo
+    if (user?.role === 'Admin') return '/dashboard/admin?tab=leads'
+    return '/dashboard/leads'
+  }
+
+  const goBack = () => navigate(getBackTarget())
+
   const fetch = () => leadsAPI.getOne(id).then((response) => {
     const nextLead = response.data.data
+    setLoadError('')
     setLead(nextLead)
     setStageForm({
       remark: nextLead.bankData?.remark || '',
@@ -53,6 +66,7 @@ export default function LeadDetailPage() {
       earthingPhoto: null,
       columnConcretePhoto: null,
       panelNumber: nextLead.installationData?.panelNumber || '',
+      modulePanelNumbers: Array.from({ length: MODULE_PANEL_COUNT }, (_, index) => nextLead.installationData?.modulePanelNumbers?.[index] || ''),
       inverterNumber: nextLead.installationData?.inverterNumber || '',
       brand: nextLead.installationData?.brand || '',
       customerShortVideo: null,
@@ -62,7 +76,10 @@ export default function LeadDetailPage() {
       subsidyPhotoTwo: null,
       subsidyReadingPhoto: null,
     })
-  }).catch(() => navigate('/dashboard/leads')).finally(() => setLoading(false))
+  }).catch((error) => {
+    setLead(null)
+    setLoadError(error.response?.data?.message || 'Lead details could not be loaded.')
+  }).finally(() => setLoading(false))
   useEffect(fetch, [id])
 
   const currentLeadStage = lead?.currentStage || ''
@@ -116,7 +133,21 @@ export default function LeadDetailPage() {
   }, [assignmentStage, canApprove, nextStageRole, user?.role])
 
   if (loading) return <Spinner size={48} />
-  if (!lead) return null
+  if (!lead) {
+    return (
+      <div className="dashboard-page" style={{ maxWidth: 900 }}>
+        <PageHeader
+          icon="SUN"
+          title="Lead Details"
+          subtitle={loadError || 'Lead details could not be loaded.'}
+          action={<button className="btn btn-ghost btn-sm" onClick={goBack}>Back</button>}
+        />
+        <div className="crm-card" style={{ color: 'var(--muted)' }}>
+          {loadError || 'Please go back and open the lead again.'}
+        </div>
+      </div>
+    )
+  }
 
   const ci = stageIndex(lead.currentStage)
   const { overview, salesExecutiveFields, stageSpecificFields } = getLeadViewSections(lead)
@@ -172,8 +203,8 @@ export default function LeadDetailPage() {
 
   const doApprove = async () => {
     if (showInstallationField) {
-      if (!/^\d{16}$/.test(stageForm.panelNumber.trim())) {
-        toast.error('Panel number must be exactly 16 digits.')
+      if (!stageForm.panelNumber.trim()) {
+        toast.error('Panel number is required.')
         return
       }
       if (!stageForm.inverterNumber.trim()) {
@@ -201,6 +232,7 @@ export default function LeadDetailPage() {
         stageData.earthingPhotoName = stageForm.earthingPhoto?.name || lead.installationData?.earthingPhotoName || ''
         stageData.columnConcretePhotoName = stageForm.columnConcretePhoto?.name || lead.installationData?.columnConcretePhotoName || ''
         stageData.panelNumber = stageForm.panelNumber.trim()
+        stageData.modulePanelNumbers = stageForm.modulePanelNumbers.map((item) => item.trim())
         stageData.inverterNumber = stageForm.inverterNumber.trim()
         stageData.brand = stageForm.brand.trim()
         stageData.customerShortVideoName = stageForm.customerShortVideo?.name || lead.installationData?.customerShortVideoName || ''
@@ -265,7 +297,7 @@ export default function LeadDetailPage() {
         icon="SUN"
         title={lead.name}
         subtitle={<div style={{ display: 'flex', gap: 8, marginTop: 4 }}><StageBadge stage={lead.currentStage} /><StatusBadge status={lead.status} /></div>}
-        action={<button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)}>Back</button>}
+        action={<button className="btn btn-ghost btn-sm" onClick={goBack}>Back</button>}
       />
 
       <div className="crm-card" style={{ marginBottom: 16 }}>
@@ -353,8 +385,24 @@ export default function LeadDetailPage() {
                   </div>
                   <div>
                     <label className="form-label">Panel Number</label>
-                    <input className="crm-input" inputMode="numeric" maxLength={16} value={stageForm.panelNumber} onChange={(event) => setStageForm((prev) => ({ ...prev, panelNumber: event.target.value.replace(/\D/g, '').slice(0, 16) }))} placeholder="16 digit panel number" />
+                    <input className="crm-input" maxLength={32} value={stageForm.panelNumber} onChange={(event) => setStageForm((prev) => ({ ...prev, panelNumber: event.target.value.slice(0, 32) }))} placeholder="Panel number" />
                   </div>
+                  {stageForm.modulePanelNumbers.map((value, index) => (
+                    <div key={`module-panel-${index}`}>
+                      <label className="form-label">Module Panel No. {index + 1}</label>
+                      <input
+                        className="crm-input"
+                        maxLength={32}
+                        value={value}
+                        onChange={(event) => setStageForm((prev) => {
+                          const modulePanelNumbers = [...prev.modulePanelNumbers]
+                          modulePanelNumbers[index] = event.target.value.slice(0, 32)
+                          return { ...prev, modulePanelNumbers }
+                        })}
+                        placeholder={`Module panel no. ${index + 1}`}
+                      />
+                    </div>
+                  ))}
                   <div>
                     <label className="form-label">Inverter Number</label>
                     <input className="crm-input" value={stageForm.inverterNumber} onChange={(event) => setStageForm((prev) => ({ ...prev, inverterNumber: event.target.value }))} placeholder="Unique inverter number" />

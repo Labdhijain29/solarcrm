@@ -52,6 +52,8 @@ const getDocumentName = (filePath) => {
 const detailItems = (items) => items.filter(([, value]) => value !== '-' && value !== '' && value !== null && value !== undefined)
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const normalizeIndianPhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
+const CAPITALIZED_PROFILE_FIELDS = new Set(['name', 'jobTitle', 'permanentAddress', 'address', 'state', 'city'])
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
 function UserDetailsModal({ user, onClose }) {
   const documentFile = user.documentsFile || user.documents
@@ -632,9 +634,10 @@ export function ProfilePage() {
   }, [user])
 
   const updateProfileField = (key, value) => {
+    const nextValue = CAPITALIZED_PROFILE_FIELDS.has(key) ? capitalizeFirstLetter(value) : value
     setProfileForm((prev) => {
-      if (key === 'state') return { ...prev, state: value, city: '' }
-      return { ...prev, [key]: value }
+      if (key === 'state') return { ...prev, state: nextValue, city: '' }
+      return { ...prev, [key]: nextValue }
     })
   }
 

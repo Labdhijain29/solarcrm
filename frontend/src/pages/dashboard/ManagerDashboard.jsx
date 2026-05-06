@@ -606,8 +606,8 @@ export function StageDashboard({ roleOverride }) {
 
   const savePanelNumber = async (lead) => {
     const panelNumber = String(panelNumbers[lead._id] || '').trim()
-    if (!/^\d{16}$/.test(panelNumber)) {
-      toast.error('Panel number must be exactly 16 digits.')
+    if (!panelNumber) {
+      toast.error('Panel number is required.')
       return
     }
 
@@ -639,12 +639,11 @@ export function StageDashboard({ roleOverride }) {
         )}
         <input
           className="crm-input"
-          inputMode="numeric"
-          maxLength={16}
+          maxLength={32}
           value={panelNumbers[lead._id] || ''}
           onChange={(event) => setPanelNumbers((prev) => ({
             ...prev,
-            [lead._id]: event.target.value.replace(/\D/g, '').slice(0, 16),
+            [lead._id]: event.target.value.slice(0, 32),
           }))}
           placeholder="Panel no."
           style={{ width:140, height:32, fontSize:12 }}

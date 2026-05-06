@@ -1,4 +1,5 @@
 const Lead = require('../models/Lead');
+const Counter = require('../models/Counter');
 const Enquiry = require('../models/Enquiry');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
@@ -164,6 +165,11 @@ const isSalesExecutiveLead = (payload = {}) => {
   return Array.isArray(payload.tags) && payload.tags.includes('sales-executive');
 };
 
+const normalizeModulePanelNumbers = (value) => {
+  const items = Array.isArray(value) ? value : [];
+  return items.slice(0, 6).map((item) => String(item || '').trim());
+};
+
 const ensureUniqueIvrsNo = async (ivrsNo, excludeId = null) => {
   const normalizedIvrsNo = String(ivrsNo || '').trim();
   if (!normalizedIvrsNo) return;
@@ -183,6 +189,33 @@ const getSalesExecutiveManager = async () => {
   return User.findOne({ role: 'Manager', isActive: { $ne: false }, approvalStatus: { $ne: 'rejected' } }).sort({ createdAt: 1 });
 };
 
+const getNextLeadId = async () => {
+  let counter = await Counter.findById('leadId');
+  if (!counter) {
+    const maxLead = await Lead.findOne({ leadId: { $exists: true, $ne: null } })
+      .sort({ leadId: -1 })
+      .select('leadId')
+      .lean();
+
+    try {
+      counter = await Counter.create({
+        _id: 'leadId',
+        seq: Math.max(Number(maxLead?.leadId || 999), 999),
+      });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+    }
+  }
+
+  const updated = await Counter.findByIdAndUpdate(
+    'leadId',
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+
+  return Math.max(Number(updated.seq || 0), 1000);
+};
+
 const assignableUserFilter = (extra = {}) => ({
   ...extra,
   isActive: { $ne: false },
@@ -197,6 +230,14 @@ const canUserActOnLead = (user, lead) => {
   if (user.role === 'Admin') return true;
   const userStage = ROLE_STAGE_MAP[user.role];
   return userStage === lead.currentStage && String(lead.assignedTo || '') === String(user._id);
+};
+
+const canUserViewLead = (user, lead) => {
+  if (user.role === 'Admin') return true;
+  const userId = String(user._id);
+  if (String(lead.assignedTo?._id || lead.assignedTo || '') === userId) return true;
+  if (String(lead.createdBy?._id || lead.createdBy || '') === userId) return true;
+  return (lead.history || []).some((item) => String(item.performedBy || '') === userId);
 };
 
 const ensureUserCanActOnLead = (user, lead, action) => {
@@ -283,8 +324,15 @@ const buildQuery = (query, user) => {
   }
 
   if (salesExecutiveOnly) {
-    if (role !== 'Admin') q.assignedTo = user._id;
-    q.tags = 'sales-executive';
+    if (role !== 'Admin') {
+      q.$or = [
+        { assignedTo: user._id },
+        { createdBy: user._id },
+        { history: { $elemMatch: { performedBy: user._id } } }
+      ];
+      delete q.assignedTo;
+    }
+    if (role !== 'Sales Executive') q.tags = 'sales-executive';
     delete q.currentStage;
   }
 
@@ -307,6 +355,7 @@ const buildQuery = (query, user) => {
   if (query.generatedThrough) q.generatedThrough = new RegExp(query.generatedThrough, 'i');
   if (query.city) q.city = new RegExp(query.city, 'i');
   if (query.ivrsNo) q.ivrsNo = new RegExp(query.ivrsNo, 'i');
+  if (query.leadId) q.leadId = Number(query.leadId);
   if (query.branch) q.branch = new RegExp(query.branch, 'i');
   if (query.assignedTo && (role === 'Admin' || String(query.assignedTo) === String(user._id))) q.assignedTo = query.assignedTo;
   if (query.priority) q.priority = query.priority;
@@ -320,6 +369,9 @@ const buildQuery = (query, user) => {
       { generatedThrough: new RegExp(query.search, 'i') },
       { ivrsNo: new RegExp(query.search, 'i') },
     ];
+    if (/^\d+$/.test(String(query.search))) {
+      q.$or.push({ leadId: Number(query.search) });
+    }
   }
 
   return q;
@@ -337,6 +389,8 @@ exports.getLeads = async (req, res) => {
     const sortMap = {
       latest: { createdAt: -1 },
       oldest: { createdAt: 1 },
+      'id-asc': { leadId: 1, createdAt: -1 },
+      'id-desc': { leadId: -1, createdAt: -1 },
       'name-asc': { name: 1, createdAt: -1 },
       'name-desc': { name: -1, createdAt: -1 },
       'ivrs-asc': { ivrsNo: 1, createdAt: -1 },
@@ -378,7 +432,7 @@ exports.getLead = async (req, res) => {
       .populate('createdBy', 'name role');
 
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
-    if (req.user.role !== 'Admin' && String(lead.assignedTo?._id || lead.assignedTo || '') !== String(req.user._id)) {
+    if (!canUserViewLead(req.user, lead)) {
       return res.status(403).json({ success: false, message: 'You can only view leads assigned to you.' });
     }
     res.json({ success: true, data: lead });
@@ -412,6 +466,7 @@ exports.createLead = async (req, res) => {
     }
 
     const lead = await Lead.create({
+      leadId: await getNextLeadId(),
       name, phone, email, address, city, state, pincode, branch, ivrsNo,
       source, generatedThrough, capacity, roofType, monthlyBill, notes, priority, tags,
       salesExecutiveData: isSalesExecutiveLead(req.body) ? salesExecutiveData || {} : undefined,
@@ -489,10 +544,11 @@ exports.updateLead = async (req, res) => {
 
     if (req.body.installationData?.panelNumber !== undefined) {
       const panelNumber = String(req.body.installationData.panelNumber || '').trim();
-      if (panelNumber && !/^\d{16}$/.test(panelNumber)) {
-        return res.status(400).json({ success: false, message: 'Panel number must be exactly 16 digits.' });
-      }
       req.body.installationData.panelNumber = panelNumber;
+    }
+
+    if (req.body.installationData?.modulePanelNumbers !== undefined) {
+      req.body.installationData.modulePanelNumbers = normalizeModulePanelNumbers(req.body.installationData.modulePanelNumbers);
     }
 
     if (req.body.installationData?.inverterNumber !== undefined) {
@@ -669,14 +725,15 @@ exports.approveLead = async (req, res) => {
       const panelNumber = String(stageData.panelNumber || '').trim();
       const inverterNumber = String(stageData.inverterNumber || '').trim();
 
-      if (!/^\d{16}$/.test(panelNumber)) {
-        return res.status(400).json({ success: false, message: 'Panel number must be exactly 16 digits.' });
+      if (!panelNumber) {
+        return res.status(400).json({ success: false, message: 'Panel number is required for installation approval.' });
       }
       if (!inverterNumber) {
         return res.status(400).json({ success: false, message: 'Inverter number is required for installation approval.' });
       }
 
       stageData.panelNumber = panelNumber;
+      stageData.modulePanelNumbers = normalizeModulePanelNumbers(stageData.modulePanelNumbers);
       stageData.inverterNumber = inverterNumber;
       stageData.installedAt = new Date();
       stageData.completedAt = new Date();

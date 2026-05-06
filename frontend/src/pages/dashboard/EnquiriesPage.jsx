@@ -9,6 +9,8 @@ import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
+const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
+const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const emptyEditForm = {
   name: '',
   contact: '',
@@ -91,6 +93,7 @@ export default function EnquiriesPage() {
     if (key === 'state') return { ...prev, state: value, city: '' }
     if (key === 'contact') return { ...prev, contact: String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10) }
     if (key === 'pincode') return { ...prev, pincode: String(value || '').replace(/\D/g, '').slice(0, 6) }
+    if (CAPITALIZED_FIELDS.has(key)) return { ...prev, [key]: capitalizeFirstLetter(value) }
     return { ...prev, [key]: value }
   })
 
