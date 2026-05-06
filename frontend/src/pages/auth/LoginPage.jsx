@@ -149,6 +149,7 @@ export default function LoginPage() {
     }
     setRegistering(true)
     try {
+      const documentFile = registerForm.documents
       const formData = new FormData()
       formData.append('name', registerForm.name)
       formData.append('email', normalizedEmail)
@@ -165,13 +166,20 @@ export default function LoginPage() {
       formData.append('franchiseState', registerForm.franchiseState)
       formData.append('franchiseCity', registerForm.franchiseCity)
       formData.append('franchiseSubDistrict', registerForm.franchiseSubDistrict)
-      if (registerForm.documents) {
-        formData.append('documents', registerForm.documents)
-      }
       formData.append('dateOfJoining', registerForm.dateOfJoining)
       formData.append('role', registerForm.role)
 
-      await authAPI.register(formData)
+      const response = await authAPI.register(formData)
+      const userId = response.data?.data?._id
+      const uploadToken = response.data?.documentUploadToken
+      if (documentFile && userId && uploadToken) {
+        const documentData = new FormData()
+        documentData.append('documents', documentFile)
+        documentData.append('uploadToken', uploadToken)
+        authAPI.uploadRegistrationDocument(userId, documentData).catch(() => {
+          toast.error('Registration saved, but document upload failed. Admin can upload it later.')
+        })
+      }
       setRegisterForm(emptyRegisterForm)
       setMode('login')
       setEmail(normalizedEmail)

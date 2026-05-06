@@ -43,6 +43,8 @@ const userSchema = new mongoose.Schema({
   resume: { type: String, trim: true },
   documents: { type: String, trim: true },
   documentsFile: fileAssetSchema,
+  documentsUploadStatus: { type: String, enum: ['none', 'processing', 'completed', 'failed'], default: 'none' },
+  documentsUploadError: { type: String, trim: true, default: '' },
   dateOfJoining: { type: Date },
   role: { type: String, enum: ROLES, required: [true, 'Role is required'] },
   isActive: { type: Boolean, default: true },

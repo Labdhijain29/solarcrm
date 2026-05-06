@@ -140,12 +140,20 @@ function SalesExecutiveForm({ onClose, onCreated }) {
     payload.append('pincode', formData.pincode)
     payload.append('jobTitle', formData.jobTitle.trim() || 'Sales Executive')
     payload.append('dateOfJoining', formData.dateOfJoining)
-    if (formData.documents) payload.append('documents', formData.documents)
+    const documentFile = formData.documents
 
     try {
       setSubmitting(true)
-      await usersAPI.create(payload)
-      toast.success('Sales Executive user created with uploaded document.')
+      const response = await usersAPI.create(payload)
+      const userId = response.data?.data?._id
+      if (documentFile && userId) {
+        const documentPayload = new FormData()
+        documentPayload.append('documents', documentFile)
+        usersAPI.update(userId, documentPayload)
+          .then(onCreated)
+          .catch(() => toast.error('User created, but document upload failed. You can upload it from Users.'))
+      }
+      toast.success(documentFile ? 'Sales Executive user created. Document upload is processing.' : 'Sales Executive user created.')
       onCreated()
       setFormData(INITIAL_FORM)
       onClose()

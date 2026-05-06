@@ -61,6 +61,11 @@ export const authAPI = {
     data,
     formDataConfig(data)
   ),
+  uploadRegistrationDocument: (id, data) => api.post(
+    `/auth/register/${id}/document`,
+    data,
+    formDataConfig(data)
+  ),
   getMe: () => api.get('/auth/me'),
   changePassword: (data) => api.put('/auth/change-password', data),
   logout: () => api.post('/auth/logout'),

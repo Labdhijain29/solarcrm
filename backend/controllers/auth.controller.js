@@ -4,6 +4,11 @@ const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
 const { uploadFileAsset, withFreshFileUrl } = require('../services/storage/fileAsset');
 
 const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
+const signDocumentUploadToken = (id) => jwt.sign(
+  { id, purpose: 'registration-document-upload' },
+  process.env.JWT_SECRET,
+  { expiresIn: '30m' }
+);
 
 const buildSessionUser = async (user) => ({
   _id: user._id,
@@ -26,10 +31,39 @@ const buildSessionUser = async (user) => ({
   resume: user.resume,
   documents: user.documents,
   documentsFile: await withFreshFileUrl(user.documentsFile),
+  documentsUploadStatus: user.documentsUploadStatus,
+  documentsUploadError: user.documentsUploadError,
   dateOfJoining: user.dateOfJoining,
   stageAccess: ROLE_STAGE_MAP[user.role],
   lastLogin: user.lastLogin,
 });
+
+const updateRegistrationDocument = async (userId, file) => {
+  const uploadedDocument = await uploadFileAsset(file, { folder: 'users/registrations' });
+  await User.findByIdAndUpdate(userId, {
+    documents: uploadedDocument.fileUrl,
+    documentsFile: uploadedDocument,
+    documentsUploadStatus: 'completed',
+    documentsUploadError: '',
+  });
+  return uploadedDocument;
+};
+
+const queueRegistrationDocumentUpload = (userId, file) => {
+  if (!file) return;
+
+  setImmediate(async () => {
+    try {
+      await updateRegistrationDocument(userId, file);
+    } catch (error) {
+      await User.findByIdAndUpdate(userId, {
+        documentsUploadStatus: 'failed',
+        documentsUploadError: String(error.message || 'Document upload failed').slice(0, 500),
+      }).catch(() => {});
+      console.error('Registration document upload failed:', error);
+    }
+  });
+};
 
 const SERVICE_MANAGER_DEMO = {
   name: 'Vikram Service',
@@ -121,10 +155,6 @@ exports.register = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already in use' });
     }
 
-    const uploadedDocument = req.file
-      ? await uploadFileAsset(req.file, { folder: 'users/registrations' })
-      : null;
-
     const user = await User.create({
       name,
       email: normalizedEmail,
@@ -144,8 +174,8 @@ exports.register = async (req, res) => {
       franchiseSubDistrict,
       jobTitle,
       resume,
-      documents: uploadedDocument?.fileUrl || documents,
-      documentsFile: uploadedDocument || undefined,
+      documents: req.file?.originalname || documents,
+      documentsUploadStatus: req.file ? 'processing' : 'none',
       dateOfJoining: dateOfJoining || undefined,
       isActive: false,
       approvalStatus: 'pending',
@@ -157,15 +187,63 @@ exports.register = async (req, res) => {
       { $push: { notifications: { message: `New registration pending approval: ${user.name} (${user.role})` } } }
     );
 
+    queueRegistrationDocumentUpload(user._id, req.file);
+
     res.status(201).json({
       success: true,
       message: 'Registration submitted. Please wait for admin approval before logging in.',
       data: {
         ...safe.toObject(),
         documentsFile: await withFreshFileUrl(safe.documentsFile),
-      }
+      },
+      documentUploadToken: signDocumentUploadToken(user._id),
     });
   } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.uploadRegistrationDocumentFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Document file is required.' });
+    }
+
+    const decoded = jwt.verify(req.body.uploadToken, process.env.JWT_SECRET);
+    if (
+      decoded.purpose !== 'registration-document-upload'
+      || String(decoded.id) !== String(req.params.id)
+    ) {
+      return res.status(403).json({ success: false, message: 'Invalid document upload token.' });
+    }
+
+    const user = await User.findById(decoded.id).select('-password');
+    if (!user) return res.status(404).json({ success: false, message: 'Registration not found.' });
+    if (user.approvalStatus !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Document upload is only available while registration is pending.' });
+    }
+
+    await User.findByIdAndUpdate(user._id, {
+      documents: req.file.originalname,
+      documentsUploadStatus: 'processing',
+      documentsUploadError: '',
+    });
+
+    const uploadedDocument = await updateRegistrationDocument(user._id, req.file);
+
+    res.json({
+      success: true,
+      message: 'Registration document uploaded.',
+      data: {
+        documents: uploadedDocument.fileUrl,
+        documentsFile: await withFreshFileUrl(uploadedDocument),
+        documentsUploadStatus: 'completed',
+      },
+    });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+      return res.status(403).json({ success: false, message: 'Invalid or expired document upload token.' });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };

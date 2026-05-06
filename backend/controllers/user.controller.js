@@ -38,6 +38,33 @@ const buildSessionUser = async (user) => ({
   lastLogin: user.lastLogin,
 });
 
+const updateUserDocument = async (userId, file) => {
+  const uploadedDocument = await uploadFileAsset(file, { folder: 'users/registrations' });
+  await User.findByIdAndUpdate(userId, {
+    documents: uploadedDocument.fileUrl,
+    documentsFile: uploadedDocument,
+    documentsUploadStatus: 'completed',
+    documentsUploadError: '',
+  });
+  return uploadedDocument;
+};
+
+const queueUserDocumentUpload = (userId, file) => {
+  if (!file) return;
+
+  setImmediate(async () => {
+    try {
+      await updateUserDocument(userId, file);
+    } catch (error) {
+      await User.findByIdAndUpdate(userId, {
+        documentsUploadStatus: 'failed',
+        documentsUploadError: String(error.message || 'Document upload failed').slice(0, 500),
+      }).catch(() => {});
+      console.error('User document upload failed:', error);
+    }
+  });
+};
+
 exports.getUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
@@ -96,17 +123,15 @@ exports.createUser = async (req, res) => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
-    const uploadedDocument = req.file
-      ? await uploadFileAsset(req.file, { folder: 'users/registrations' })
-      : null;
     const user = await User.create({
       name, email: normalizedEmail, password, role, phone, alternateContact,
       permanentAddress, address, state, city, pincode, jobTitle,
       resume,
-      documents: uploadedDocument?.fileUrl || documents,
-      documentsFile: uploadedDocument || undefined,
+      documents: req.file?.originalname || documents,
+      documentsUploadStatus: req.file ? 'processing' : 'none',
       dateOfJoining: dateOfJoining || undefined
     });
+    queueUserDocumentUpload(user._id, req.file);
     const safe = await User.findById(user._id).select('-password');
     res.status(201).json({ success: true, message: 'User created', data: await serializeUser(safe) });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
