@@ -74,6 +74,7 @@ export const leadsAPI = {
   update: (id, data) => api.put(`/leads/${id}`, data, formDataConfig(data)),
   approve: (id, data) => api.post(`/leads/${id}/approve`, data, formDataConfig(data)),
   reject: (id, data) => api.post(`/leads/${id}/reject`, data),
+  transfer: (id, data) => api.post(`/leads/${id}/transfer`, data),
   addNote: (id, note) => api.post(`/leads/${id}/note`, { note }),
   delete: (id) => api.delete(`/leads/${id}`),
 }
@@ -81,6 +82,7 @@ export const leadsAPI = {
 // ─── USERS ─────────────────────────────────────────────────
 export const usersAPI = {
   getAll: () => api.get('/users'),
+  getAssignable: (params = {}) => api.get('/users/assignable', { params }),
   getOne: (id) => api.get(`/users/${id}`),
   updateMe: (data) => api.put('/users/me', data),
   create: (data) => api.post(

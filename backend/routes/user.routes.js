@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getUsers, getUser, createUser, updateUser, deleteUser,
-  getNotifications, markNotificationsRead, approveUser, rejectUser, updateProfile
+  getNotifications, markNotificationsRead, approveUser, rejectUser, updateProfile, getAssignableUsers
 } = require('../controllers/user.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { uploadRegistrationDocument } = require('../middleware/upload.middleware');
@@ -13,6 +13,7 @@ router.use(protect);
 router.put('/me', updateProfile);
 router.get('/notifications', getNotifications);
 router.put('/notifications/read', markNotificationsRead);
+router.get('/assignable', getAssignableUsers);
 
 router.route('/')
   .get(authorize('Admin', 'Manager'), getUsers)

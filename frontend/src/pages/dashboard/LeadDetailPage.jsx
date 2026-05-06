@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { leadsAPI } from '../../services/api'
+import { leadsAPI, usersAPI } from '../../services/api'
 import { FilePreview, StageProgress, StageBadge, StatusBadge, Spinner, PageHeader } from '../../components/common'
 import { useAuthStore } from '../../store'
-import { canActOnStage, STAGES, stageIndex, formatDate } from '../../utils/constants'
+import { canActOnStage, STAGES, stageIndex, formatDate, ROLE_STAGE_MAP } from '../../utils/constants'
 import { getLeadViewSections } from '../../utils/leadDetails'
 import { hasFileValue } from '../../utils/files'
+
+const isAssignableUser = (item, role) => (
+  item.role === role &&
+  item.isActive !== false &&
+  item.approvalStatus !== 'rejected'
+)
 
 export default function LeadDetailPage() {
   const { id } = useParams()
@@ -16,6 +22,8 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true)
   const [note, setNote] = useState('')
   const [acting, setActing] = useState(false)
+  const [nextStageUsers, setNextStageUsers] = useState([])
+  const [nextAssigneeId, setNextAssigneeId] = useState('')
   const [stageForm, setStageForm] = useState({
     remark: '',
     applicationId: '',
@@ -57,13 +65,61 @@ export default function LeadDetailPage() {
   }).catch(() => navigate('/dashboard/leads')).finally(() => setLoading(false))
   useEffect(fetch, [id])
 
+  const currentLeadStage = lead?.currentStage || ''
+  const isSalesExecutiveLeadForAccess = Array.isArray(lead?.tags) && lead.tags.includes('sales-executive')
+  const blockedSalesExecutiveApproval = isSalesExecutiveLeadForAccess && currentLeadStage === 'Lead' && user?.role === 'Sales Executive'
+  const canAct = Boolean(lead) && canActOnStage(user?.role, currentLeadStage) && !blockedSalesExecutiveApproval
+  const nextStage = STAGES[stageIndex(currentLeadStage) + 1] || ''
+  const isSalesManagerHandoff = currentLeadStage === 'Lead'
+    && (user?.role === 'Sales Manager' || lead?.assignedTo?.role === 'Sales Manager')
+  const nextStageRole = isSalesManagerHandoff
+    ? 'Manager'
+    : Object.keys(ROLE_STAGE_MAP).find((role) => ROLE_STAGE_MAP[role] === nextStage) || ''
+  const assignmentStage = isSalesManagerHandoff ? 'Lead' : nextStage
+  const canApprove = canAct && lead?.status === 'active' && Boolean(nextStage)
+
+  useEffect(() => {
+    if (!canApprove || !nextStageRole) {
+      setNextStageUsers([])
+      setNextAssigneeId('')
+      return
+    }
+
+    let alive = true
+    const loadUsersFallback = () => {
+      if (!['Admin', 'Manager'].includes(user?.role)) return Promise.resolve([])
+      return usersAPI.getAll()
+        .then((response) => (response.data.data || []).filter((item) => isAssignableUser(item, nextStageRole)))
+        .catch(() => [])
+    }
+
+    usersAPI.getAssignable({ role: nextStageRole, stage: assignmentStage })
+      .then(async (response) => {
+        if (!alive) return
+        const users = (response.data.data || []).filter((item) => isAssignableUser(item, nextStageRole))
+        const resolvedUsers = users.length ? users : await loadUsersFallback()
+        setNextStageUsers(resolvedUsers)
+        setNextAssigneeId((prev) => (
+          resolvedUsers.some((item) => item._id === prev) ? prev : resolvedUsers[0]?._id || ''
+        ))
+      })
+      .catch(async () => {
+        if (!alive) return
+        const resolvedUsers = await loadUsersFallback()
+        setNextStageUsers(resolvedUsers)
+        setNextAssigneeId((prev) => (
+          resolvedUsers.some((item) => item._id === prev) ? prev : resolvedUsers[0]?._id || ''
+        ))
+      })
+
+    return () => { alive = false }
+  }, [assignmentStage, canApprove, nextStageRole, user?.role])
+
   if (loading) return <Spinner size={48} />
   if (!lead) return null
 
   const ci = stageIndex(lead.currentStage)
-  const { overview, salesExecutiveFields, stageSpecificFields, isSalesExecutiveLead } = getLeadViewSections(lead)
-  const blockedSalesExecutiveApproval = isSalesExecutiveLead && lead.currentStage === 'Lead' && user?.role === 'Sales Executive'
-  const canAct = canActOnStage(user?.role, lead.currentStage) && !blockedSalesExecutiveApproval
+  const { overview, salesExecutiveFields, stageSpecificFields } = getLeadViewSections(lead)
   const showBankRemarkField = lead.currentStage === 'Bank Approval'
   const showLoanApplicationField = lead.currentStage === 'Loan Disbursement'
   const showInstallationField = lead.currentStage === 'Installation'
@@ -101,12 +157,14 @@ export default function LeadDetailPage() {
     if (!selectedFiles.length) {
       return {
         note: note || 'Approved',
+        ...(nextAssigneeId ? { nextAssigneeId } : {}),
         ...(Object.keys(stageData).length ? { stageData } : {}),
       }
     }
 
     const payload = new FormData()
     payload.append('note', note || 'Approved')
+    if (nextAssigneeId) payload.append('nextAssigneeId', nextAssigneeId)
     if (Object.keys(stageData).length) payload.append('stageData', JSON.stringify(stageData))
     selectedFiles.forEach(([field, file]) => payload.append(field, file))
     return payload
@@ -125,6 +183,10 @@ export default function LeadDetailPage() {
     }
     if (showNetMeteringField && !stageForm.meterNumber.trim()) {
       toast.error('Meter number is required.')
+      return
+    }
+    if (nextStageRole && nextStageUsers.length > 0 && !nextAssigneeId) {
+      toast.error(`Please select ${nextStageRole}.`)
       return
     }
 
@@ -156,7 +218,7 @@ export default function LeadDetailPage() {
       }
 
       await leadsAPI.approve(id, buildApprovePayload(stageData))
-      toast.success(`Moved to ${STAGES[ci + 1]}`)
+      toast.success(isSalesManagerHandoff ? 'Sent to Manager' : `Moved to ${STAGES[ci + 1]}`)
       fetch()
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed')
@@ -381,10 +443,26 @@ export default function LeadDetailPage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {ci < STAGES.length - 1 && (
                   <button className="btn btn-success" style={{ flex: 1 }} disabled={acting} onClick={doApprove}>
-                    Approve {'->'} {STAGES[ci + 1]}
+                    Approve {'->'} {isSalesManagerHandoff ? 'Manager' : STAGES[ci + 1]}
                   </button>
                 )}
                 <button className="btn btn-danger" disabled={acting} onClick={doReject}>Reject</button>
+                {nextStageRole && (
+                  <select
+                    className="crm-input"
+                    value={nextAssigneeId}
+                    disabled={acting || nextStageUsers.length === 0}
+                    onChange={(event) => setNextAssigneeId(event.target.value)}
+                    aria-label={`Assign lead to ${nextStageRole}`}
+                    title={`Assign to ${nextStageRole}`}
+                    style={{ width: 210, height: 38, fontSize: 12 }}
+                  >
+                    <option value="">{nextStageUsers.length ? `Assign to ${nextStageRole}` : `No ${nextStageRole} users`}</option>
+                    {nextStageUsers.map((item) => (
+                      <option key={item._id} value={item._id}>{item.name}</option>
+                    ))}
+                  </select>
+                )}
                 <button className="btn btn-ghost btn-sm" disabled={acting || !note.trim()} onClick={doNote}>Save Note</button>
               </div>
             </div>

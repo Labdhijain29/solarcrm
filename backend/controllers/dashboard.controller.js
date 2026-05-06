@@ -10,13 +10,17 @@ const buildPersonalLeadQuery = (user) => {
   const query = {};
   const stageAccess = ROLE_STAGE_MAP[user.role];
 
-  if (!stageAccess || user.role === 'Sales Executive') {
-    query.$or = [
-      { assignedTo: user._id },
-      { createdBy: user._id }
-    ];
+  if (['Manager', 'Sales Manager'].includes(user.role)) {
+    return {
+      $or: [
+        { assignedTo: user._id },
+        { createdBy: user._id },
+        { history: { $elemMatch: { performedBy: user._id } } }
+      ]
+    };
   }
 
+  query.assignedTo = user._id;
   if (stageAccess) query.currentStage = stageAccess;
   return query;
 };

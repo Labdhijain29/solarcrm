@@ -1,5 +1,6 @@
 // ─── USER CONTROLLER ──────────────────────────────────────────
 const User = require('../models/User');
+const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
 const { uploadFileAsset } = require('../services/storage/fileAsset');
 const storageService = require('../services/storage/storageService');
 
@@ -32,6 +33,39 @@ const buildSessionUser = (user) => ({
 exports.getUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
+    res.json({ success: true, data: users });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};
+
+exports.getAssignableUsers = async (req, res) => {
+  try {
+    const role = String(req.query.role || '').trim();
+    const stage = String(req.query.stage || '').trim();
+
+    if (!role) {
+      return res.status(400).json({ success: false, message: 'Role is required' });
+    }
+
+    const roleStage = ROLE_STAGE_MAP[role];
+    const userStage = ROLE_STAGE_MAP[req.user.role];
+    const canViewRole = req.user.role === 'Admin'
+      || req.user.role === role
+      || (stage && userStage === stage && roleStage === stage);
+
+    if (!canViewRole) {
+      return res.status(403).json({ success: false, message: 'You cannot view users for this role.' });
+    }
+
+    if (stage && roleStage !== stage) {
+      return res.status(400).json({ success: false, message: `Role '${role}' is not registered for '${stage}' stage.` });
+    }
+
+    const users = await User.find({
+      role,
+      isActive: { $ne: false },
+      approvalStatus: { $ne: 'rejected' },
+    }).select('name email role phone').sort({ name: 1 });
+
     res.json({ success: true, data: users });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };

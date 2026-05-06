@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getLeads, getLead, createLead, updateLead,
-  approveLead, rejectLead, addNote, deleteLead
+  approveLead, rejectLead, transferLead, addNote, deleteLead
 } = require('../controllers/lead.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { validateLead } = require('../middleware/validate.middleware');
@@ -21,6 +21,7 @@ router.route('/:id')
 
 router.post('/:id/approve', uploadLeadFiles, normalizeMultipartBody, approveLead);
 router.post('/:id/reject', rejectLead);
+router.post('/:id/transfer', transferLead);
 router.post('/:id/note', addNote);
 
 module.exports = router;

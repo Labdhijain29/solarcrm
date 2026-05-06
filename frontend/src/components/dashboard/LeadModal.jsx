@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { leadsAPI } from '../../services/api'
-import { canActOnStage, formatDate, getCitiesForState, SOURCES, STAGES, STATE_OPTIONS, stageIndex } from '../../utils/constants'
+import { leadsAPI, usersAPI } from '../../services/api'
+import { canActOnStage, formatDate, getCitiesForState, ROLE_STAGE_MAP, SOURCES, STAGES, STATE_OPTIONS, stageIndex } from '../../utils/constants'
 import { getLeadViewSections } from '../../utils/leadDetails'
 import { hasFileValue } from '../../utils/files'
 import { ALL_BRAND_OPTIONS } from '../../pages/dashboard/inventoryStructure'
@@ -16,6 +16,11 @@ const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch'
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
+const isAssignableUser = (user, role) => (
+  user.role === role &&
+  user.isActive !== false &&
+  user.approvalStatus !== 'rejected'
+)
 
 export default function LeadModal({
   lead,
@@ -32,6 +37,8 @@ export default function LeadModal({
   startEditing = false,
 }) {
   const [loading, setLoading] = useState(false)
+  const [nextStageUsers, setNextStageUsers] = useState([])
+  const [nextAssigneeId, setNextAssigneeId] = useState('')
   const [note, setNote] = useState('')
   const [showNote, setShowNote] = useState(false)
   const [registrationPhotos, setRegistrationPhotos] = useState({
@@ -94,6 +101,14 @@ export default function LeadModal({
   const blockedSalesExecutiveApproval = isSalesExecutiveLead && lead.currentStage === 'Lead' && currentUser?.role === 'Sales Executive'
   const canAct = canActOnStage(currentUser?.role, lead.currentStage) && !blockedSalesExecutiveApproval
   const canApprove = canAct && lead.status === 'active' && currentIndex < STAGES.length - 1
+  const nextStage = STAGES[currentIndex + 1] || ''
+  const isSalesManagerHandoff = lead.currentStage === 'Lead'
+    && (currentUser?.role === 'Sales Manager' || lead.assignedTo?.role === 'Sales Manager')
+  const nextStageRole = useMemo(() => {
+    if (isSalesManagerHandoff) return 'Manager'
+    return Object.keys(ROLE_STAGE_MAP).find((role) => ROLE_STAGE_MAP[role] === nextStage) || ''
+  }, [isSalesManagerHandoff, nextStage])
+  const assignmentStage = isSalesManagerHandoff ? 'Lead' : nextStage
   const canEditBeforeApproval = lead.status === 'active' && (
     (lead.currentStage === 'Lead' && EDITABLE_PRE_APPROVAL_ROLES.includes(currentUser?.role)) ||
     (lead.currentStage === 'Registration' && ['Admin', 'Registration Executive'].includes(currentUser?.role))
@@ -143,17 +158,56 @@ export default function LeadModal({
     subsidyReadingPhoto: stageForm.subsidyReadingPhoto,
   }
 
+  useEffect(() => {
+    if (!canApprove || !nextStageRole) {
+      setNextStageUsers([])
+      setNextAssigneeId('')
+      return
+    }
+
+    let alive = true
+    const loadUsersFallback = () => {
+      if (!['Admin', 'Manager'].includes(currentUser?.role)) return Promise.resolve([])
+      return usersAPI.getAll()
+        .then((response) => (response.data.data || []).filter((item) => isAssignableUser(item, nextStageRole)))
+        .catch(() => [])
+    }
+
+    usersAPI.getAssignable({ role: nextStageRole, stage: assignmentStage })
+      .then(async (response) => {
+        if (!alive) return
+        const users = (response.data.data || []).filter((item) => isAssignableUser(item, nextStageRole))
+        const resolvedUsers = users.length ? users : await loadUsersFallback()
+        setNextStageUsers(resolvedUsers)
+        setNextAssigneeId((prev) => (
+          resolvedUsers.some((item) => item._id === prev) ? prev : resolvedUsers[0]?._id || ''
+        ))
+      })
+      .catch(async () => {
+        if (!alive) return
+        const resolvedUsers = await loadUsersFallback()
+        setNextStageUsers(resolvedUsers)
+        setNextAssigneeId((prev) => (
+          resolvedUsers.some((item) => item._id === prev) ? prev : resolvedUsers[0]?._id || ''
+        ))
+      })
+
+    return () => { alive = false }
+  }, [assignmentStage, canApprove, currentUser?.role, nextStageRole])
+
   const buildApprovePayload = (stageData) => {
     const selectedFiles = Object.entries(selectedStageFiles).filter(([, file]) => file)
     if (!selectedFiles.length) {
       return {
         note: note || 'Approved',
+        ...(nextAssigneeId ? { nextAssigneeId } : {}),
         ...(Object.keys(stageData).length ? { stageData } : {}),
       }
     }
 
     const payload = new FormData()
     payload.append('note', note || 'Approved')
+    if (nextAssigneeId) payload.append('nextAssigneeId', nextAssigneeId)
     if (Object.keys(stageData).length) payload.append('stageData', JSON.stringify(stageData))
     selectedFiles.forEach(([field, file]) => payload.append(field, file))
     return payload
@@ -176,6 +230,10 @@ export default function LeadModal({
     }
     if (canAddNetMeteringData && !stageForm.meterNumber.trim()) {
       toast.error('Meter number is required.')
+      return
+    }
+    if (nextStageRole && nextStageUsers.length > 0 && !nextAssigneeId) {
+      toast.error(`Please select ${nextStageRole}.`)
       return
     }
 
@@ -207,7 +265,7 @@ export default function LeadModal({
       }
 
       await leadsAPI.approve(lead._id, buildApprovePayload(stageData))
-      toast.success(`Moved to ${STAGES[currentIndex + 1]}`)
+      toast.success(isSalesManagerHandoff ? 'Sent to Manager' : `Moved to ${STAGES[currentIndex + 1]}`)
       onUpdated?.()
       onClose()
     } catch (error) {
@@ -847,11 +905,27 @@ export default function LeadModal({
         <div className="dashboard-inline-actions">
           {canApprove && (
             <button className="btn btn-success" style={{ flex:1 }} disabled={loading} onClick={doApprove}>
-              Approve {'->'} {STAGES[currentIndex + 1]}
+              Approve {'->'} {isSalesManagerHandoff ? 'Manager' : STAGES[currentIndex + 1]}
             </button>
           )}
           {canAct && lead.status === 'active' && (
             <button className="btn btn-danger" disabled={loading} onClick={doReject}>Reject</button>
+          )}
+          {canApprove && nextStageRole && (
+            <select
+              className="crm-input"
+              value={nextAssigneeId}
+              disabled={loading || nextStageUsers.length === 0}
+              onChange={(event) => setNextAssigneeId(event.target.value)}
+              aria-label={`Assign lead to ${nextStageRole}`}
+              title={`Assign to ${nextStageRole}`}
+              style={{ width: 210, height: 38, fontSize: 12 }}
+            >
+              <option value="">{nextStageUsers.length ? `Assign to ${nextStageRole}` : `No ${nextStageRole} users`}</option>
+              {nextStageUsers.map((item) => (
+                <option key={item._id} value={item._id}>{item.name}</option>
+              ))}
+            </select>
           )}
           <button className="btn btn-ghost btn-sm" onClick={() => setShowNote(!showNote)}>Note</button>
           {showNote && note && (

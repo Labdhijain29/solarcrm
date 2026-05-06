@@ -180,7 +180,34 @@ const ensureUniqueIvrsNo = async (ivrsNo, excludeId = null) => {
 };
 
 const getSalesExecutiveManager = async () => {
-  return User.findOne({ role: 'Manager', isActive: true }).sort({ createdAt: 1 });
+  return User.findOne({ role: 'Manager', isActive: { $ne: false }, approvalStatus: { $ne: 'rejected' } }).sort({ createdAt: 1 });
+};
+
+const assignableUserFilter = (extra = {}) => ({
+  ...extra,
+  isActive: { $ne: false },
+  approvalStatus: { $ne: 'rejected' },
+});
+
+const getRolesForStage = (stage) => (
+  Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === stage)
+);
+
+const canUserActOnLead = (user, lead) => {
+  if (user.role === 'Admin') return true;
+  const userStage = ROLE_STAGE_MAP[user.role];
+  return userStage === lead.currentStage && String(lead.assignedTo || '') === String(user._id);
+};
+
+const ensureUserCanActOnLead = (user, lead, action) => {
+  if (canUserActOnLead(user, lead)) return;
+  const userStage = ROLE_STAGE_MAP[user.role];
+  const message = userStage !== lead.currentStage
+    ? `You can only ${action} leads at '${userStage}' stage. This lead is at '${lead.currentStage}'.`
+    : `You can only ${action} leads assigned to you.`;
+  const error = new Error(message);
+  error.statusCode = 403;
+  throw error;
 };
 
 const ensureUniqueApplicationId = async (applicationId, excludeId = null) => {
@@ -232,6 +259,7 @@ const buildQuery = (query, user) => {
   const q = {};
   const role = user.role;
   const stageAccess = ROLE_STAGE_MAP[role];
+  const isPipelineOwnerRole = ['Manager', 'Sales Manager'].includes(role);
   const completedStage = query.completedStage;
   const salesExecutiveOnly = query.salesExecutiveOnly === 'true';
   const canViewDispatchQueue = role === 'Dispatch Manager' && query.stage === 'Dispatch' && !completedStage;
@@ -240,36 +268,29 @@ const buildQuery = (query, user) => {
     action: { $in: ['Approved', 'Completed'] }
   };
 
-  if (role !== 'Admin' && !stageAccess && !canViewDispatchQueue) {
+  if (role !== 'Admin' && isPipelineOwnerRole && !canViewDispatchQueue && !completedStage && !query.stage && !salesExecutiveOnly) {
     q.$or = [
       { assignedTo: user._id },
-      { createdBy: user._id }
+      { createdBy: user._id },
+      { history: { $elemMatch: { performedBy: user._id } } }
     ];
+  } else if (role !== 'Admin' && !canViewDispatchQueue && !completedStage) {
+    q.assignedTo = user._id;
   }
 
-  if (role === 'Sales Executive' && !salesExecutiveOnly && !canViewDispatchQueue) {
-    q.$or = [
-      { assignedTo: user._id },
-      { createdBy: user._id }
-    ];
-  }
-
-  if (stageAccess && role !== 'Admin' && !completedStage) {
+  if (stageAccess && role !== 'Admin' && !completedStage && !isPipelineOwnerRole) {
     q.currentStage = stageAccess;
   }
 
   if (salesExecutiveOnly) {
-    if (role === 'Sales Executive') {
-      q.$or = [
-        { assignedTo: user._id },
-        { createdBy: user._id }
-      ];
-    }
+    if (role !== 'Admin') q.assignedTo = user._id;
     q.tags = 'sales-executive';
     delete q.currentStage;
   }
 
-  if (query.stage && !completedStage) q.currentStage = query.stage;
+  if (query.stage && !completedStage && (role === 'Admin' || !stageAccess || query.stage === stageAccess)) {
+    q.currentStage = query.stage;
+  }
   if (completedStage) {
     q.history = {
       $elemMatch: role === 'Admin'
@@ -279,7 +300,7 @@ const buildQuery = (query, user) => {
           }
         : personalHistoryFilter
     };
-    delete q.assignedTo;
+    if (role !== 'Admin') q.assignedTo = user._id;
   }
   if (query.status) q.status = query.status;
   if (query.source) q.source = query.source;
@@ -287,7 +308,7 @@ const buildQuery = (query, user) => {
   if (query.city) q.city = new RegExp(query.city, 'i');
   if (query.ivrsNo) q.ivrsNo = new RegExp(query.ivrsNo, 'i');
   if (query.branch) q.branch = new RegExp(query.branch, 'i');
-  if (query.assignedTo) q.assignedTo = query.assignedTo;
+  if (query.assignedTo && (role === 'Admin' || String(query.assignedTo) === String(user._id))) q.assignedTo = query.assignedTo;
   if (query.priority) q.priority = query.priority;
 
   if (query.search) {
@@ -344,7 +365,7 @@ exports.getLeads = async (req, res) => {
       pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -357,6 +378,9 @@ exports.getLead = async (req, res) => {
       .populate('createdBy', 'name role');
 
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+    if (req.user.role !== 'Admin' && String(lead.assignedTo?._id || lead.assignedTo || '') !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'You can only view leads assigned to you.' });
+    }
     res.json({ success: true, data: lead });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -455,6 +479,9 @@ exports.updateLead = async (req, res) => {
   try {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+    if (req.user.role !== 'Admin' && String(lead.assignedTo || '') !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'You can only update leads assigned to you.' });
+    }
 
     if (req.body.ivrsNo !== undefined && req.body.ivrsNo !== lead.ivrsNo) {
       await ensureUniqueIvrsNo(req.body.ivrsNo, lead._id);
@@ -487,7 +514,7 @@ exports.updateLead = async (req, res) => {
     const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
     mergeUploadedPatchesIntoBody(req.body, uploadedFilePatches);
 
-    const allowed = ['name','phone','email','address','city','state','pincode','branch','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','assignedTo','priority','tags'];
+    const allowed = ['name','phone','email','address','city','state','pincode','branch','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','priority','tags'];
     allowed.forEach(field => { if (req.body[field] !== undefined) lead[field] = req.body[field]; });
 
     [
@@ -542,29 +569,85 @@ exports.approveLead = async (req, res) => {
       return res.status(400).json({ success: false, message: `Lead is already ${lead.status}` });
     }
 
-    // Enforce stage-role access
-    const userStage = ROLE_STAGE_MAP[req.user.role];
-    if (req.user.role !== 'Admin' && userStage !== lead.currentStage) {
-      return res.status(403).json({
-        success: false,
-        message: `You can only approve leads at '${userStage}' stage. This lead is at '${lead.currentStage}'.`
-      });
-    }
+    // Enforce stage-role and personal assignment access.
+    ensureUserCanActOnLead(req.user, lead, 'approve');
 
-    if (lead.currentStage === 'Lead' && isSalesExecutiveLead(lead) && !['Admin', 'Manager'].includes(req.user.role)) {
+    if (lead.currentStage === 'Lead' && isSalesExecutiveLead(lead) && !['Admin', 'Manager', 'Sales Manager'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Sales executive leads must be approved by manager before they move to registration.'
       });
     }
 
+    const leadAssignee = lead.assignedTo ? await User.findById(lead.assignedTo).select('role') : null;
+    const isSalesManagerHandoff = lead.currentStage === 'Lead'
+      && (req.user.role === 'Sales Manager' || leadAssignee?.role === 'Sales Manager');
+
+    if (isSalesManagerHandoff) {
+      let managerUser = null;
+      if (req.body.nextAssigneeId) {
+        managerUser = await User.findOne(assignableUserFilter({
+          _id: req.body.nextAssigneeId,
+          role: 'Manager',
+        }));
+
+        if (!managerUser) {
+          return res.status(400).json({
+            success: false,
+            message: 'Selected user is not available as Manager.'
+          });
+        }
+      } else {
+        managerUser = await User.findOne(assignableUserFilter({ role: 'Manager' })).sort({ createdAt: 1 });
+      }
+
+      if (!managerUser) {
+        return res.status(400).json({ success: false, message: 'No active manager found for assignment.' });
+      }
+
+      lead.assignedTo = managerUser._id;
+      lead.history.push({
+        stage: lead.currentStage,
+        action: 'Approved',
+        performedBy: req.user._id,
+        performedByName: req.user.name,
+        note: req.body.note || `Approved by Sales Manager and sent to ${managerUser.name}`,
+        timestamp: new Date()
+      });
+      await lead.save();
+
+      await User.findByIdAndUpdate(managerUser._id, {
+        $push: { notifications: { message: `Lead ${lead.name} sent to you by Sales Manager` } }
+      });
+
+      const populated = await Lead.findById(lead._id)
+        .populate('assignedTo', 'name role')
+        .populate('createdBy', 'name role');
+
+      return res.json({ success: true, message: `Lead approved and sent to ${managerUser.name}`, data: populated });
+    }
+
     const prevStage = lead.currentStage;
     lead.approveStage(req.user._id, req.user.name, req.body.note);
 
-    const nextStageRole = Object.keys(ROLE_STAGE_MAP).find(r => ROLE_STAGE_MAP[r] === lead.currentStage);
+    const nextStageRole = getRolesForStage(lead.currentStage)[0];
     let nextStageUser = null;
     if (nextStageRole) {
-      nextStageUser = await User.findOne({ role: nextStageRole, isActive: true }).sort({ createdAt: 1 });
+      if (req.body.nextAssigneeId) {
+        nextStageUser = await User.findOne(assignableUserFilter({
+          _id: req.body.nextAssigneeId,
+          role: nextStageRole,
+        })).sort({ createdAt: 1 });
+
+        if (!nextStageUser) {
+          return res.status(400).json({
+            success: false,
+            message: `Selected user is not available for '${lead.currentStage}' stage.`
+          });
+        }
+      } else {
+        nextStageUser = await User.findOne(assignableUserFilter({ role: nextStageRole })).sort({ createdAt: 1 });
+      }
       lead.assignedTo = nextStageUser ? nextStageUser._id : null;
     } else if (lead.currentStage === 'Completed') {
       lead.assignedTo = null;
@@ -667,17 +750,80 @@ exports.rejectLead = async (req, res) => {
       return res.status(400).json({ success: false, message: `Lead is already ${lead.status}` });
     }
 
-    const userStage = ROLE_STAGE_MAP[req.user.role];
-    if (req.user.role !== 'Admin' && userStage !== lead.currentStage) {
-      return res.status(403).json({ success: false, message: 'You cannot reject this lead at its current stage.' });
-    }
+    ensureUserCanActOnLead(req.user, lead, 'reject');
 
     lead.rejectStage(req.user._id, req.user.name, req.body.note || 'Rejected');
     await lead.save();
 
     res.json({ success: true, message: 'Lead rejected', data: lead });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Transfer lead to another user in the current stage role
+// @route   POST /api/leads/:id/transfer
+exports.transferLead = async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+
+    if (lead.status !== 'active') {
+      return res.status(400).json({ success: false, message: `Lead is already ${lead.status}` });
+    }
+
+    ensureUserCanActOnLead(req.user, lead, 'transfer');
+
+    const targetUser = await User.findOne(assignableUserFilter({
+      _id: req.body.userId,
+    })).select('name role email');
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'Selected user not found or inactive.' });
+    }
+
+    const allowedRoles = getRolesForStage(lead.currentStage);
+    if (!allowedRoles.includes(targetUser.role)) {
+      return res.status(400).json({
+        success: false,
+        message: `Selected user role '${targetUser.role}' cannot handle '${lead.currentStage}' leads.`
+      });
+    }
+
+    if (String(targetUser._id) === String(lead.assignedTo || '')) {
+      return res.status(400).json({ success: false, message: 'Lead is already assigned to this user.' });
+    }
+
+    const previousAssignee = lead.assignedTo;
+    lead.assignedTo = targetUser._id;
+    lead.history.push({
+      stage: lead.currentStage,
+      action: 'Transferred',
+      performedBy: req.user._id,
+      performedByName: req.user.name,
+      note: req.body.note || `Transferred to ${targetUser.name}`,
+      timestamp: new Date()
+    });
+
+    await lead.save();
+
+    await User.findByIdAndUpdate(targetUser._id, {
+      $push: { notifications: { message: `Lead transferred to you: ${lead.name}` } }
+    });
+
+    if (previousAssignee && String(previousAssignee) !== String(req.user._id)) {
+      await User.findByIdAndUpdate(previousAssignee, {
+        $push: { notifications: { message: `Lead transferred from your queue: ${lead.name}` } }
+      });
+    }
+
+    const populated = await Lead.findById(lead._id)
+      .populate('assignedTo', 'name role')
+      .populate('createdBy', 'name role');
+
+    res.json({ success: true, message: `Lead transferred to ${targetUser.name}`, data: populated });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }
 };
 
@@ -687,6 +833,9 @@ exports.addNote = async (req, res) => {
   try {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+    if (req.user.role !== 'Admin' && String(lead.assignedTo || '') !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'You can only add notes to leads assigned to you.' });
+    }
 
     lead.history.push({
       stage: lead.currentStage,
