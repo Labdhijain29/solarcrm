@@ -818,7 +818,7 @@ exports.rejectLead = async (req, res) => {
   }
 };
 
-// @desc    Transfer lead to another user in the current stage role
+// @desc    Transfer lead to another user in the current or previous stage role
 // @route   POST /api/leads/:id/transfer
 exports.transferLead = async (req, res) => {
   try {
@@ -839,8 +839,15 @@ exports.transferLead = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Selected user not found or inactive.' });
     }
 
-    const allowedRoles = getRolesForStage(lead.currentStage);
-    if (!allowedRoles.includes(targetUser.role)) {
+    const stages = Lead.STAGES || [];
+    const currentStageIndex = stages.indexOf(lead.currentStage);
+    const previousStage = currentStageIndex > 0 ? stages[currentStageIndex - 1] : null;
+    const currentStageRoles = getRolesForStage(lead.currentStage);
+    const previousStageRoles = previousStage ? getRolesForStage(previousStage) : [];
+    const isCurrentStageTransfer = currentStageRoles.includes(targetUser.role);
+    const isPreviousStageTransfer = previousStageRoles.includes(targetUser.role);
+
+    if (!isCurrentStageTransfer && !isPreviousStageTransfer) {
       return res.status(400).json({
         success: false,
         message: `Selected user role '${targetUser.role}' cannot handle '${lead.currentStage}' leads.`
@@ -853,6 +860,9 @@ exports.transferLead = async (req, res) => {
 
     const previousAssignee = lead.assignedTo;
     lead.assignedTo = targetUser._id;
+    if (isPreviousStageTransfer) {
+      lead.currentStage = previousStage;
+    }
     lead.history.push({
       stage: lead.currentStage,
       action: 'Transferred',

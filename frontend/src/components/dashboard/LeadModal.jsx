@@ -108,6 +108,10 @@ export default function LeadModal({
   const canApprove = canAct && lead.status === 'active' && currentIndex < STAGES.length - 1
   const canReassign = canAct && lead.status === 'active'
   const nextStage = STAGES[currentIndex + 1] || ''
+  const previousStage = currentIndex > 0 ? STAGES[currentIndex - 1] : ''
+  const previousStageRoles = useMemo(() => (
+    Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === previousStage)
+  ), [previousStage])
   const isSalesManagerHandoff = lead.currentStage === 'Lead'
     && (currentUser?.role === 'Sales Manager' || lead.assignedTo?.role === 'Sales Manager')
   const nextStageRole = useMemo(() => {
@@ -202,39 +206,31 @@ export default function LeadModal({
   }, [assignmentStage, canApprove, currentUser?.role, nextStageRole])
 
   useEffect(() => {
-    if (!canReassign) {
-      setSameStageUsers([])
-      setReassignUserId('')
-      return
-    }
-
-    const sameStageRoles = Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === lead.currentStage)
-    if (!sameStageRoles.length) {
+    if (!canReassign || !previousStage || previousStageRoles.length === 0) {
       setSameStageUsers([])
       setReassignUserId('')
       return
     }
 
     let alive = true
-    const loadAssignableUsers = async () => {
-      const results = await Promise.all(sameStageRoles.map((role) => (
-        usersAPI.getAssignable({ role, stage: lead.currentStage })
+    const loadPreviousStageUsers = async () => {
+      const results = await Promise.all(previousStageRoles.map((role) => (
+        usersAPI.getAssignable({ role, stage: previousStage })
           .then((response) => response.data.data || [])
           .catch(() => [])
       )))
       if (!alive) return
-      const flattened = results.flat()
-      const uniqueUsers = Array.from(new Map(flattened.map((item) => [item._id, item])).values())
-        .filter((item) => isAssignableUser(item, item.role) && item._id !== (lead.assignedTo?._id || lead.assignedTo))
-      setSameStageUsers(uniqueUsers)
+      const users = Array.from(new Map(results.flat().map((item) => [item._id, item])).values())
+        .filter((item) => isAssignableUser(item, item.role))
+      setSameStageUsers(users)
       setReassignUserId((prev) => (
-        uniqueUsers.some((item) => item._id === prev) ? prev : uniqueUsers[0]?._id || ''
+        users.some((item) => item._id === prev) ? prev : users[0]?._id || ''
       ))
     }
 
-    loadAssignableUsers()
+    loadPreviousStageUsers()
     return () => { alive = false }
-  }, [canReassign, lead.assignedTo, lead.currentStage])
+  }, [canReassign, previousStage, previousStageRoles])
 
   const buildApprovePayload = (stageData) => {
     const selectedFiles = Object.entries(selectedStageFiles).filter(([, file]) => file)
@@ -389,7 +385,7 @@ export default function LeadModal({
     try {
       await leadsAPI.transfer(lead._id, {
         userId: reassignUserId,
-        note: note || 'Lead reassigned',
+        note: note || `Lead reassigned back to ${previousStage || 'previous stage'}`,
       })
       toast.success('Lead reassigned')
       setShowReassign(false)
@@ -840,7 +836,7 @@ export default function LeadModal({
               disabled={loading || sameStageUsers.length === 0}
               onChange={(event) => setReassignUserId(event.target.value)}
             >
-              <option value="">{sameStageUsers.length ? 'Select user' : 'No users available for this stage'}</option>
+              <option value="">{sameStageUsers.length ? 'Select previous stage user' : 'No previous stage user available'}</option>
               {sameStageUsers.map((item) => (
                 <option key={item._id} value={item._id}>{item.name} | {item.role}</option>
               ))}

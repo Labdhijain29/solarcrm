@@ -1,6 +1,11 @@
 // ─── USER CONTROLLER ──────────────────────────────────────────
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
+
+const WORKFLOW_STAGES = [
+  'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
+  'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed',
+];
 const { uploadFileAsset, withFreshFileUrl } = require('../services/storage/fileAsset');
 const storageService = require('../services/storage/storageService');
 
@@ -83,9 +88,16 @@ exports.getAssignableUsers = async (req, res) => {
 
     const roleStage = ROLE_STAGE_MAP[role];
     const userStage = ROLE_STAGE_MAP[req.user.role];
+    const requestedStageIndex = WORKFLOW_STAGES.indexOf(stage || roleStage);
+    const userStageIndex = WORKFLOW_STAGES.indexOf(userStage);
+    const isPreviousStageLookup = requestedStageIndex !== -1
+      && userStageIndex !== -1
+      && requestedStageIndex === userStageIndex - 1
+      && roleStage === stage;
     const canViewRole = req.user.role === 'Admin'
       || req.user.role === role
-      || (stage && userStage === stage && roleStage === stage);
+      || (stage && userStage === stage && roleStage === stage)
+      || isPreviousStageLookup;
 
     if (!canViewRole) {
       return res.status(403).json({ success: false, message: 'You cannot view users for this role.' });
