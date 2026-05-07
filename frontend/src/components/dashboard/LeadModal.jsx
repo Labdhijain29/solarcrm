@@ -506,7 +506,7 @@ export default function LeadModal({
 
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box">
+      <div className="modal-box lead-view-modal">
         <div className="dashboard-split-row" style={{ marginBottom:20 }}>
           <div style={{ flex:1 }}>
             <h2 style={{ fontFamily:'Syne,sans-serif', fontSize:20, fontWeight:700 }}>{lead.name}</h2>

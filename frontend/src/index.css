@@ -584,6 +584,11 @@ textarea.crm-input { resize: vertical; }
   min-width: 0;
 }
 
+.lead-view-modal {
+  width: 75vw;
+  max-width: 1180px;
+}
+
 /* ─── Stage Progress ─────────────────────────────────────────── */
 .stage-progress {
   display: flex;
@@ -1350,6 +1355,11 @@ textarea.crm-input { resize: vertical; }
     max-height: 94vh;
     border-radius: 16px;
     padding: 16px;
+  }
+
+  .lead-view-modal {
+    width: 100%;
+    max-width: 100%;
   }
 
   .crm-table th,
