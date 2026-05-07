@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const inventoryActivitySchema = new mongoose.Schema({
   action: {
     type: String,
-    enum: ['Product Created', 'Product Updated', 'Product Deleted', 'Stock Received', 'Stock Dispatched', 'Dispatch Updated'],
+    enum: ['Product Created', 'Product Updated', 'Product Deleted', 'Stock Received', 'Stock Dispatched', 'Dispatch Updated', 'Invoice Drafted', 'Invoice Held', 'Invoice Approved'],
     required: true,
   },
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },

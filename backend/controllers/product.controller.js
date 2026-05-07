@@ -18,6 +18,8 @@ const buildProductQuery = (query = {}) => {
   if (query.search) {
     q.$or = [
       { name: new RegExp(query.search, 'i') },
+      { sku: new RegExp(query.search, 'i') },
+      { productCode: new RegExp(query.search, 'i') },
       { category: new RegExp(query.search, 'i') },
       { subCategory: new RegExp(query.search, 'i') },
       { brand: new RegExp(query.search, 'i') },
@@ -54,6 +56,8 @@ exports.createProduct = async (req, res) => {
       ...req.body,
       quantity: Number(req.body.quantity || 0),
       price: Number(req.body.price || 0),
+      salePrice: Number(req.body.salePrice || req.body.price || 0),
+      gstPercent: Number(req.body.gstPercent ?? 18),
       lowStockThreshold: Number(req.body.lowStockThreshold || 10),
       createdBy: req.user._id,
       updatedBy: req.user._id,
@@ -96,6 +100,9 @@ exports.bulkAddProducts = async (req, res) => {
 
       const payload = {
         name: String(raw.name || [raw.brand, raw.type, raw.capacity].filter(Boolean).join(' ') || raw.category || 'Stock Item').trim(),
+        sku: String(raw.sku || raw.productCode || '').trim(),
+        productCode: String(raw.productCode || raw.sku || '').trim(),
+        hsnCode: String(raw.hsnCode || '').trim(),
         category: String(raw.category || '').trim(),
         subCategory: String(raw.subCategory || '').trim(),
         brand: String(raw.brand || '').trim(),
@@ -103,6 +110,8 @@ exports.bulkAddProducts = async (req, res) => {
         capacity: String(raw.capacity || '').trim(),
         unit: String(raw.unit || 'pcs').trim(),
         price: Number(raw.price || 0),
+        salePrice: Number(raw.salePrice || raw.price || 0),
+        gstPercent: Number(raw.gstPercent ?? 18),
         lowStockThreshold: Number(raw.lowStockThreshold || 10),
       };
 
@@ -123,6 +132,11 @@ exports.bulkAddProducts = async (req, res) => {
         product.quantity = beforeQuantity + quantity;
         product.unit = payload.unit;
         product.price = payload.price;
+        product.salePrice = payload.salePrice;
+        product.gstPercent = payload.gstPercent;
+        product.sku = payload.sku || product.sku;
+        product.productCode = payload.productCode || product.productCode;
+        product.hsnCode = payload.hsnCode || product.hsnCode;
         product.lowStockThreshold = payload.lowStockThreshold;
         product.updatedBy = req.user._id;
         await product.save();
@@ -182,12 +196,14 @@ exports.updateProduct = async (req, res) => {
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
     const previousQuantity = product.quantity;
-    const allowed = ['name', 'category', 'subCategory', 'brand', 'type', 'capacity', 'quantity', 'price', 'unit', 'lowStockThreshold'];
+    const allowed = ['name', 'sku', 'productCode', 'hsnCode', 'category', 'subCategory', 'brand', 'type', 'capacity', 'quantity', 'price', 'salePrice', 'gstPercent', 'unit', 'lowStockThreshold'];
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) product[field] = req.body[field];
     });
     product.quantity = Number(product.quantity || 0);
     product.price = Number(product.price || 0);
+    product.salePrice = Number(product.salePrice || product.price || 0);
+    product.gstPercent = Number(product.gstPercent ?? 18);
     product.lowStockThreshold = Number(product.lowStockThreshold || 10);
     product.updatedBy = req.user._id;
     await product.save();

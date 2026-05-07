@@ -42,6 +42,9 @@ export default function LeadModal({
   const [nextAssigneeId, setNextAssigneeId] = useState('')
   const [note, setNote] = useState('')
   const [showNote, setShowNote] = useState(false)
+  const [sameStageUsers, setSameStageUsers] = useState([])
+  const [reassignUserId, setReassignUserId] = useState('')
+  const [showReassign, setShowReassign] = useState(false)
   const [registrationPhotos, setRegistrationPhotos] = useState({
     photoOne: null,
     photoTwo: null,
@@ -103,6 +106,7 @@ export default function LeadModal({
   const blockedSalesExecutiveApproval = isSalesExecutiveLead && lead.currentStage === 'Lead' && currentUser?.role === 'Sales Executive'
   const canAct = canActOnStage(currentUser?.role, lead.currentStage) && !blockedSalesExecutiveApproval
   const canApprove = canAct && lead.status === 'active' && currentIndex < STAGES.length - 1
+  const canReassign = canAct && lead.status === 'active'
   const nextStage = STAGES[currentIndex + 1] || ''
   const isSalesManagerHandoff = lead.currentStage === 'Lead'
     && (currentUser?.role === 'Sales Manager' || lead.assignedTo?.role === 'Sales Manager')
@@ -196,6 +200,41 @@ export default function LeadModal({
 
     return () => { alive = false }
   }, [assignmentStage, canApprove, currentUser?.role, nextStageRole])
+
+  useEffect(() => {
+    if (!canReassign) {
+      setSameStageUsers([])
+      setReassignUserId('')
+      return
+    }
+
+    const sameStageRoles = Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === lead.currentStage)
+    if (!sameStageRoles.length) {
+      setSameStageUsers([])
+      setReassignUserId('')
+      return
+    }
+
+    let alive = true
+    const loadAssignableUsers = async () => {
+      const results = await Promise.all(sameStageRoles.map((role) => (
+        usersAPI.getAssignable({ role, stage: lead.currentStage })
+          .then((response) => response.data.data || [])
+          .catch(() => [])
+      )))
+      if (!alive) return
+      const flattened = results.flat()
+      const uniqueUsers = Array.from(new Map(flattened.map((item) => [item._id, item])).values())
+        .filter((item) => isAssignableUser(item, item.role) && item._id !== (lead.assignedTo?._id || lead.assignedTo))
+      setSameStageUsers(uniqueUsers)
+      setReassignUserId((prev) => (
+        uniqueUsers.some((item) => item._id === prev) ? prev : uniqueUsers[0]?._id || ''
+      ))
+    }
+
+    loadAssignableUsers()
+    return () => { alive = false }
+  }, [canReassign, lead.assignedTo, lead.currentStage])
 
   const buildApprovePayload = (stageData) => {
     const selectedFiles = Object.entries(selectedStageFiles).filter(([, file]) => file)
@@ -336,6 +375,28 @@ export default function LeadModal({
       onClose()
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to save photos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const doReassign = async () => {
+    if (!reassignUserId) {
+      toast.error('Please select a user to reassign.')
+      return
+    }
+    setLoading(true)
+    try {
+      await leadsAPI.transfer(lead._id, {
+        userId: reassignUserId,
+        note: note || 'Lead reassigned',
+      })
+      toast.success('Lead reassigned')
+      setShowReassign(false)
+      onUpdated?.()
+      onClose()
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to reassign lead')
     } finally {
       setLoading(false)
     }
@@ -770,6 +831,23 @@ export default function LeadModal({
           </div>
         )}
 
+        {showReassign && (
+          <div style={{ marginBottom:12 }}>
+            <label className="form-label">Reassign Lead</label>
+            <select
+              className="crm-input"
+              value={reassignUserId}
+              disabled={loading || sameStageUsers.length === 0}
+              onChange={(event) => setReassignUserId(event.target.value)}
+            >
+              <option value="">{sameStageUsers.length ? 'Select user' : 'No users available for this stage'}</option>
+              {sameStageUsers.map((item) => (
+                <option key={item._id} value={item._id}>{item.name} | {item.role}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {(canAddBankRemark || canAddLoanApplication || canAddInstallationData || canAddNetMeteringData || canAddSubsidyData || canAddSubsidyReadingData) && (
           <div style={{ marginBottom:12 }}>
             {canAddBankRemark && (
@@ -949,6 +1027,12 @@ export default function LeadModal({
           <button className="btn btn-ghost btn-sm" onClick={() => setShowNote(!showNote)}>Note</button>
           {showNote && note && (
             <button className="btn btn-ghost btn-sm" disabled={loading} onClick={doAddNote}>Save Note</button>
+          )}
+          {canReassign && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowReassign(!showReassign)}>Reassign</button>
+          )}
+          {showReassign && (
+            <button className="btn btn-secondary btn-sm" disabled={loading || !reassignUserId} onClick={doReassign}>Save Reassign</button>
           )}
         </div>
 

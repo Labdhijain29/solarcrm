@@ -11,15 +11,21 @@
     "lint": "eslint src --ext js,jsx --report-unused-disable-directives"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.11.2",
     "axios": "^1.6.2",
     "country-state-city": "^3.2.1",
     "framer-motion": "^10.16.16",
+    "jspdf": "^4.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hook-form": "^7.75.0",
     "react-hot-toast": "^2.4.1",
     "react-icons": "^4.12.0",
+    "react-redux": "^9.2.0",
     "react-router-dom": "^6.21.1",
+    "react-select": "^5.10.2",
     "recharts": "^2.10.3",
+    "xlsx": "^0.18.5",
     "zustand": "^4.4.7"
   },
   "devDependencies": {

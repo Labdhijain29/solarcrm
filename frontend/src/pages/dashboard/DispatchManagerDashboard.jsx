@@ -1,5 +1,5 @@
-import InventoryDispatchPage from './InventoryDispatchPage'
+import DispatchBillingDashboard from './DispatchBillingDashboard'
 
 export default function DispatchManagerDashboard({ defaultTab = 'dispatch' }) {
-  return <InventoryDispatchPage defaultTab={defaultTab} />
+  return <DispatchBillingDashboard defaultTab={defaultTab} />
 }

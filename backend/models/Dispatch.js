@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const dispatchItemSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   productName: { type: String, required: true, trim: true },
+  productCode: { type: String, trim: true, default: '' },
+  sku: { type: String, trim: true, default: '' },
+  hsnCode: { type: String, trim: true, default: '' },
   category: { type: String, trim: true, default: '' },
   brand: { type: String, trim: true, default: '' },
   type: { type: String, trim: true, default: '' },
@@ -10,21 +13,38 @@ const dispatchItemSchema = new mongoose.Schema({
   unit: { type: String, trim: true, default: 'pcs' },
   quantity: { type: Number, required: true, min: 1 },
   price: { type: Number, min: 0, default: 0 },
+  discountPercent: { type: Number, min: 0, max: 100, default: 0 },
+  discountAmount: { type: Number, min: 0, default: 0 },
+  gstPercent: { type: Number, min: 0, max: 100, default: 0 },
+  gstAmount: { type: Number, min: 0, default: 0 },
+  taxableAmount: { type: Number, min: 0, default: 0 },
   lineTotal: { type: Number, min: 0, default: 0 },
   remainingQuantity: { type: Number, min: 0, default: 0 },
 }, { _id: false });
 
 const dispatchSchema = new mongoose.Schema({
   billNo: { type: String, trim: true, default: '', index: true },
+  invoiceType: { type: String, enum: ['Sales Invoice', 'Dispatch Invoice'], default: 'Sales Invoice' },
   customerName: { type: String, required: [true, 'Customer name is required'], trim: true },
+  customerGst: { type: String, trim: true, default: '' },
+  customerEmail: { type: String, trim: true, default: '' },
   leadId: { type: String, trim: true, default: '', index: true },
   engineerName: { type: String, required: [true, 'Installation engineer name is required'], trim: true },
+  salesPersonName: { type: String, trim: true, default: '' },
   siteAddress: { type: String, required: [true, 'Site address is required'], trim: true },
   mobile: { type: String, required: [true, 'Mobile number is required'], trim: true },
+  paymentMode: { type: String, enum: ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Credit', 'Cheque'], default: 'Credit' },
+  dispatchStatus: { type: String, enum: ['Not Packed', 'Packed', 'Out for Dispatch', 'Delivered'], default: 'Not Packed', index: true },
+  narration: { type: String, trim: true, default: '' },
   items: { type: [dispatchItemSchema], validate: v => Array.isArray(v) && v.length > 0 },
   subTotal: { type: Number, min: 0, default: 0 },
+  discountTotal: { type: Number, min: 0, default: 0 },
+  gstTotal: { type: Number, min: 0, default: 0 },
   grandTotal: { type: Number, min: 0, default: 0 },
-  approvalStatus: { type: String, enum: ['Pending', 'Approved'], default: 'Pending', index: true },
+  roundOff: { type: Number, default: 0 },
+  payableAmount: { type: Number, min: 0, default: 0 },
+  approvalStatus: { type: String, enum: ['Draft', 'Hold', 'Pending', 'Approved'], default: 'Pending', index: true },
+  stockReserved: { type: Boolean, default: true, index: true },
   approvedAt: { type: Date, default: null },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   approvedByName: { type: String, trim: true, default: '' },
@@ -40,6 +60,6 @@ const dispatchSchema = new mongoose.Schema({
   createdByName: { type: String, trim: true, default: '' },
 }, { timestamps: true });
 
-dispatchSchema.index({ customerName: 'text', leadId: 'text', engineerName: 'text', mobile: 'text' });
+dispatchSchema.index({ billNo: 'text', customerName: 'text', leadId: 'text', engineerName: 'text', mobile: 'text', salesPersonName: 'text' });
 
 module.exports = mongoose.model('Dispatch', dispatchSchema);
