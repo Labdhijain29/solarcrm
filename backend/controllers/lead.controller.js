@@ -226,6 +226,17 @@ const getRolesForStage = (stage) => (
   Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === stage)
 );
 
+const canUserReassignLead = (user, lead) => {
+  if (['Admin', 'Manager', 'Sales Manager', 'Service Manager'].includes(user.role)) return true;
+  return ROLE_STAGE_MAP[user.role] === lead.currentStage;
+};
+
+const getDefaultAssigneeForStage = async (stage) => {
+  const roles = getRolesForStage(stage);
+  if (!roles.length) return null;
+  return User.findOne(assignableUserFilter({ role: { $in: roles } })).sort({ createdAt: 1 }).select('name role email');
+};
+
 const canUserActOnLead = (user, lead) => {
   if (user.role === 'Admin') return true;
   const userStage = ROLE_STAGE_MAP[user.role];
@@ -829,7 +840,9 @@ exports.transferLead = async (req, res) => {
       return res.status(400).json({ success: false, message: `Lead is already ${lead.status}` });
     }
 
-    ensureUserCanActOnLead(req.user, lead, 'transfer');
+    if (!canUserReassignLead(req.user, lead)) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to reassign this lead.' });
+    }
 
     const targetUser = await User.findOne(assignableUserFilter({
       _id: req.body.userId,
@@ -889,6 +902,97 @@ exports.transferLead = async (req, res) => {
       .populate('createdBy', 'name role');
 
     res.json({ success: true, message: `Lead transferred to ${targetUser.name}`, data: populated });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Reassign lead to another dashboard/stage
+// @route   POST /api/leads/:id/reassign
+exports.reassignLead = async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+
+    if (!canUserReassignLead(req.user, lead)) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to reassign this lead.' });
+    }
+
+    const targetStage = String(req.body.stage || req.body.currentStage || '').trim();
+    const note = String(req.body.note || '').trim();
+    const stages = Lead.STAGES || [];
+
+    if (!stages.includes(targetStage)) {
+      return res.status(400).json({ success: false, message: 'Select a valid dashboard/stage.' });
+    }
+
+    const previousStage = lead.currentStage;
+    const previousAssignee = lead.assignedTo;
+    let targetUser = null;
+
+    if (targetStage !== 'Completed') {
+      if (req.body.userId) {
+        targetUser = await User.findOne(assignableUserFilter({ _id: req.body.userId })).select('name role email');
+        if (!targetUser) {
+          return res.status(404).json({ success: false, message: 'Selected user not found or inactive.' });
+        }
+
+        const targetStageRoles = getRolesForStage(targetStage);
+        if (!targetStageRoles.includes(targetUser.role)) {
+          return res.status(400).json({
+            success: false,
+            message: `Selected user role '${targetUser.role}' cannot handle '${targetStage}' leads.`
+          });
+        }
+      } else {
+        targetUser = await getDefaultAssigneeForStage(targetStage);
+      }
+    }
+
+    if (
+      previousStage === targetStage &&
+      String(targetUser?._id || '') === String(lead.assignedTo || '') &&
+      lead.status === (targetStage === 'Completed' ? 'completed' : 'active')
+    ) {
+      return res.status(400).json({ success: false, message: 'Lead is already assigned to this dashboard and user.' });
+    }
+
+    lead.currentStage = targetStage;
+    lead.status = targetStage === 'Completed' ? 'completed' : 'active';
+    lead.assignedTo = targetStage === 'Completed' ? null : targetUser?._id || null;
+    lead.history.push({
+      stage: targetStage,
+      action: 'Reassigned',
+      performedBy: req.user._id,
+      performedByName: req.user.name,
+      previousStage,
+      newStage: targetStage,
+      previousDashboard: previousStage,
+      newDashboard: targetStage,
+      reassignedToName: targetUser?.name || '',
+      note: note || `Reassigned from ${previousStage} to ${targetStage}`,
+      timestamp: new Date()
+    });
+
+    await lead.save();
+
+    if (targetUser?._id) {
+      await User.findByIdAndUpdate(targetUser._id, {
+        $push: { notifications: { message: `Lead reassigned to you: ${lead.name}` } }
+      });
+    }
+
+    if (previousAssignee && String(previousAssignee) !== String(targetUser?._id || '') && String(previousAssignee) !== String(req.user._id)) {
+      await User.findByIdAndUpdate(previousAssignee, {
+        $push: { notifications: { message: `Lead reassigned from your queue: ${lead.name}` } }
+      });
+    }
+
+    const populated = await Lead.findById(lead._id)
+      .populate('assignedTo', 'name role')
+      .populate('createdBy', 'name role');
+
+    res.json({ success: true, message: 'Lead reassigned successfully', data: populated });
   } catch (err) {
     res.status(err.statusCode || 500).json({ success: false, message: err.message });
   }

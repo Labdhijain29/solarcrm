@@ -742,7 +742,7 @@ export default function SalesDashboard() {
           </div>
           <span className="badge badge-sun">{user?.role || 'Sales Team'}</span>
         </div>
-        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} defaultSort="latest" />
+        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} defaultSort="latest" onLeadUpdated={refreshData} />
       </div>
 
       {showExecutiveCreate && <SalesExecutiveForm onClose={() => setShowExecutiveCreate(false)} onCreated={refreshData} />}

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
 import { FilePreview, StageProgress, StageBadge, StatusBadge, Spinner, PageHeader } from '../../components/common'
+import ReassignLeadModal, { canReassignLead } from '../../components/dashboard/ReassignLeadModal'
 import { useAuthStore } from '../../store'
 import { canActOnStage, STAGES, stageIndex, formatDate, ROLE_STAGE_MAP } from '../../utils/constants'
 import { getLeadViewSections } from '../../utils/leadDetails'
@@ -25,6 +26,7 @@ export default function LeadDetailPage() {
   const [loadError, setLoadError] = useState('')
   const [note, setNote] = useState('')
   const [acting, setActing] = useState(false)
+  const [showReassign, setShowReassign] = useState(false)
   const [nextStageUsers, setNextStageUsers] = useState([])
   const [nextAssigneeId, setNextAssigneeId] = useState('')
   const [stageForm, setStageForm] = useState({
@@ -297,7 +299,10 @@ export default function LeadDetailPage() {
         icon="SUN"
         title={lead.name}
         subtitle={<div style={{ display: 'flex', gap: 8, marginTop: 4 }}><StageBadge stage={lead.currentStage} /><StatusBadge status={lead.status} /></div>}
-        action={<button className="btn btn-ghost btn-sm" onClick={goBack}>Back</button>}
+        action={<div className="dashboard-inline-actions">
+          {canReassignLead(user, lead) && <button className="btn btn-secondary btn-sm" onClick={() => setShowReassign(true)}>Reassign</button>}
+          <button className="btn btn-ghost btn-sm" onClick={goBack}>Back</button>
+        </div>}
       />
 
       <div className="crm-card" style={{ marginBottom: 16 }}>
@@ -542,6 +547,14 @@ export default function LeadDetailPage() {
           </div>
         </div>
       </div>
+      {showReassign && (
+        <ReassignLeadModal
+          lead={lead}
+          currentUser={user}
+          onClose={() => setShowReassign(false)}
+          onReassigned={fetch}
+        />
+      )}
     </div>
   )
 }

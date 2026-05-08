@@ -140,7 +140,7 @@ export default function RejectedLeadsPage() {
 
       <div className="crm-card">
         <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Rejected Leads ({stats.total})</h3>
-        <LeadsTable leads={leads} loading={loading} onView={setSelected} onDelete={canDelete ? deleteLead : undefined} />
+        <LeadsTable leads={leads} loading={loading} onView={setSelected} onDelete={canDelete ? deleteLead : undefined} onLeadUpdated={fetchRejectedLeads} />
       </div>
 
       {selected && (

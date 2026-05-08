@@ -80,6 +80,7 @@ export const leadsAPI = {
   approve: (id, data) => api.post(`/leads/${id}/approve`, data, formDataConfig(data)),
   reject: (id, data) => api.post(`/leads/${id}/reject`, data),
   transfer: (id, data) => api.post(`/leads/${id}/transfer`, data),
+  reassign: (id, data) => api.post(`/leads/${id}/reassign`, data),
   addNote: (id, note) => api.post(`/leads/${id}/note`, { note }),
   delete: (id) => api.delete(`/leads/${id}`),
 }

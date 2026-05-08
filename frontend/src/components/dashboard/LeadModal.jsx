@@ -106,7 +106,10 @@ export default function LeadModal({
   const blockedSalesExecutiveApproval = isSalesExecutiveLead && lead.currentStage === 'Lead' && currentUser?.role === 'Sales Executive'
   const canAct = canActOnStage(currentUser?.role, lead.currentStage) && !blockedSalesExecutiveApproval
   const canApprove = canAct && lead.status === 'active' && currentIndex < STAGES.length - 1
-  const canReassign = canAct && lead.status === 'active'
+  const canReassign = lead.status === 'active' && (
+    ['Admin', 'Manager', 'Sales Manager', 'Service Manager'].includes(currentUser?.role) ||
+    ROLE_STAGE_MAP[currentUser?.role] === lead.currentStage
+  )
   const nextStage = STAGES[currentIndex + 1] || ''
   const previousStage = currentIndex > 0 ? STAGES[currentIndex - 1] : ''
   const previousStageRoles = useMemo(() => (
@@ -501,9 +504,9 @@ export default function LeadModal({
   ]
 
   return (
-    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop lead-view-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-box lead-view-modal">
-        <div className="dashboard-split-row" style={{ marginBottom:20 }}>
+        <div className="dashboard-split-row lead-view-header" style={{ marginBottom:20 }}>
           <div style={{ flex:1 }}>
             <h2 style={{ fontFamily:'Syne,sans-serif', fontSize:20, fontWeight:700 }}>{lead.name}</h2>
             <div className="dashboard-inline-actions" style={{ marginTop:6 }}>
@@ -798,11 +801,11 @@ export default function LeadModal({
           <StageProgress lead={lead} />
         </div>
 
-        <div className="crm-card-sm" style={{ marginBottom:14 }}>
-          <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Activity History</div>
+        <div className="crm-card-sm lead-activity-panel" style={{ marginBottom:14 }}>
+          <div className="lead-section-title">Activity History</div>
           {(lead.history || []).map((item, index) => (
-            <div key={index} className="history-item">
-              <div style={{ width:32, height:32, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, flexShrink:0, background:item.action === 'Approved' || item.action === 'Completed' ? 'rgba(16,185,129,.1)' : item.action === 'Rejected' ? 'rgba(239,68,68,.1)' : 'rgba(245,158,11,.1)' }}>
+            <div key={index} className="history-item lead-history-row">
+              <div className={`lead-history-icon ${item.action === 'Approved' || item.action === 'Completed' ? 'ok' : item.action === 'Rejected' ? 'no' : ''}`}>
                 {item.action === 'Approved' || item.action === 'Completed' ? 'OK' : item.action === 'Rejected' ? 'NO' : '...'}
               </div>
               <div style={{ flex:1 }}>
@@ -828,10 +831,10 @@ export default function LeadModal({
         )}
 
         {showReassign && (
-          <div style={{ marginBottom:12 }}>
+          <div className="lead-reassign-block" style={{ marginBottom:12 }}>
             <label className="form-label">Reassign Lead</label>
             <select
-              className="crm-input"
+              className="crm-input lead-next-assignee"
               value={reassignUserId}
               disabled={loading || sameStageUsers.length === 0}
               onChange={(event) => setReassignUserId(event.target.value)}
@@ -995,7 +998,7 @@ export default function LeadModal({
           </div>
         )}
 
-        <div className="dashboard-inline-actions">
+        <div className="dashboard-inline-actions lead-action-bar">
           {canApprove && (
             <button className="btn btn-success" style={{ flex:1 }} disabled={loading} onClick={doApprove}>
               Approve {'->'} {isSalesManagerHandoff ? 'Manager' : STAGES[currentIndex + 1]}

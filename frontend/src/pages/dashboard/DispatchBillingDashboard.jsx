@@ -3,7 +3,7 @@ import jsPDF from 'jspdf'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { FaBarcode, FaCheck, FaDownload, FaFileExcel, FaFileInvoice, FaFilePdf, FaPause, FaPrint, FaSearch, FaShippingFast, FaTrash } from 'react-icons/fa'
+import { FaBarcode, FaBoxes, FaCheck, FaClipboardCheck, FaDownload, FaExclamationTriangle, FaFileExcel, FaFileInvoice, FaFilePdf, FaPause, FaPrint, FaSearch, FaShippingFast, FaTools, FaTrash } from 'react-icons/fa'
 import { Provider, useDispatch, useSelector } from 'react-redux'
 import Select from 'react-select'
 import * as XLSX from 'xlsx'
@@ -298,7 +298,14 @@ function CascadingProductSelector({
   )
 }
 
-function DispatchBillingInner() {
+const normalizeDashboardTab = (tab) => {
+  if (tab === 'approvals') return 'approvals'
+  if (tab === 'stock') return 'stock'
+  if (tab === 'installation') return 'installation'
+  return 'billing'
+}
+
+function DispatchBillingInner({ defaultTab = 'billing' }) {
   const { user } = useAuthStore()
   const dispatch = useDispatch()
   const { products, invoices, users, loading } = useSelector(state => state.dispatchBilling)
@@ -306,6 +313,7 @@ function DispatchBillingInner() {
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [activeTab, setActiveTab] = useState(() => normalizeDashboardTab(defaultTab))
   const { register, control, reset, handleSubmit, getValues } = useForm({ defaultValues: emptyCustomer(user) })
   const calculated = useMemo(() => calculateLines(lines), [lines])
   const moduleCategoryOptions = useMemo(() => MODULE_GROUP_OPTIONS, [])
@@ -502,6 +510,24 @@ function DispatchBillingInner() {
   })
   const pendingInvoices = invoices.filter(invoice => invoice.approvalStatus === 'Pending')
   const lowStock = products.filter(product => Number(product.quantity || 0) <= Number(product.lowStockThreshold || 10)).slice(0, 6)
+  const lowStockAll = products.filter(product => Number(product.quantity || 0) <= Number(product.lowStockThreshold || 10))
+  const outOfStock = products.filter(product => Number(product.quantity || 0) <= 0)
+  const approvedInvoices = invoices.filter(item => item.approvalStatus === 'Approved')
+  const installationQueue = approvedInvoices.filter(item => item.installationStatus !== 'Completed')
+  const completedInstallations = approvedInvoices.filter(item => item.installationStatus === 'Completed')
+  const stockValue = products.reduce((sum, product) => sum + (Number(product.quantity || 0) * Number(product.price || product.salePrice || 0)), 0)
+  const workflowSteps = [
+    { label: 'Bills Created', value: invoices.length, icon: <FaFileInvoice /> },
+    { label: 'Pending Approval', value: pendingInvoices.length, icon: <FaClipboardCheck /> },
+    { label: 'Sent to Installation', value: installationQueue.length, icon: <FaTools /> },
+    { label: 'Completed', value: completedInstallations.length, icon: <FaCheck /> },
+  ]
+  const tabItems = [
+    { id: 'billing', label: 'Billing', icon: <FaFileInvoice /> },
+    { id: 'approvals', label: 'Approvals', icon: <FaClipboardCheck />, count: pendingInvoices.length },
+    { id: 'stock', label: 'Stock Risk', icon: <FaBoxes />, count: lowStockAll.length },
+    { id: 'installation', label: 'Installation', icon: <FaTools />, count: installationQueue.length },
+  ]
   const installerOptions = users.map(person => ({ value: person.name, label: `${person.name} | ${person.role}` }))
 
   if (loading) return <Spinner />
@@ -518,11 +544,33 @@ function DispatchBillingInner() {
       <div className="dashboard-grid-metrics">
         <MetricCard icon={<FaFileInvoice />} label="Total invoices" value={invoices.length} />
         <MetricCard icon={<FaShippingFast />} label="Pending dispatches" value={pendingInvoices.length} />
-        <MetricCard icon={<FaCheck />} label="Approved bills" value={invoices.filter(item => item.approvalStatus === 'Approved').length} />
-        <MetricCard icon={<FaBarcode />} label="Low stock alerts" value={lowStock.length} change="Barcode-ready billing input" />
+        <MetricCard icon={<FaCheck />} label="Approved bills" value={approvedInvoices.length} />
+        <MetricCard icon={<FaExclamationTriangle />} label="Low stock alerts" value={lowStockAll.length} change={`${outOfStock.length} out of stock`} changeColor={outOfStock.length ? 'var(--red)' : undefined} />
       </div>
 
-      <form className="crm-card erp-billing-card" onSubmit={handleSubmit(form => saveBill(form, 'Pending'))}>
+      <div className="crm-card dispatch-command-card">
+        <div className="dispatch-workflow-rail">
+          {workflowSteps.map((step, index) => (
+            <div className="dispatch-workflow-step" key={step.label}>
+              <div className="dispatch-workflow-icon">{step.icon}</div>
+              <span>{step.label}</span>
+              <strong>{step.value}</strong>
+              {index < workflowSteps.length - 1 && <i />}
+            </div>
+          ))}
+        </div>
+        <div className="dispatch-tab-bar">
+          {tabItems.map(tab => (
+            <button type="button" key={tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}>
+              {tab.icon}
+              <span>{tab.label}</span>
+              {Number(tab.count || 0) > 0 && <strong>{tab.count}</strong>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === 'billing' && <form className="crm-card erp-billing-card" onSubmit={handleSubmit(form => saveBill(form, 'Pending'))}>
         <div className="dashboard-split-row">
           <h3>Sales / Dispatch Invoice</h3>
           <div className="dashboard-inline-actions">
@@ -618,9 +666,9 @@ function DispatchBillingInner() {
             <div className="erp-payable"><span>Final Payable</span><strong>{money(calculated.finalPayable)}</strong></div>
           </div>
         </div>
-      </form>
+      </form>}
 
-      <div className="dashboard-grid-sidebar" style={{ marginTop:16 }}>
+      {(activeTab === 'billing' || activeTab === 'approvals') && <div className="dashboard-grid-sidebar" style={{ marginTop:16 }}>
         <div className="crm-card">
           <div className="dashboard-table-filters">
             <div className="dashboard-search"><FaSearch /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search invoice, customer, mobile..." /></div>
@@ -645,17 +693,70 @@ function DispatchBillingInner() {
         </div>
         <div className="dashboard-stack">
           <div className="crm-card"><h3>Low Stock Alerts</h3>{lowStock.map(item => <div className="erp-alert-row" key={item._id}><span>{item.name}<small>{item.category}</small></span><strong>{item.quantity} {item.unit}</strong></div>)}{lowStock.length === 0 && <p className="erp-muted">No low stock items.</p>}</div>
-          <div className="crm-card"><h3>Installation Queue</h3>{invoices.filter(item => item.approvalStatus === 'Approved').slice(0, 6).map(item => <div className="erp-alert-row" key={item._id}><span>{item.billNo}<small>{item.installationAssigneeName || item.engineerName}</small></span><strong>{item.installationStatus}</strong></div>)}</div>
+          <div className="crm-card"><h3>Installation Queue</h3>{installationQueue.slice(0, 6).map(item => <div className="erp-alert-row" key={item._id}><span>{item.billNo}<small>{item.installationAssigneeName || item.engineerName}</small></span><strong>{item.installationStatus}</strong></div>)}{installationQueue.length === 0 && <p className="erp-muted">No pending installations.</p>}</div>
         </div>
-      </div>
+      </div>}
+
+      {activeTab === 'stock' && <div className="dashboard-grid-sidebar" style={{ marginTop:16 }}>
+        <div className="crm-card">
+          <div className="dashboard-split-row">
+            <h3>Inventory Risk</h3>
+            <span className="badge badge-sun">Estimated stock value {money(stockValue)}</span>
+          </div>
+          <div className="crm-table-wrap">
+            <table className="crm-table">
+              <thead><tr><th>Product</th><th>Category</th><th>Brand</th><th>Available</th><th>Threshold</th><th>Status</th></tr></thead>
+              <tbody>{lowStockAll.map(product => (
+                <tr key={product._id}>
+                  <td><strong>{product.name}</strong><br /><small>{productCode(product)}</small></td>
+                  <td>{product.category || '-'}</td>
+                  <td>{product.brand || '-'}</td>
+                  <td>{product.quantity || 0} {product.unit}</td>
+                  <td>{product.lowStockThreshold || 10} {product.unit}</td>
+                  <td><span className={`badge ${Number(product.quantity || 0) <= 0 ? 'badge-red' : 'badge-sun'}`}>{Number(product.quantity || 0) <= 0 ? 'Out of Stock' : 'Low Stock'}</span></td>
+                </tr>
+              ))}</tbody>
+            </table>
+            {lowStockAll.length === 0 && <EmptyState title="No stock risk" subtitle="All products are above their alert thresholds." />}
+          </div>
+        </div>
+        <div className="dashboard-stack">
+          <MetricCard icon={<FaBoxes />} label="Total SKUs" value={products.length} />
+          <MetricCard icon={<FaExclamationTriangle />} label="Out of stock" value={outOfStock.length} change="Dispatch is blocked for unavailable rows" changeColor={outOfStock.length ? 'var(--red)' : undefined} />
+        </div>
+      </div>}
+
+      {activeTab === 'installation' && <div className="crm-card" style={{ marginTop:16 }}>
+        <div className="dashboard-split-row">
+          <h3>Installation Handoff</h3>
+          <span className="badge badge-green">{completedInstallations.length} completed</span>
+        </div>
+        <div className="crm-table-wrap">
+          <table className="crm-table">
+            <thead><tr><th>Bill</th><th>Customer</th><th>Installation Manager</th><th>Dispatch</th><th>Installation</th><th>Amount</th><th>Invoice</th></tr></thead>
+            <tbody>{approvedInvoices.map(invoice => (
+              <tr key={invoice._id}>
+                <td><strong>{invoice.billNo}</strong><br /><small>{new Date(invoice.dispatchDate || invoice.createdAt).toLocaleDateString('en-IN')}</small></td>
+                <td>{invoice.customerName}<br /><small>{invoice.mobile}</small></td>
+                <td>{invoice.installationAssigneeName || invoice.engineerName || '-'}</td>
+                <td>{invoice.dispatchStatus || '-'}</td>
+                <td><span className={`badge ${invoice.installationStatus === 'Completed' ? 'badge-green' : invoice.installationStatus === 'In Progress' ? 'badge-sun' : 'badge-gray'}`}>{invoice.installationStatus || 'Pending'}</span></td>
+                <td>{money(invoice.payableAmount || invoice.grandTotal)}</td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => createPdf(invoice)}><FaFilePdf /> PDF</button></td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {approvedInvoices.length === 0 && <EmptyState title="No approved dispatches" subtitle="Approve a pending bill to send it for installation." />}
+        </div>
+      </div>}
     </div>
   )
 }
 
-export default function DispatchBillingDashboard() {
+export default function DispatchBillingDashboard({ defaultTab = 'billing' }) {
   return (
     <Provider store={billingStore}>
-      <DispatchBillingInner />
+      <DispatchBillingInner defaultTab={defaultTab} />
     </Provider>
   )
 }

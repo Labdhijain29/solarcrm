@@ -59,7 +59,7 @@ export function LeadsPage() {
     <div style={{ animation: 'fadeIn .4s ease' }}>
       <PageHeader icon={<FaClipboardList />} title="All Leads" subtitle={`${leads.length} total leads in the system`} />
       <div className="crm-card">
-        <LeadsTable leads={leads} loading={loading} onView={viewLead} onDelete={canDelete ? deleteLead : undefined} extraActions={leadRowActions} />
+        <LeadsTable leads={leads} loading={loading} onView={viewLead} onDelete={canDelete ? deleteLead : undefined} extraActions={leadRowActions} onLeadUpdated={fetch} />
       </div>
       {selected && (
         <LeadModal

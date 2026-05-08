@@ -34,6 +34,7 @@ export default function LeadsTable({
   defaultSort = 'ivrs-asc',
   pagination,
   onQueryChange,
+  onLeadUpdated,
 }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -41,6 +42,7 @@ export default function LeadsTable({
   const [statusFilter, setStatus] = useState('All')
   const [stageFilter, setStage] = useState('All')
   const [sortBy, setSortBy] = useState(defaultSort)
+  const [hiddenLeadIds, setHiddenLeadIds] = useState([])
   const serverMode = typeof onQueryChange === 'function'
 
   const toServerQuery = (overrides = {}) => {
@@ -75,7 +77,8 @@ export default function LeadsTable({
     stageFilter !== 'All' ||
     sortBy !== defaultSort
 
-  const filtered = serverMode ? leads : leads
+  const visibleLeads = leads.filter((lead) => !hiddenLeadIds.includes(lead._id || lead.id))
+  const filtered = serverMode ? visibleLeads : visibleLeads
     .filter((lead) => {
       const q = search.toLowerCase()
       if (
@@ -121,6 +124,14 @@ export default function LeadsTable({
     setStage('All')
     setSortBy(defaultSort)
     updateServerQuery({ search: '', source: 'All', status: 'All', stage: 'All', sort: defaultSort, page: 1 })
+  }
+
+  const handleReassigned = (updatedLead) => {
+    if (updatedLead?._id && (stageFilter === 'All' || updatedLead.currentStage !== stageFilter)) {
+      setHiddenLeadIds((prev) => [...new Set([...prev, updatedLead._id])])
+    }
+    onLeadUpdated?.(updatedLead)
+    if (serverMode) updateServerQuery({})
   }
 
   if (loading) {

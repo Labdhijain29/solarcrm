@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FaBolt, FaCheckCircle, FaExclamationTriangle, FaSolarPanel, FaTools } from 'react-icons/fa'
 import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import ReassignLeadModal, { canReassignLead } from '../../components/dashboard/ReassignLeadModal'
 import { enquiriesAPI, leadsAPI } from '../../services/api'
+import { useAuthStore } from '../../store'
 
 const SERVICE_TYPES = ['Panel Cleaning', 'Inverter Check', 'Wiring Inspection', 'Generation Drop', 'Net Meter Issue']
 const PRIORITIES = ['High', 'Medium', 'Low']
@@ -23,8 +25,11 @@ export default function ServiceManagerDashboard() {
   const [enquiries, setEnquiries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [reassignLead, setReassignLead] = useState(null)
+  const { user } = useAuthStore()
 
-  useEffect(() => {
+  const loadServiceData = () => {
+    setLoading(true)
     Promise.all([leadsAPI.getAll(), enquiriesAPI.getAll()])
       .then(([leadsRes, enquiriesRes]) => {
         setLeads(leadsRes.data.data || [])
@@ -35,7 +40,9 @@ export default function ServiceManagerDashboard() {
         setError(err.response?.data?.message || 'Could not load service data')
       })
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(loadServiceData, [])
 
   const serviceEnquiries = useMemo(
     () => enquiries.filter(enquiry => enquiry.enquiryType === 'Service Enquiry'),
@@ -145,7 +152,7 @@ export default function ServiceManagerDashboard() {
             <div className="crm-table-wrap">
               <table className="crm-table">
                 <thead>
-                  <tr>{['Customer', 'System', 'Issue', 'Priority', 'Status', 'Technician', 'Due Date'].map(h => <th key={h}>{h}</th>)}</tr>
+                  <tr>{['Customer', 'System', 'Issue', 'Priority', 'Status', 'Technician', 'Due Date', 'Action'].map(h => <th key={h}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {tickets.map(ticket => (
@@ -160,6 +167,7 @@ export default function ServiceManagerDashboard() {
                       <td><span className="badge badge-indigo">{ticket.service.status}</span></td>
                       <td style={{ fontSize:12 }}>{ticket.service.technician}</td>
                       <td style={{ fontSize:12, color:'var(--muted)' }}>{ticket.service.due}</td>
+                      <td>{canReassignLead(user, ticket) && <button className="btn btn-ghost btn-sm" type="button" onClick={() => setReassignLead(ticket)}>Reassign</button>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -187,6 +195,7 @@ export default function ServiceManagerDashboard() {
                         <span>{value}</span>
                       </div>
                     ))}
+                    {canReassignLead(user, ticket) && <button className="btn btn-ghost btn-sm" type="button" onClick={() => setReassignLead(ticket)}>Reassign</button>}
                   </div>
                 ))}
               </div>
@@ -237,11 +246,20 @@ export default function ServiceManagerDashboard() {
                     <div style={{ fontWeight:700 }}>{ticket.service.due}</div>
                   </div>
                 </div>
+                {canReassignLead(user, ticket) && <button className="btn btn-ghost btn-sm" style={{ marginTop:12 }} type="button" onClick={() => setReassignLead(ticket)}>Reassign</button>}
               </div>
             ))}
           </div>
         )}
       </div>
+      {reassignLead && (
+        <ReassignLeadModal
+          lead={reassignLead}
+          currentUser={user}
+          onClose={() => setReassignLead(null)}
+          onReassigned={loadServiceData}
+        />
+      )}
     </div>
   )
 }

@@ -243,7 +243,7 @@ export function ManagerDashboard() {
         ))}
       </div>
 
-      {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} /></div>}
+      {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} onLeadUpdated={fetchLeads} /></div>}
       {tab === 'pipeline' && <KanbanPipeline leads={leads} onView={viewLead} />}
 
       {showCreate && (
@@ -507,7 +507,7 @@ export function SalesDashboard() {
         <MetricCard icon={<FaChartLine />} label="Conv. Rate" value={`${stats.total > 0 ? Math.round(stats.completed / stats.total * 100) : 0}%`} changeColor="var(--indigo)" />
       </div>
       <div className="crm-card">
-        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} />
+        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} onLeadUpdated={fetchLeads} />
       </div>
       {selected && (
         <LeadModal
@@ -707,7 +707,7 @@ export function StageDashboard({ roleOverride }) {
       ) : (
         <div className="crm-card">
           <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Leads at {myStage} ({activeLeads.length})</h3>
-          <LeadsTable leads={activeLeads} loading={false} onView={viewStageLead} extraActions={stageRowActions} />
+          <LeadsTable leads={activeLeads} loading={false} onView={viewStageLead} extraActions={stageRowActions} onLeadUpdated={fetchLeads} />
         </div>
       )}
 

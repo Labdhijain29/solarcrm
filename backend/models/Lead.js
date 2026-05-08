@@ -18,9 +18,14 @@ const fileAssetSchema = new mongoose.Schema({
 
 const historySchema = new mongoose.Schema({
   stage: { type: String, enum: STAGES },
-  action: { type: String, enum: ['Created', 'In Progress', 'Approved', 'Rejected', 'Updated', 'Note Added', 'Completed', 'Transferred'] },
+  action: { type: String, enum: ['Created', 'In Progress', 'Approved', 'Rejected', 'Updated', 'Note Added', 'Completed', 'Transferred', 'Reassigned'] },
   performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   performedByName: String,
+  previousStage: { type: String, enum: STAGES },
+  newStage: { type: String, enum: STAGES },
+  previousDashboard: { type: String, default: '' },
+  newDashboard: { type: String, default: '' },
+  reassignedToName: { type: String, default: '' },
   note: { type: String, default: '' },
   timestamp: { type: Date, default: Date.now }
 }, { _id: false });

@@ -350,6 +350,7 @@ export default function AdminDashboard() {
             onView={viewLead}
             pagination={leadPagination}
             onQueryChange={handleLeadQueryChange}
+            onLeadUpdated={refreshDashboardAndLeads}
           />
         </div>
       )}
