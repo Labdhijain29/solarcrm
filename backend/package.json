@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "seed": "node config/seed.js",
-    "reset-demo-passwords": "node config/reset-demo-passwords.js"
+    "reset-demo-passwords": "node config/reset-demo-passwords.js",
+    "reset-user-password": "node config/reset-user-password.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -11,7 +11,7 @@ import { ALL_BRAND_OPTIONS } from './inventoryStructure'
 
 const PINCODE_REGEX = /^\d{6}$/
 const PHONE_REGEX = /^[6-9]\d{9}$/
-const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
+const IVRS_REGEX = /^[A-Za-z0-9]{1,15}$/
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'permanentAddress', 'address', 'jobTitle', 'branch', 'brand', 'other', 'generatedThrough'])
@@ -310,7 +310,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
     if (name === 'phone') value = normalizePhone(value)
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
-    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
+    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 15)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
     if (name === 'ifscCode') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11)
     if (name === 'monthlyBill' || name === 'monthlyUnit') value = String(value || '').replace(/[^\d.]/g, '')
@@ -343,7 +343,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
       return
     }
     if (formData.ivrsNo && !IVRS_REGEX.test(formData.ivrsNo)) {
-      toast.error('IVRS number must be 10 letters or digits.')
+      toast.error('IVRS number must be up to 15 letters or digits.')
       return
     }
     if (!formData.branch.trim()) {
@@ -507,7 +507,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
           <label>
             IVRS No.
-            <input className="crm-input" name="ivrsNo" value={formData.ivrsNo} onChange={onInputChange} placeholder="10-character IVRS" maxLength={10} />
+            <input className="crm-input" name="ivrsNo" value={formData.ivrsNo} onChange={onInputChange} placeholder="Up to 15-digit IVRS" maxLength={15} />
           </label>
 
           <label>

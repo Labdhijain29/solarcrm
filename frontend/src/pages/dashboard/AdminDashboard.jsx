@@ -81,7 +81,7 @@ export default function AdminDashboard() {
     leadRequestId.current = requestId
     setLeadsLoading(true)
     setLeadError('')
-    leadsAPI.getAll({ limit: LEADS_PAGE_SIZE, ...query })
+    leadsAPI.getAll({ limit: LEADS_PAGE_SIZE, ...query})
       .then((response) => {
         if (requestId !== leadRequestId.current) return
         setLeads(response.data.data || [])

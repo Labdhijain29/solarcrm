@@ -7,6 +7,7 @@ import { useAppStore, useAuthStore } from './store'
 import HomePage from './pages/website/HomePage'
 import AboutPage from './pages/website/AboutPage'
 import ServicesPage from './pages/website/ServicesPage'
+import ProductsPage from './pages/website/ProductsPage'
 import ContactPage from './pages/website/ContactPage'
 import SiteLayout from './components/layout/SiteLayout'
 import LoginPage from './pages/auth/LoginPage'
@@ -143,6 +144,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/services" element={<ServicesPage />} />
+          <Route path="/products" element={<ProductsPage />} />
           <Route path="/contact" element={<ContactPage />} />
         </Route>
 

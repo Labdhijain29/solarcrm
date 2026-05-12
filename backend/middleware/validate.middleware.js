@@ -70,7 +70,7 @@ const validateLead = [
   body('ivrsNo')
     .optional({ checkFalsy: true })
     .trim()
-    .matches(/^[A-Za-z0-9]{10}$/).withMessage('Valid 10-character IVRS number required'),
+    .matches(/^[A-Za-z0-9]{1,15}$/).withMessage('Valid IVRS number up to 15 letters or digits required'),
   body('branch').trim().notEmpty().withMessage('Branch is required'),
   body('source').optional().isIn(['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads','Other']),
   body('generatedThrough').optional().trim(),

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { FaSolarPanel } from 'react-icons/fa'
+import { FaEye, FaSolarPanel } from 'react-icons/fa'
 import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import DispatchBillView from '../../components/dashboard/DispatchBillView'
 import { dispatchAPI } from '../../services/api'
 
 const statuses = ['Pending', 'In Progress', 'Completed']
@@ -9,6 +10,7 @@ const statuses = ['Pending', 'In Progress', 'Completed']
 export default function InstallationManagerDashboard() {
   const [dispatches, setDispatches] = useState([])
   const [loading, setLoading] = useState(true)
+  const [viewingDispatch, setViewingDispatch] = useState(null)
 
   const loadDispatches = () => {
     setLoading(true)
@@ -24,6 +26,7 @@ export default function InstallationManagerDashboard() {
     try {
       await dispatchAPI.updateInstallationStatus(dispatch._id, status)
       toast.success('Installation status updated')
+      setViewingDispatch(current => current?._id === dispatch._id ? { ...current, installationStatus: status } : current)
       loadDispatches()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Status update failed')
@@ -51,17 +54,20 @@ export default function InstallationManagerDashboard() {
                   <h3 style={{ fontSize:16, fontWeight:800 }}>{dispatch.billNo}</h3>
                   <div style={{ fontSize:12, color:'var(--muted)' }}>{dispatch.customerName} | {dispatch.mobile} | {dispatch.siteAddress}</div>
                 </div>
-                <select className="crm-input" style={{ maxWidth:180 }} value={dispatch.installationStatus} onChange={e => updateStatus(dispatch, e.target.value)}>
-                  {statuses.map(status => <option key={status} value={status}>{status}</option>)}
-                </select>
+                <div className="dashboard-inline-actions">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setViewingDispatch(dispatch)}><FaEye /> View</button>
+                  <select className="crm-input" style={{ maxWidth:180 }} value={dispatch.installationStatus} onChange={e => updateStatus(dispatch, e.target.value)}>
+                    {statuses.map(status => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div className="crm-table-wrap">
                 <table className="crm-table">
                   <thead><tr><th>Item</th><th>Quantity</th><th>Price</th><th>Total</th></tr></thead>
                   <tbody>
-                    {dispatch.items.map(item => (
-                      <tr key={`${dispatch._id}-${item.productId}`}>
+                    {dispatch.items.map((item, index) => (
+                      <tr key={`${dispatch._id}-${item.productId || index}`}>
                         <td>{item.productName}</td>
                         <td>{item.quantity} {item.unit}</td>
                         <td>₹{Number(item.price || 0).toLocaleString('en-IN')}</td>
@@ -78,6 +84,14 @@ export default function InstallationManagerDashboard() {
             </div>
           ))}
         </div>
+      )}
+
+      {viewingDispatch && (
+        <DispatchBillView dispatch={viewingDispatch} onClose={() => setViewingDispatch(null)}>
+          <select className="crm-input" style={{ maxWidth:220 }} value={viewingDispatch.installationStatus} onChange={e => updateStatus(viewingDispatch, e.target.value)}>
+            {statuses.map(status => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </DispatchBillView>
       )}
     </div>
   )

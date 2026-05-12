@@ -12,7 +12,7 @@ import { ALL_BRAND_OPTIONS } from './inventoryStructure'
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
-const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
+const IVRS_REGEX = /^[A-Za-z0-9]{1,15}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'generatedThrough', 'other'])
 const canEditBeforeApproval = (lead, role) => (
@@ -117,7 +117,7 @@ export function ManagerDashboard() {
     if (!newLead.state.trim() || !newLead.city.trim()) return toast.error('State and city are required')
     if (!newLead.branch.trim()) return toast.error('Branch is required.')
     if (newLead.pincode && !PINCODE_REGEX.test(newLead.pincode)) return toast.error('Pincode must be 6 digits.')
-    if (newLead.ivrsNo && !IVRS_REGEX.test(newLead.ivrsNo)) return toast.error('IVRS number must be 10 letters or digits.')
+    if (newLead.ivrsNo && !IVRS_REGEX.test(newLead.ivrsNo)) return toast.error('IVRS number must be up to 15 letters or digits.')
 
     const salesExecutiveData = {
       contact: phone,
@@ -198,7 +198,7 @@ export function ManagerDashboard() {
     }
     if (name === 'phone') value = normalizePhone(value)
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
-    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
+    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 15)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
     if (name === 'ifscCode') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11)
     if (name === 'monthlyBill') value = String(value || '').replace(/[^\d.]/g, '')
@@ -329,7 +329,7 @@ export function ManagerDashboard() {
 
               <label>
                 IVRS No.
-                <input className="crm-input" name="ivrsNo" value={newLead.ivrsNo} onChange={updateNewLeadField} placeholder="10-character IVRS" maxLength={10} />
+                <input className="crm-input" name="ivrsNo" value={newLead.ivrsNo} onChange={updateNewLeadField} placeholder="Up to 15-digit IVRS" maxLength={15} />
               </label>
 
               <label>

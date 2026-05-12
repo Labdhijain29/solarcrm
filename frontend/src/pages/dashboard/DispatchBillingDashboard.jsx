@@ -3,11 +3,13 @@ import jsPDF from 'jspdf'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { FaBarcode, FaBoxes, FaCheck, FaClipboardCheck, FaDownload, FaExclamationTriangle, FaFileExcel, FaFileInvoice, FaFilePdf, FaPause, FaPrint, FaSearch, FaShippingFast, FaTools, FaTrash } from 'react-icons/fa'
+import { FaBoxes, FaCheck, FaClipboardCheck, FaDownload, FaExclamationTriangle, FaEye, FaFileExcel, FaFileInvoice, FaFilePdf, FaMinus, FaPause, FaPlus, FaPrint, FaSearch, FaShippingFast, FaTools, FaTrash } from 'react-icons/fa'
 import { Provider, useDispatch, useSelector } from 'react-redux'
 import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
 import * as XLSX from 'xlsx'
 import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import DispatchBillView from '../../components/dashboard/DispatchBillView'
 import { dispatchAPI, productAPI, usersAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import {
@@ -309,14 +311,34 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
   const { user } = useAuthStore()
   const dispatch = useDispatch()
   const { products, invoices, users, loading } = useSelector(state => state.dispatchBilling)
-  const [lines, setLines] = useState([emptyLine()])
+  const [lines, setLines] = useState([])
   const [saving, setSaving] = useState(false)
+  const [productStockSearch, setProductStockSearch] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [activeTab, setActiveTab] = useState(() => normalizeDashboardTab(defaultTab))
+  const [viewingInvoice, setViewingInvoice] = useState(null)
   const { register, control, reset, handleSubmit, getValues } = useForm({ defaultValues: emptyCustomer(user) })
   const calculated = useMemo(() => calculateLines(lines), [lines])
   const moduleCategoryOptions = useMemo(() => MODULE_GROUP_OPTIONS, [])
+  const visibleProducts = useMemo(() => {
+    const term = productStockSearch.trim().toLowerCase()
+    return products
+      .map((product) => {
+        const selected = lines.find(line => line.productId === product._id)
+        const selectedQuantity = Number(selected?.quantity || 0)
+        return {
+          ...product,
+          selectedQuantity,
+          availableAfterBill: Number(product.quantity || 0) - selectedQuantity,
+        }
+      })
+      .filter((product) => {
+        if (!term) return true
+        return productSearchText(product).includes(term)
+      })
+      .sort((a, b) => Number(b.availableAfterBill || 0) - Number(a.availableAfterBill || 0) || String(a.name || '').localeCompare(String(b.name || '')))
+  }, [lines, productStockSearch, products])
 
   const loadData = async () => {
     try {
@@ -340,7 +362,8 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
 
   const resetBill = () => {
     reset(emptyCustomer(user))
-    setLines([emptyLine()])
+    setLines([])
+    setProductStockSearch('')
   }
 
   const updateLine = (index, patch) => {
@@ -372,6 +395,59 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
     productCode: productCode(product),
     ...productMeta(product),
   })
+
+  const addProductToBill = (product) => {
+    if (Number(product.quantity || 0) <= 0) {
+      toast.error('No stock available for this item')
+      return
+    }
+
+    setLines(prev => {
+      const existing = prev.find(line => line.productId === product._id)
+      if (existing) {
+        if (Number(existing.quantity || 0) + 1 > Number(product.quantity || 0)) {
+          toast.error('Selected quantity cannot exceed available stock')
+          return prev
+        }
+        return prev.map(line => line.productId === product._id ? { ...line, quantity: Number(line.quantity || 0) + 1 } : line)
+      }
+
+      return [...prev, { ...emptyLine(), ...selectProductPatch(product), quantity: 1 }]
+    })
+  }
+
+  const changeBillQuantity = (productId, delta) => {
+    const product = products.find(item => item._id === productId)
+    setLines(prev => prev.flatMap((line) => {
+      if (line.productId !== productId) return [line]
+      const nextQuantity = Number(line.quantity || 0) + delta
+      if (nextQuantity <= 0) return []
+      if (product && nextQuantity > Number(product.quantity || 0)) {
+        toast.error('Selected quantity cannot exceed available stock')
+        return [line]
+      }
+      return [{ ...line, quantity: nextQuantity }]
+    }))
+  }
+
+  const setBillQuantity = (productId, value) => {
+    const product = products.find(item => item._id === productId)
+    const nextQuantity = Number(value || 0)
+
+    setLines(prev => prev.flatMap((line) => {
+      if (line.productId !== productId) return [line]
+      if (nextQuantity <= 0) return []
+      if (product && nextQuantity > Number(product.quantity || 0)) {
+        toast.error('Selected quantity cannot exceed available stock')
+        return [{ ...line, quantity: Number(product.quantity || line.quantity || 1) }]
+      }
+      return [{ ...line, quantity: nextQuantity }]
+    }))
+  }
+
+  const removeBillItem = (productId) => {
+    setLines(prev => prev.filter(line => line.productId !== productId))
+  }
 
   const handleCascadeChange = (index, field, value) => {
     const firstBrand = field === 'moduleGroup' ? (getBrandOptionsByGroup(value)[0] || '') : ''
@@ -432,6 +508,10 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
   const saveBill = async (form, approvalStatus = 'Pending') => {
     const validLines = calculated.lines.filter(line => line.productId && Number(line.quantity || 0) > 0)
     if (!validLines.length) return toast.error('Add at least one stock item.')
+    if (!String(form.customerName || '').trim()) return toast.error('Customer name required.')
+    if (!String(form.mobile || '').trim()) return toast.error('Mobile number required.')
+    if (!String(form.engineerName || '').trim()) return toast.error('Installation Manager required.')
+    if (!String(form.siteAddress || '').trim()) return toast.error('Site address required.')
     if (validLines.some(line => approvalStatus === 'Pending' && Number(line.quantity || 0) > Number(line.availableStock || 0))) {
       return toast.error('One or more rows exceed available stock.')
     }
@@ -448,6 +528,14 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  const showSaveErrors = (errors) => {
+    if (errors.customerName) return toast.error('Customer name required.')
+    if (errors.mobile) return toast.error('Mobile number required.')
+    if (errors.engineerName) return toast.error('Installation Manager required.')
+    if (errors.siteAddress) return toast.error('Site address required.')
+    toast.error('Please complete required bill details.')
   }
 
   const approveInvoice = async (invoice) => {
@@ -537,7 +625,7 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
       <PageHeader
         icon={<FaFileInvoice />}
         title="Dispatch Manager Billing"
-        subtitle="Busy/Tally-style stock invoice, approval, PDF, reports, and installation handoff."
+        subtitle="Select stock items, create dispatch bills, approve handoff, and track installation."
         action={<div className="dashboard-inline-actions"><button className="btn btn-secondary" onClick={exportExcel}><FaFileExcel /> Export</button><button className="btn btn-ghost" onClick={printInvoice}><FaPrint /> Print</button></div>}
       />
 
@@ -574,10 +662,10 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
         <div className="dashboard-split-row">
           <h3>Sales / Dispatch Invoice</h3>
           <div className="dashboard-inline-actions">
-            <button type="button" className="btn btn-ghost" onClick={handleSubmit(form => saveBill(form, 'Draft'))}><FaDownload /> Draft</button>
-            <button type="button" className="btn btn-secondary" onClick={handleSubmit(form => saveBill(form, 'Hold'))}><FaPause /> Hold</button>
+            <button type="button" className="btn btn-ghost" onClick={handleSubmit(form => saveBill(form, 'Draft'), showSaveErrors)}><FaDownload /> Draft</button>
+            <button type="button" className="btn btn-secondary" onClick={handleSubmit(form => saveBill(form, 'Hold'), showSaveErrors)}><FaPause /> Hold</button>
             <button type="button" className="btn btn-secondary" onClick={() => createPdf()}><FaFilePdf /> PDF</button>
-            <button className="btn btn-primary" disabled={saving}><FaCheck /> {saving ? 'Saving...' : 'Save Bill'}</button>
+            <button type="button" className="btn btn-primary" disabled={saving} onClick={handleSubmit(form => saveBill(form, 'Pending'), showSaveErrors)}><FaCheck /> {saving ? 'Saving...' : 'Save Bill & Reserve Stock'}</button>
           </div>
         </div>
 
@@ -587,72 +675,151 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
           <div><label className="form-label">Customer</label><input className="crm-input" {...register('customerName', { required: true })} placeholder="Customer search / name" /></div>
           <div><label className="form-label">Mobile</label><input className="crm-input" maxLength={10} {...register('mobile', { required: true })} /></div>
           <div><label className="form-label">GST No.</label><input className="crm-input" {...register('customerGst')} /></div>
-          <div><label className="form-label">Lead / Deal No.</label><input className="crm-input" {...register('leadId')} /></div>
+          <div><label className="form-label">Lead / IVRS / Deal No.</label><input className="crm-input" maxLength={15} {...register('leadId')} /></div>
           <div><label className="form-label">Payment Mode</label><Controller name="paymentMode" control={control} render={({ field }) => <Select classNamePrefix="erp-select" options={PAYMENT_OPTIONS} value={PAYMENT_OPTIONS.find(item => item.value === field.value)} onChange={option => field.onChange(option.value)} />} /></div>
           <div><label className="form-label">Dispatch Status</label><Controller name="dispatchStatus" control={control} render={({ field }) => <Select classNamePrefix="erp-select" options={DISPATCH_OPTIONS} value={DISPATCH_OPTIONS.find(item => item.value === field.value)} onChange={option => field.onChange(option.value)} />} /></div>
-          <div><label className="form-label">Installation Manager</label><Controller name="engineerName" control={control} rules={{ required: true }} render={({ field }) => <Select classNamePrefix="erp-select" options={installerOptions} value={installerOptions.find(item => item.value === field.value) || null} onChange={option => field.onChange(option?.value || '')} placeholder="Search engineer..." />} /></div>
+          <div><label className="form-label">Installation Manager</label><Controller name="engineerName" control={control} rules={{ required: true }} render={({ field }) => {
+            const selectedInstaller = field.value
+              ? installerOptions.find(item => item.value === field.value) || { value: field.value, label: field.value }
+              : null
+            return (
+              <CreatableSelect
+                classNamePrefix="erp-select"
+                options={installerOptions}
+                value={selectedInstaller}
+                onChange={option => field.onChange(option?.value || '')}
+                onCreateOption={(value) => field.onChange(String(value || '').trim())}
+                placeholder="Search or type installer name..."
+                formatCreateLabel={(value) => `Use "${value}"`}
+                isClearable
+              />
+            )
+          }} /></div>
           <div><label className="form-label">Sales Person</label><input className="crm-input" {...register('salesPersonName')} /></div>
           <div style={{ gridColumn:'1/-1' }}><label className="form-label">Site Address</label><textarea rows={2} className="crm-input" {...register('siteAddress', { required: true })} /></div>
         </div>
 
-        <div className="erp-barcode-strip">
-          <FaBarcode />
-          <input className="crm-input" placeholder="Scan barcode / type product code and press Enter" onKeyDown={(event) => {
-            if (event.key !== 'Enter') return
-            event.preventDefault()
-            const product = products.find(item => [item.sku, item.productCode].filter(Boolean).some(code => String(code).toLowerCase() === event.currentTarget.value.toLowerCase()))
-            if (!product) return toast.error('Barcode item not found')
-            const emptyIndex = lines.findIndex(line => !line.productId)
-            selectProduct(emptyIndex >= 0 ? emptyIndex : lines.length - 1, product)
-            if (emptyIndex < 0) addLine()
-            event.currentTarget.value = ''
-          }} />
-        </div>
-
-        <div className="crm-table-wrap">
-          <table className="crm-table erp-billing-table">
-            <thead><tr><th>Sr</th><th>Module Filter / Product Name</th><th>Qty</th><th>Unit</th><th>Price</th><th>Discount</th><th>GST</th><th>Amount</th><th>Available Stock</th><th></th></tr></thead>
-            <tbody>
-              {calculated.lines.map((line, index) => (
-                <tr key={line.lineId}>
-                  <td>{index + 1}</td>
-                  <td>
-                    <CascadingProductSelector
-                      line={line}
-                      rowIndex={index}
-                      products={products}
-                      moduleCategoryOptions={moduleCategoryOptions}
-                      getModuleTypeOptions={getModuleTypeOptions}
-                      getCategoryOptions={getCategoryOptions}
-                      getBrandOptions={getBrandOptions}
-                      getFilteredProducts={getFilteredProducts}
-                      onCascadeChange={handleCascadeChange}
-                      onSelect={selectProduct}
-                      onQuery={(row, query) => updateLine(row, { query })}
-                      onKeyMove={keyMove}
-                    />
-                    <small className="erp-muted">{line.productCode}</small>
-                    {(line.moduleGroup || line.moduleType || line.brand || line.capacity) && (
-                      <div className="erp-line-meta">
-                        <span>Module Category: {groupLabel(line.moduleGroup)}</span>
-                        <span>Module Type: {line.moduleType || '-'}</span>
-                        <span>{getFieldLabel(line.moduleGroup)}: {line.capacity ? getCapacityLabel(line.moduleGroup, line.capacity) : '-'}</span>
-                        <span>Brand: {line.brand || '-'}</span>
-                      </div>
-                    )}
-                  </td>
-                  <td><input data-cell="qty" className="crm-input erp-cell-input" type="number" min="1" value={line.quantity} onChange={event => updateLine(index, { quantity: event.target.value })} onKeyDown={event => keyMove(event, index)} /></td>
-                  <td>{line.unit || '-'}</td>
-                  <td><input className="crm-input erp-cell-input" type="number" value={line.price} onChange={event => updateLine(index, { price: event.target.value })} /></td>
-                  <td><input className="crm-input erp-cell-input" type="number" value={line.discountPercent} onChange={event => updateLine(index, { discountPercent: event.target.value })} /></td>
-                  <td><input className="crm-input erp-cell-input" type="number" value={line.gstPercent} onChange={event => updateLine(index, { gstPercent: event.target.value })} /></td>
-                  <td><strong>{money(line.amount)}</strong></td>
-                  <td><span className={Number(line.quantity || 0) > Number(line.availableStock || 0) ? 'badge badge-red' : 'badge badge-green'}>{line.availableStock} {line.unit}</span></td>
-                  <td><button type="button" className="btn btn-ghost btn-icon" onClick={() => deleteLine(line.lineId)}><FaTrash /></button></td>
-                </tr>
+        <div className="dispatch-builder-grid dispatch-billing-workspace">
+          <aside className="crm-card-sm dispatch-stock-panel">
+            <div className="dashboard-split-row" style={{ marginBottom:12 }}>
+              <div>
+                <h3 style={{ fontSize:15, fontWeight:700 }}>Stock Items</h3>
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Select material to add it into this bill.</div>
+              </div>
+              <span className="badge badge-gray">{visibleProducts.length}</span>
+            </div>
+            <div className="dashboard-search" style={{ marginBottom:12 }}>
+              <FaSearch />
+              <input value={productStockSearch} onChange={event => setProductStockSearch(event.target.value)} placeholder="Search stock item..." />
+            </div>
+            <div className="dashboard-stack dispatch-stock-list">
+              {visibleProducts.map((product) => (
+                <button type="button" key={product._id} className="dispatch-stock-line" onClick={() => addProductToBill(product)} disabled={Number(product.availableAfterBill || 0) <= 0}>
+                  <span>
+                    <strong>{product.name}</strong>
+                    <small>{[product.category, product.brand, product.type, product.capacity].filter(Boolean).join(' | ') || productCode(product)}</small>
+                  </span>
+                  <em className={Number(product.availableAfterBill || 0) <= 0 ? 'badge badge-red' : 'badge badge-green'}>
+                    {Math.max(Number(product.availableAfterBill || 0), 0)} {product.unit || 'pcs'}
+                  </em>
+                </button>
               ))}
-            </tbody>
-          </table>
+              {visibleProducts.length === 0 && <EmptyState title="No stock items found" />}
+            </div>
+          </aside>
+
+          <section className="crm-card-sm">
+            <div className="dashboard-split-row" style={{ marginBottom:16 }}>
+              <div>
+                <h3 style={{ fontSize:15, fontWeight:700 }}>Generated Bill</h3>
+                <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>Selected stock items appear here automatically.</div>
+              </div>
+              <div className="dashboard-inline-actions">
+                <span className="badge badge-sun">{calculated.lines.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} qty</span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLines([])} disabled={!lines.length}>Clear</button>
+              </div>
+            </div>
+
+            {!calculated.lines.length ? (
+              <EmptyState title="Bill is empty" subtitle="Left stock list se material select karein." />
+            ) : (
+              <div className="crm-table-wrap">
+                <table className="crm-table dispatch-cart-table">
+                  <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Discount</th><th>GST</th><th>Subtotal</th><th>Action</th></tr></thead>
+                  <tbody>
+                    {calculated.lines.map((line, index) => {
+                      const product = products.find(productItem => productItem._id === line.productId)
+                      const available = Number(product?.quantity ?? line.availableStock ?? 0)
+                      const remainingAfterBill = Math.max(available - Number(line.quantity || 0), 0)
+
+                      return (
+                        <tr key={line.productId || line.lineId}>
+                          <td>
+                            <strong>{line.query || product?.name || 'Selected item'}</strong>
+                            <div style={{ fontSize:11, color:'var(--muted)' }}>{[line.category || product?.category, line.brand || product?.brand, line.type || product?.type, line.capacity || product?.capacity].filter(Boolean).join(' | ')}</div>
+                          </td>
+                          <td>
+                            <div className="dashboard-inline-actions dispatch-quantity-actions">
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeBillQuantity(line.productId, -1)}><FaMinus /></button>
+                              <input
+                                className="crm-input"
+                                type="number"
+                                min="1"
+                                max={available || undefined}
+                                value={line.quantity}
+                                onChange={event => setBillQuantity(line.productId, event.target.value)}
+                                aria-label={`${line.query || product?.name || 'material'} dispatch quantity`}
+                              />
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeBillQuantity(line.productId, 1)}><FaPlus /></button>
+                            </div>
+                            <div style={{ fontSize:11, color:Number(line.quantity || 0) > available ? 'var(--red)' : 'var(--muted)', marginTop:5 }}>
+                              {line.unit || product?.unit || 'pcs'} | Available: {available} | Left: {remainingAfterBill}
+                            </div>
+                          </td>
+                          <td>{money(line.price)}</td>
+                          <td><input className="crm-input erp-cell-input" type="number" value={line.discountPercent} onChange={event => updateLine(index, { discountPercent: event.target.value })} /></td>
+                          <td><input className="crm-input erp-cell-input" type="number" value={line.gstPercent} onChange={event => updateLine(index, { gstPercent: event.target.value })} /></td>
+                          <td><strong>{money(line.amount)}</strong></td>
+                          <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => removeBillItem(line.productId)}><FaTrash /> Remove</button></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <div className="crm-mobile-cards">
+                  {calculated.lines.map((line, index) => {
+                    const product = products.find(productItem => productItem._id === line.productId)
+                    const available = Number(product?.quantity ?? line.availableStock ?? 0)
+                    const remainingAfterBill = Math.max(available - Number(line.quantity || 0), 0)
+
+                    return (
+                      <div key={line.productId || line.lineId} className="crm-mobile-card">
+                        <div className="dashboard-split-row" style={{ marginBottom:10 }}>
+                          <div style={{ minWidth:0 }}>
+                            <strong>{line.query || product?.name || 'Selected item'}</strong>
+                            <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{[line.category || product?.category, line.brand || product?.brand, line.type || product?.type, line.capacity || product?.capacity].filter(Boolean).join(' | ')}</div>
+                          </div>
+                          <span className="badge badge-sun">{money(line.amount)}</span>
+                        </div>
+                        <div className="dashboard-inline-actions dispatch-quantity-actions" style={{ marginBottom:8 }}>
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeBillQuantity(line.productId, -1)}><FaMinus /></button>
+                          <input className="crm-input" type="number" min="1" max={available || undefined} value={line.quantity} onChange={event => setBillQuantity(line.productId, event.target.value)} />
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeBillQuantity(line.productId, 1)}><FaPlus /></button>
+                        </div>
+                        <div className="crm-mobile-row"><span className="crm-mobile-label">Price</span><span>{money(line.price)}</span></div>
+                        <div className="crm-mobile-row"><span className="crm-mobile-label">Stock</span><span>{line.unit || product?.unit || 'pcs'} | Available: {available} | Left: {remainingAfterBill}</span></div>
+                        <div className="dashboard-mini-grid-2" style={{ marginTop:10 }}>
+                          <label><span className="form-label">Discount</span><input className="crm-input" type="number" value={line.discountPercent} onChange={event => updateLine(index, { discountPercent: event.target.value })} /></label>
+                          <label><span className="form-label">GST</span><input className="crm-input" type="number" value={line.gstPercent} onChange={event => updateLine(index, { gstPercent: event.target.value })} /></label>
+                        </div>
+                        <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop:10 }} onClick={() => removeBillItem(line.productId)}><FaTrash /> Remove</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
         </div>
 
         <div className="erp-footer-grid">
@@ -664,6 +831,9 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
             <div><span>Grand Total</span><strong>{money(calculated.grandTotal)}</strong></div>
             <div><span>Round Off</span><strong>{money(calculated.roundOff)}</strong></div>
             <div className="erp-payable"><span>Final Payable</span><strong>{money(calculated.finalPayable)}</strong></div>
+            <button type="button" className="btn btn-primary dispatch-save-wide" disabled={saving || !lines.length} onClick={handleSubmit(form => saveBill(form, 'Pending'), showSaveErrors)}>
+              <FaCheck /> {saving ? 'Saving...' : 'Save Bill & Reserve Stock'}
+            </button>
           </div>
         </div>
       </form>}
@@ -684,7 +854,11 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
                   <td><span className={`badge ${invoice.approvalStatus === 'Approved' ? 'badge-green' : invoice.approvalStatus === 'Pending' ? 'badge-sun' : 'badge-gray'}`}>{invoice.approvalStatus}</span></td>
                   <td>{invoice.dispatchStatus || '-'}</td>
                   <td>{money(invoice.payableAmount || invoice.grandTotal)}</td>
-                  <td className="dashboard-inline-actions"><button className="btn btn-ghost btn-sm" onClick={() => createPdf(invoice)}><FaFilePdf /></button>{invoice.approvalStatus === 'Pending' && <button className="btn btn-primary btn-sm" onClick={() => approveInvoice(invoice)}>Approve</button>}</td>
+                  <td className="dashboard-inline-actions">
+                    <button className="btn btn-ghost btn-sm" onClick={() => setViewingInvoice(invoice)}><FaEye /> View</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => createPdf(invoice)}><FaFilePdf /></button>
+                    {invoice.approvalStatus === 'Pending' && <button className="btn btn-primary btn-sm" onClick={() => approveInvoice(invoice)}>Approve</button>}
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
@@ -742,13 +916,23 @@ function DispatchBillingInner({ defaultTab = 'billing' }) {
                 <td>{invoice.dispatchStatus || '-'}</td>
                 <td><span className={`badge ${invoice.installationStatus === 'Completed' ? 'badge-green' : invoice.installationStatus === 'In Progress' ? 'badge-sun' : 'badge-gray'}`}>{invoice.installationStatus || 'Pending'}</span></td>
                 <td>{money(invoice.payableAmount || invoice.grandTotal)}</td>
-                <td><button className="btn btn-ghost btn-sm" onClick={() => createPdf(invoice)}><FaFilePdf /> PDF</button></td>
+                <td className="dashboard-inline-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={() => setViewingInvoice(invoice)}><FaEye /> View</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => createPdf(invoice)}><FaFilePdf /> PDF</button>
+                </td>
               </tr>
             ))}</tbody>
           </table>
           {approvedInvoices.length === 0 && <EmptyState title="No approved dispatches" subtitle="Approve a pending bill to send it for installation." />}
         </div>
       </div>}
+
+      {viewingInvoice && (
+        <DispatchBillView dispatch={viewingInvoice} onClose={() => setViewingInvoice(null)}>
+          <button className="btn btn-ghost btn-sm" onClick={() => createPdf(viewingInvoice)}><FaFilePdf /> PDF</button>
+          {viewingInvoice.approvalStatus === 'Pending' && <button className="btn btn-primary btn-sm" onClick={() => approveInvoice(viewingInvoice)}>Approve</button>}
+        </DispatchBillView>
+      )}
     </div>
   )
 }

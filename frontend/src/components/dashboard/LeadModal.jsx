@@ -7,7 +7,7 @@ import { hasFileValue } from '../../utils/files'
 import { ALL_BRAND_OPTIONS } from '../../pages/dashboard/inventoryStructure'
 import { FilePreview, SearchableSelect, StageBadge, StageProgress, StatusBadge } from '../common'
 
-const IVRS_REGEX = /^[A-Za-z0-9]{10}$/
+const IVRS_REGEX = /^[A-Za-z0-9]{1,15}$/
 const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
@@ -411,7 +411,7 @@ export default function LeadModal({
     let { value } = event.target
     if (name === 'phone') value = normalizePhone(value)
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
-    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)
+    if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 15)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
     if (name === 'ifscCode') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11)
     if (name === 'monthlyBill' || name === 'monthlyUnit') value = String(value || '').replace(/[^\d.]/g, '')
@@ -432,7 +432,7 @@ export default function LeadModal({
     if (!PHONE_REGEX.test(editForm.phone)) return toast.error('Contact number must be a valid 10-digit mobile number.')
     if (!editForm.branch.trim()) return toast.error('Branch is required.')
     if (editForm.pincode && !PINCODE_REGEX.test(editForm.pincode)) return toast.error('Pincode must be 6 digits.')
-    if (editForm.ivrsNo && !IVRS_REGEX.test(editForm.ivrsNo)) return toast.error('IVRS number must be 10 letters or digits.')
+    if (editForm.ivrsNo && !IVRS_REGEX.test(editForm.ivrsNo)) return toast.error('IVRS number must be up to 15 letters or digits.')
 
     const nextSalesExecutiveData = {
       ...salesExecutiveData,
@@ -595,7 +595,7 @@ export default function LeadModal({
               </div>
               <div>
                 <label className="form-label">IVRS No.</label>
-                <input className="crm-input" name="ivrsNo" value={editForm.ivrsNo} onChange={updateEditField} maxLength={10} />
+                <input className="crm-input" name="ivrsNo" value={editForm.ivrsNo} onChange={updateEditField} maxLength={15} />
               </div>
               <div>
                 <label className="form-label">Capacity</label>
