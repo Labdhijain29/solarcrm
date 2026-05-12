@@ -10,8 +10,6 @@ const ADMIN_DASHBOARD_ITEMS = [
   { to: '/dashboard/admin', icon: FaTachometerAlt, label: 'Admin Dashboard' },
   { to: '/dashboard/manager', icon: FaRegBuilding, label: 'Manager Dashboard' },
   { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard' },
-  { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
-  { to: '/dashboard/stock-manager', icon: FaWarehouse, label: 'Stock Manager Dashboard' },
   { to: '/dashboard/stage/registration-executive', icon: FaClipboardList, label: 'Registration Dashboard' },
   { to: '/dashboard/stage/bank-finance-executive', icon: FaBriefcase, label: 'Bank Dashboard' },
   { to: '/dashboard/stage/loan-officer', icon: FaMoneyBillWave, label: 'Loan Dashboard' },
@@ -23,6 +21,8 @@ const ADMIN_DASHBOARD_ITEMS = [
 ]
 
 const COMMON_NAV_ITEMS = [
+  { to: '/dashboard/stock-manager', icon: FaWarehouse, label: 'Stock Manager Dashboard' },
+  { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
   { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/rejected-leads', icon: FaBan, label: 'Rejected Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager'] },

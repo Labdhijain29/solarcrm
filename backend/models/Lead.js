@@ -85,6 +85,7 @@ const leadSchema = new mongoose.Schema({
 
   // ─── Assignment & Stage ──────────────────────────────────────
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  salesExecutiveAssignee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
   // ─── Workflow ─────────────────────────────────────────────────

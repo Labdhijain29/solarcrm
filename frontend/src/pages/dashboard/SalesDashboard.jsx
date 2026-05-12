@@ -38,6 +38,7 @@ const INITIAL_FORM = {
 }
 
 const INITIAL_LEAD_FORM = {
+  salesExecutiveAssignee: '',
   name: '',
   phone: '',
   email: '',
@@ -293,16 +294,56 @@ function SalesExecutiveForm({ onClose, onCreated }) {
 }
 
 function SalesExecutiveLeadForm({ onClose, onCreated }) {
+  const { user } = useAuthStore()
   const [formData, setFormData] = useState(INITIAL_LEAD_FORM)
+  const [salesExecutiveOptions, setSalesExecutiveOptions] = useState([])
+  const [loadingSalesExecutives, setLoadingSalesExecutives] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const isSubmitDisabled = useMemo(() => (
     submitting ||
+    !formData.salesExecutiveAssignee ||
     !formData.name.trim() ||
     !formData.phone.trim() ||
     !formData.state.trim() ||
     !formData.city.trim()
   ), [formData, submitting])
+
+  useEffect(() => {
+    let active = true
+    setLoadingSalesExecutives(true)
+
+    usersAPI.getAssignable({ role: 'Sales Executive', stage: 'Lead' })
+      .then((response) => {
+        if (!active) return
+        const options = (response.data.data || []).map((item) => ({
+          value: item._id,
+          label: `${item.name}${item.phone ? ` | ${item.phone}` : ''}`,
+        }))
+        setSalesExecutiveOptions(options)
+        setFormData((prev) => {
+          if (prev.salesExecutiveAssignee) return prev
+          const ownOption = options.find((option) => option.value === user?._id)
+          return { ...prev, salesExecutiveAssignee: ownOption?.value || options[0]?.value || '' }
+        })
+      })
+      .catch(() => {
+        if (!active) return
+        if (user?.role === 'Sales Executive') {
+          setSalesExecutiveOptions([{ value: user._id, label: `${user.name || 'Me'}${user.phone ? ` | ${user.phone}` : ''}` }])
+          setFormData((prev) => ({ ...prev, salesExecutiveAssignee: prev.salesExecutiveAssignee || user._id }))
+        } else {
+          toast.error('Could not load sales executives.')
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingSalesExecutives(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [user?._id, user?.name, user?.phone, user?.role])
 
   const onInputChange = (event) => {
     const { name } = event.target
@@ -375,6 +416,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     }
 
     const payload = new FormData()
+    payload.append('salesExecutiveAssignee', formData.salesExecutiveAssignee)
     payload.append('name', formData.name.trim())
     payload.append('phone', formData.phone)
     payload.append('email', formData.email.trim().toLowerCase())
@@ -427,6 +469,21 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
         <form className="sales-exec-form" onSubmit={submit}>
           <p className="sales-exec-section full">Customer Details</p>
+
+          <label className="full">
+            Sales Executive Person
+            <SearchableSelect
+              name="sales-registration-executive"
+              value={formData.salesExecutiveAssignee}
+              onChange={(value) => setFormData((prev) => ({ ...prev, salesExecutiveAssignee: value }))}
+              options={salesExecutiveOptions}
+              placeholder={loadingSalesExecutives ? 'Loading sales executives...' : 'Select sales executive...'}
+              searchPlaceholder="Search sales executive..."
+              noOptionsText={loadingSalesExecutives ? 'Loading sales executives...' : 'No sales executives found'}
+              disabled={loadingSalesExecutives || !salesExecutiveOptions.length}
+              required
+            />
+          </label>
 
           <label>
             Customer Name

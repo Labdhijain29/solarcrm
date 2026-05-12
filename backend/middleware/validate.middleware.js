@@ -74,6 +74,7 @@ const validateLead = [
   body('branch').trim().notEmpty().withMessage('Branch is required'),
   body('source').optional().isIn(['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads','Other']),
   body('generatedThrough').optional().trim(),
+  body('salesExecutiveAssignee').optional({ checkFalsy: true }).isMongoId().withMessage('Valid sales executive assignee required'),
   handleValidation
 ];
 

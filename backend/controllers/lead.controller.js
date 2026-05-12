@@ -189,6 +189,11 @@ const getSalesExecutiveManager = async () => {
   return User.findOne({ role: 'Manager', isActive: { $ne: false }, approvalStatus: { $ne: 'rejected' } }).sort({ createdAt: 1 });
 };
 
+const getSalesExecutiveAssignee = async (userId) => {
+  if (!userId) return null;
+  return User.findOne(assignableUserFilter({ _id: userId, role: 'Sales Executive' })).select('name role email');
+};
+
 const getNextLeadId = async () => {
   let counter = await Counter.findById('leadId');
   if (!counter) {
@@ -247,6 +252,7 @@ const canUserViewLead = (user, lead) => {
   if (user.role === 'Admin') return true;
   const userId = String(user._id);
   if (String(lead.assignedTo?._id || lead.assignedTo || '') === userId) return true;
+  if (String(lead.salesExecutiveAssignee?._id || lead.salesExecutiveAssignee || '') === userId) return true;
   if (String(lead.createdBy?._id || lead.createdBy || '') === userId) return true;
   return (lead.history || []).some((item) => String(item.performedBy || '') === userId);
 };
@@ -323,6 +329,7 @@ const buildQuery = (query, user) => {
   if (role !== 'Admin' && isPipelineOwnerRole && !canViewDispatchQueue && !completedStage && !query.stage && !salesExecutiveOnly) {
     q.$or = [
       { assignedTo: user._id },
+      { salesExecutiveAssignee: user._id },
       { createdBy: user._id },
       { history: { $elemMatch: { performedBy: user._id } } }
     ];
@@ -338,6 +345,7 @@ const buildQuery = (query, user) => {
     if (role !== 'Admin') {
       q.$or = [
         { assignedTo: user._id },
+        { salesExecutiveAssignee: user._id },
         { createdBy: user._id },
         { history: { $elemMatch: { performedBy: user._id } } }
       ];
@@ -411,6 +419,7 @@ exports.getLeads = async (req, res) => {
 
     let leadsQuery = Lead.find(query)
       .populate('assignedTo', 'name role')
+      .populate('salesExecutiveAssignee', 'name role')
       .populate('createdBy', 'name role')
       .sort(sort)
       .skip(skip)
@@ -440,6 +449,7 @@ exports.getLead = async (req, res) => {
   try {
     const lead = await Lead.findById(req.params.id)
       .populate('assignedTo', 'name role phone email')
+      .populate('salesExecutiveAssignee', 'name role phone email')
       .populate('createdBy', 'name role');
 
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
@@ -456,14 +466,29 @@ exports.getLead = async (req, res) => {
 // @route   POST /api/leads
 exports.createLead = async (req, res) => {
   try {
-    const { name, phone, email, address, city, state, pincode, branch, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, priority, tags, salesExecutiveData } = req.body;
+    const { name, phone, email, address, city, state, pincode, branch, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, salesExecutiveAssignee, priority, tags, salesExecutiveData } = req.body;
 
     await ensureUniqueIvrsNo(ivrsNo);
 
     let resolvedAssignedTo = assignedTo || req.user._id;
     let assignedManager = null;
+    let resolvedSalesExecutiveAssignee = salesExecutiveAssignee || null;
 
     if (isSalesExecutiveLead(req.body)) {
+      if (!resolvedSalesExecutiveAssignee && req.user.role === 'Sales Executive') {
+        resolvedSalesExecutiveAssignee = req.user._id;
+      }
+      if (resolvedSalesExecutiveAssignee) {
+        const selectedSalesExecutive = await getSalesExecutiveAssignee(resolvedSalesExecutiveAssignee);
+        if (!selectedSalesExecutive) {
+          return res.status(400).json({
+            success: false,
+            message: 'Selected sales executive is not available.'
+          });
+        }
+        resolvedSalesExecutiveAssignee = selectedSalesExecutive._id;
+      }
+
       assignedManager = await getSalesExecutiveManager();
       if (!assignedManager) {
         return res.status(400).json({
@@ -482,6 +507,7 @@ exports.createLead = async (req, res) => {
       source, generatedThrough, capacity, roofType, monthlyBill, notes, priority, tags,
       salesExecutiveData: isSalesExecutiveLead(req.body) ? salesExecutiveData || {} : undefined,
       assignedTo: resolvedAssignedTo,
+      salesExecutiveAssignee: resolvedSalesExecutiveAssignee,
       createdBy: req.user._id,
       currentStage: 'Lead',
       status: 'active',
@@ -523,6 +549,7 @@ exports.createLead = async (req, res) => {
 
     const populated = await Lead.findById(lead._id)
       .populate('assignedTo', 'name role')
+      .populate('salesExecutiveAssignee', 'name role')
       .populate('createdBy', 'name role');
     res.status(201).json({
       success: true,
