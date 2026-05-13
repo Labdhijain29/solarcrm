@@ -95,15 +95,6 @@ button, input, select, textarea { max-width: 100%; }
   transition: margin 0.3s ease;
 }
 
-.dashboard-main-with-footer {
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-content-with-footer {
-  flex: 1;
-}
-
 .app-topbar {
   height: 60px;
   min-height: 60px;

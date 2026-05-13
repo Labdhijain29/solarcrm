@@ -10,7 +10,6 @@ import ServicesPage from './pages/website/ServicesPage'
 import ProductsPage from './pages/website/ProductsPage'
 import ContactPage from './pages/website/ContactPage'
 import SiteLayout from './components/layout/SiteLayout'
-import SiteFooter from './components/layout/SiteFooter'
 import LoginPage from './pages/auth/LoginPage'
 import DashboardLayout from './components/layout/DashboardLayout'
 import AdminDashboard from './pages/dashboard/AdminDashboard'
@@ -75,17 +74,6 @@ function AuthBootstrapScreen() {
         <div style={{ fontFamily: 'Syne,sans-serif', fontSize: 20, fontWeight: 700 }}>Checking session</div>
         <div style={{ fontSize: 13, color: 'var(--muted)' }}>Verifying your login before loading the app.</div>
       </div>
-    </div>
-  )
-}
-
-function FooterRouteShell({ children }) {
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-      <main style={{ flex: 1, padding: 24 }}>
-        {children}
-      </main>
-      <SiteFooter />
     </div>
   )
 }
@@ -174,9 +162,7 @@ export default function App() {
           element={(
             <PrivateRoute>
               <AdminOnlyRoute>
-                <FooterRouteShell>
-                  <TechUploadSettingsPage />
-                </FooterRouteShell>
+                <TechUploadSettingsPage />
               </AdminOnlyRoute>
             </PrivateRoute>
           )}
