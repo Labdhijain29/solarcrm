@@ -166,37 +166,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer style={{ background:'var(--bg2)', borderTop:'1px solid var(--border)', padding:'48px 24px' }}>
-        <div className="site-container">
-          <div className="site-footer-grid" style={{ marginBottom:40 }}>
-            <div>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                <div style={{ width:32, height:32, background:'linear-gradient(135deg,#F59E0B,#F97316)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 }}>SP</div>
-                <span style={{ fontFamily:'Syne,sans-serif', fontWeight:800, fontSize:18 }}>Mahaveer Multi Engineering </span>
-              </div>
-              <p style={{ fontSize:13, color:'var(--muted)', lineHeight:1.75, maxWidth:260 }}>Trusted solar energy solutions provider making clean energy accessible across India.</p>
-            </div>
-            {[
-              { heading:'Solutions', links:['Residential Solar','Commercial Solar','Industrial Solar','Battery Storage'] },
-              { heading:'Company', links:['About Us','Our Team','Careers','Press'] },
-              { heading:'Support', links:['Contact Us','FAQ','Warranty','Documentation'] },
-            ].map(column => (
-              <div key={column.heading}>
-                <h4 style={{ fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:.6, color:'var(--dim)', marginBottom:14 }}>{column.heading}</h4>
-                <ul style={{ listStyle:'none', display:'flex', flexDirection:'column', gap:9 }}>
-                  {column.links.map(link => (
-                    <li key={link} style={{ fontSize:13, color:'var(--muted)' }}>{link}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div style={{ borderTop:'1px solid var(--border)', paddingTop:20, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, fontSize:12, color:'var(--dim)' }}>
-            <span>© 2025 Mahaveer Multi Engineering Pvt. Ltd. All rights reserved.</span>
-            <span>Powered by clean energy</span>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

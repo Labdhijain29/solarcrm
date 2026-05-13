@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { FaMoon, FaSun } from 'react-icons/fa'
 import { useAppStore } from '../../store'
 import EnquiryForm from '../website/EnquiryForm'
+import SiteFooter from './SiteFooter'
 import mahaveerSolarLogo from '../../assets/mahaveer-solar-logo.svg'
 
 const links = [
@@ -65,6 +66,8 @@ export default function SiteLayout() {
       <main>
         <Outlet />
       </main>
+
+      <SiteFooter />
 
       {enquiryOpen && (
         <div

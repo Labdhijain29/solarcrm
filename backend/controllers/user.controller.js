@@ -17,6 +17,23 @@ const serializeUser = async (user) => {
   };
 };
 
+const getRoleQuery = (role) => {
+  if (role !== 'Bank/Finance Executive') return role;
+  return {
+    $in: [
+      'Bank/Finance Executive',
+      'Bank Finance Executive',
+      'Bank-Finance Executive',
+      'Bank Executive',
+      'Finance Executive',
+    ],
+  };
+};
+
+const getStageRoles = (stage) => (
+  Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === stage)
+);
+
 const buildSessionUser = async (user) => ({
   _id: user._id,
   name: user.name,
@@ -88,16 +105,24 @@ exports.getAssignableUsers = async (req, res) => {
 
     const roleStage = ROLE_STAGE_MAP[role];
     const userStage = ROLE_STAGE_MAP[req.user.role];
-    const requestedStageIndex = WORKFLOW_STAGES.indexOf(stage || roleStage);
+    const requestedStage = stage || roleStage;
+    const requestedStageIndex = WORKFLOW_STAGES.indexOf(requestedStage);
     const userStageIndex = WORKFLOW_STAGES.indexOf(userStage);
+    const nextStage = userStageIndex >= 0 ? WORKFLOW_STAGES[userStageIndex + 1] : '';
+    const nextStageRoles = getStageRoles(nextStage);
     const isPreviousStageLookup = requestedStageIndex !== -1
       && userStageIndex !== -1
       && requestedStageIndex === userStageIndex - 1
       && roleStage === stage;
+    const isNextStageLookup = requestedStageIndex !== -1
+      && userStageIndex !== -1
+      && requestedStageIndex === userStageIndex + 1
+      && nextStageRoles.includes(role);
     const canViewRole = req.user.role === 'Admin'
       || req.user.role === role
       || (stage && userStage === stage && roleStage === stage)
-      || isPreviousStageLookup;
+      || isPreviousStageLookup
+      || isNextStageLookup;
 
     if (!canViewRole) {
       return res.status(403).json({ success: false, message: 'You cannot view users for this role.' });
@@ -108,10 +133,10 @@ exports.getAssignableUsers = async (req, res) => {
     }
 
     const users = await User.find({
-      role,
+      role: getRoleQuery(role),
       isActive: { $ne: false },
       approvalStatus: { $ne: 'rejected' },
-    }).select('name email role phone').sort({ name: 1 });
+    }).select('name email role phone isActive approvalStatus').sort({ name: 1 });
 
     res.json({ success: true, data: users });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }

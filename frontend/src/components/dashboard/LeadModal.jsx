@@ -17,8 +17,13 @@ const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch'
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
+const roleMatches = (userRole, targetRole) => {
+  if (userRole === targetRole) return true
+  if (targetRole !== 'Bank/Finance Executive') return false
+  return ['Bank Finance Executive', 'Bank-Finance Executive', 'Bank Executive', 'Finance Executive'].includes(userRole)
+}
 const isAssignableUser = (user, role) => (
-  user.role === role &&
+  roleMatches(user.role, role) &&
   user.isActive !== false &&
   user.approvalStatus !== 'rejected'
 )

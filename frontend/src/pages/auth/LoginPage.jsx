@@ -6,6 +6,7 @@ import { authAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, getSubDistrictOptions, STATE_OPTIONS } from '../../utils/constants'
 import { FilePreview, SearchableSelect } from '../../components/common'
+import SiteFooter from '../../components/layout/SiteFooter'
 
 const REGISTER_ROLES = [
   'Manager',
@@ -193,8 +194,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-      <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:24, padding:32, maxWidth:mode === 'register' ? 560 : 420, width:'100%' }}>
+    <div style={{ minHeight:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
+      <main style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+        <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:24, padding:32, maxWidth:mode === 'register' ? 560 : 420, width:'100%' }}>
         <div style={{ textAlign:'center', marginBottom:28 }}>
           <div style={{ width:60, height:60, background:'linear-gradient(135deg,#F59E0B,#F97316)', borderRadius:18, display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, margin:'0 auto 12px', color:'#111827' }}>
             <FaSolarPanel />
@@ -452,7 +454,9 @@ export default function LoginPage() {
             </p>
           </>
         )}
-      </div>
+        </div>
+      </main>
+      <SiteFooter />
     </div>
   )
 }

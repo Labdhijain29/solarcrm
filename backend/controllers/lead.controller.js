@@ -227,6 +227,25 @@ const assignableUserFilter = (extra = {}) => ({
   approvalStatus: { $ne: 'rejected' },
 });
 
+const getRoleQuery = (role) => {
+  if (role !== 'Bank/Finance Executive') return role;
+  return {
+    $in: [
+      'Bank/Finance Executive',
+      'Bank Finance Executive',
+      'Bank-Finance Executive',
+      'Bank Executive',
+      'Finance Executive',
+    ],
+  };
+};
+
+const roleMatches = (userRole, targetRole) => {
+  if (userRole === targetRole) return true;
+  if (targetRole !== 'Bank/Finance Executive') return false;
+  return ['Bank Finance Executive', 'Bank-Finance Executive', 'Bank Executive', 'Finance Executive'].includes(userRole);
+};
+
 const getRolesForStage = (stage) => (
   Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === stage)
 );
@@ -239,17 +258,20 @@ const canUserReassignLead = (user, lead) => {
 const getDefaultAssigneeForStage = async (stage) => {
   const roles = getRolesForStage(stage);
   if (!roles.length) return null;
-  return User.findOne(assignableUserFilter({ role: { $in: roles } })).sort({ createdAt: 1 }).select('name role email');
+  const roleQueries = roles.map((role) => getRoleQuery(role));
+  const roleFilter = roleQueries.length === 1 ? roleQueries[0] : { $in: roleQueries.flatMap((item) => item.$in || item) };
+  return User.findOne(assignableUserFilter({ role: roleFilter })).sort({ createdAt: 1 }).select('name role email');
 };
 
 const canUserActOnLead = (user, lead) => {
   if (user.role === 'Admin') return true;
   const userStage = ROLE_STAGE_MAP[user.role];
-  return userStage === lead.currentStage && String(lead.assignedTo || '') === String(user._id);
+  return userStage === lead.currentStage;
 };
 
 const canUserViewLead = (user, lead) => {
   if (user.role === 'Admin') return true;
+  if (ROLE_STAGE_MAP[user.role] === lead.currentStage) return true;
   const userId = String(user._id);
   if (String(lead.assignedTo?._id || lead.assignedTo || '') === userId) return true;
   if (String(lead.salesExecutiveAssignee?._id || lead.salesExecutiveAssignee || '') === userId) return true;
@@ -262,7 +284,7 @@ const ensureUserCanActOnLead = (user, lead, action) => {
   const userStage = ROLE_STAGE_MAP[user.role];
   const message = userStage !== lead.currentStage
     ? `You can only ${action} leads at '${userStage}' stage. This lead is at '${lead.currentStage}'.`
-    : `You can only ${action} leads assigned to you.`;
+    : `You can only ${action} leads at your assigned dashboard stage.`;
   const error = new Error(message);
   error.statusCode = 403;
   throw error;
@@ -334,11 +356,19 @@ const buildQuery = (query, user) => {
       { history: { $elemMatch: { performedBy: user._id } } }
     ];
   } else if (role !== 'Admin' && !canViewDispatchQueue && !completedStage) {
-    q.assignedTo = user._id;
+    if (stageAccess) {
+      q.currentStage = stageAccess;
+    } else {
+      q.assignedTo = user._id;
+    }
   }
 
   if (stageAccess && role !== 'Admin' && !completedStage && !isPipelineOwnerRole) {
     q.currentStage = stageAccess;
+  }
+
+  if (role !== 'Admin' && completedStage && !stageAccess) {
+    q.assignedTo = user._id;
   }
 
   if (salesExecutiveOnly) {
@@ -367,7 +397,7 @@ const buildQuery = (query, user) => {
           }
         : personalHistoryFilter
     };
-    if (role !== 'Admin') q.assignedTo = user._id;
+    if (role !== 'Admin' && !stageAccess) q.assignedTo = user._id;
   }
   if (query.status) q.status = query.status;
   if (query.source) q.source = query.source;
@@ -730,7 +760,7 @@ exports.approveLead = async (req, res) => {
       if (req.body.nextAssigneeId) {
         nextStageUser = await User.findOne(assignableUserFilter({
           _id: req.body.nextAssigneeId,
-          role: nextStageRole,
+          role: getRoleQuery(nextStageRole),
         })).sort({ createdAt: 1 });
 
         if (!nextStageUser) {
@@ -740,7 +770,7 @@ exports.approveLead = async (req, res) => {
           });
         }
       } else {
-        nextStageUser = await User.findOne(assignableUserFilter({ role: nextStageRole })).sort({ createdAt: 1 });
+        nextStageUser = await User.findOne(assignableUserFilter({ role: getRoleQuery(nextStageRole) })).sort({ createdAt: 1 });
       }
       lead.assignedTo = nextStageUser ? nextStageUser._id : null;
     } else if (lead.currentStage === 'Completed') {
@@ -884,8 +914,8 @@ exports.transferLead = async (req, res) => {
     const previousStage = currentStageIndex > 0 ? stages[currentStageIndex - 1] : null;
     const currentStageRoles = getRolesForStage(lead.currentStage);
     const previousStageRoles = previousStage ? getRolesForStage(previousStage) : [];
-    const isCurrentStageTransfer = currentStageRoles.includes(targetUser.role);
-    const isPreviousStageTransfer = previousStageRoles.includes(targetUser.role);
+    const isCurrentStageTransfer = currentStageRoles.some((role) => roleMatches(targetUser.role, role));
+    const isPreviousStageTransfer = previousStageRoles.some((role) => roleMatches(targetUser.role, role));
 
     if (!isCurrentStageTransfer && !isPreviousStageTransfer) {
       return res.status(400).json({
@@ -965,7 +995,7 @@ exports.reassignLead = async (req, res) => {
         }
 
         const targetStageRoles = getRolesForStage(targetStage);
-        if (!targetStageRoles.includes(targetUser.role)) {
+        if (!targetStageRoles.some((role) => roleMatches(targetUser.role, role))) {
           return res.status(400).json({
             success: false,
             message: `Selected user role '${targetUser.role}' cannot handle '${targetStage}' leads.`

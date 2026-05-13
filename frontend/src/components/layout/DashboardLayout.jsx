@@ -4,6 +4,7 @@ import { FaBan, FaBell, FaBoxOpen, FaBriefcase, FaClipboardList, FaCog, FaExchan
 import { useAuthStore, useAppStore } from '../../store'
 import { ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
 import { usersAPI } from '../../services/api'
+import SiteFooter from './SiteFooter'
 import mahaveerSolarLogo from '../../assets/mahaveer-solar-logo.svg'
 
 const ADMIN_DASHBOARD_ITEMS = [
@@ -211,7 +212,7 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
-      <div className="app-main">
+      <div className="app-main dashboard-main-with-footer">
         <header className="app-topbar">
           <button onClick={toggleSidebar} className="btn btn-ghost btn-icon" style={{ display:'flex' }}>|||</button>
 
@@ -287,9 +288,11 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        <div style={{ padding:24 }}>
+        <div className="dashboard-content-with-footer" style={{ padding:24 }}>
           <Outlet />
         </div>
+
+        <SiteFooter />
       </div>
     </div>
   )
