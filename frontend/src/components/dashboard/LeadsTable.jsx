@@ -20,6 +20,7 @@ const formatLeadDate = (date) => {
 }
 
 const getGeneratedByName = (lead) => {
+  if (lead.salesExecutiveAssignee?.name) return lead.salesExecutiveAssignee.name
   if (lead.createdBy?.name) return lead.createdBy.name
   if (typeof lead.createdBy === 'string') return lead.createdBy
   return ''

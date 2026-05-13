@@ -374,6 +374,8 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
   const submit = async (event) => {
     event.preventDefault()
+    const selectedExecutive = salesExecutiveOptions.find((option) => option.value === formData.salesExecutiveAssignee)
+    const selectedExecutiveName = String(selectedExecutive?.label || '').split('|')[0].trim()
 
     if (!PHONE_REGEX.test(formData.phone)) {
       toast.error('Contact number must be a valid 10-digit mobile number.')
@@ -427,7 +429,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     payload.append('branch', formData.branch.trim())
     payload.append('ivrsNo', formData.ivrsNo)
     payload.append('source', 'Other')
-    payload.append('generatedThrough', 'Sales Executive Registration')
+    payload.append('generatedThrough', selectedExecutiveName || 'Sales Executive Registration')
     payload.append('capacity', formData.capacity.trim() || '3kW')
     payload.append('roofType', formData.roofType)
     payload.append('monthlyBill', formData.monthlyBill || 0)
