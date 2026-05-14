@@ -21,6 +21,7 @@ const ADMIN_DASHBOARD_ITEMS = [
 ]
 
 const COMMON_NAV_ITEMS = [
+  { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard', roles: ['Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/stock-manager', icon: FaWarehouse, label: 'Stock Manager Dashboard' },
   { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
   { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },

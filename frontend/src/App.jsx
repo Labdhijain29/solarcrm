@@ -99,6 +99,13 @@ function AdminOnlyRoute({ children }) {
   return user?.role === 'Admin' ? children : <Navigate to="/dashboard" replace />
 }
 
+function RoleRoute({ roles, children }) {
+  const { user, initialized, checkingAuth } = useAuthStore()
+
+  if (!initialized || checkingAuth) return <AuthBootstrapScreen />
+  return roles.includes(user?.role) ? children : <Navigate to="/dashboard" replace />
+}
+
 function DashboardRouter() {
   const { user, initialized, checkingAuth } = useAuthStore()
   const role = user?.role?.trim().toLowerCase()
@@ -179,7 +186,7 @@ export default function App() {
           <Route index element={<DashboardRouter />} />
           <Route path="admin" element={<AdminOnlyRoute><AdminDashboard /></AdminOnlyRoute>} />
           <Route path="manager" element={<AdminOnlyRoute><ManagerDashboard /></AdminOnlyRoute>} />
-          <Route path="sales" element={<AdminOnlyRoute><SalesDashboard /></AdminOnlyRoute>} />
+          <Route path="sales" element={<RoleRoute roles={['Admin', 'Sales Manager', 'Sales Executive']}><SalesDashboard /></RoleRoute>} />
           <Route path="service" element={<AdminOnlyRoute><ServiceManagerDashboard /></AdminOnlyRoute>} />
           <Route path="stock-manager" element={<AdminOnlyRoute><StockManagerDashboard /></AdminOnlyRoute>} />
           <Route path="inventory" element={<InventoryDispatchPage defaultTab="dashboard" />} />

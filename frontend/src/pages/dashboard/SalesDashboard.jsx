@@ -395,6 +395,8 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     }
 
     const salesExecutiveData = {
+      executiveId: formData.salesExecutiveAssignee,
+      executiveName: selectedExecutiveName,
       contact: formData.phone,
       state: formData.state.trim(),
       city: formData.city.trim(),
@@ -419,6 +421,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
     const payload = new FormData()
     payload.append('salesExecutiveAssignee', formData.salesExecutiveAssignee)
+    payload.append('salesExecutiveAssigneeName', selectedExecutiveName)
     payload.append('name', formData.name.trim())
     payload.append('phone', formData.phone)
     payload.append('email', formData.email.trim().toLowerCase())

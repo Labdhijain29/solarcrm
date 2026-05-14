@@ -55,6 +55,8 @@ const leadSchema = new mongoose.Schema({
   monthlyBill: { type: Number, default: 0 }, // Monthly electricity bill in INR
   notes: { type: String, default: '' },
   salesExecutiveData: {
+    executiveId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    executiveName: { type: String, trim: true, default: '' },
     contact: { type: String, trim: true, default: '' },
     state: { type: String, trim: true, default: '' },
     city: { type: String, trim: true, default: '' },

@@ -381,7 +381,7 @@ const buildQuery = (query, user) => {
       ];
       delete q.assignedTo;
     }
-    if (role !== 'Sales Executive') q.tags = 'sales-executive';
+    q.tags = 'sales-executive';
     delete q.currentStage;
   }
 
@@ -496,20 +496,21 @@ exports.getLead = async (req, res) => {
 // @route   POST /api/leads
 exports.createLead = async (req, res) => {
   try {
-    const { name, phone, email, address, city, state, pincode, branch, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, salesExecutiveAssignee, priority, tags, salesExecutiveData } = req.body;
+    const { name, phone, email, address, city, state, pincode, branch, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, salesExecutiveAssignee, salesExecutiveAssigneeName, priority, tags, salesExecutiveData } = req.body;
 
     await ensureUniqueIvrsNo(ivrsNo);
 
     let resolvedAssignedTo = assignedTo || req.user._id;
     let assignedManager = null;
     let resolvedSalesExecutiveAssignee = salesExecutiveAssignee || null;
+    let selectedSalesExecutive = null;
 
     if (isSalesExecutiveLead(req.body)) {
       if (!resolvedSalesExecutiveAssignee && req.user.role === 'Sales Executive') {
         resolvedSalesExecutiveAssignee = req.user._id;
       }
       if (resolvedSalesExecutiveAssignee) {
-        const selectedSalesExecutive = await getSalesExecutiveAssignee(resolvedSalesExecutiveAssignee);
+        selectedSalesExecutive = await getSalesExecutiveAssignee(resolvedSalesExecutiveAssignee);
         if (!selectedSalesExecutive) {
           return res.status(400).json({
             success: false,
@@ -534,8 +535,18 @@ exports.createLead = async (req, res) => {
     const lead = await Lead.create({
       leadId: await getNextLeadId(),
       name, phone, email, address, city, state, pincode, branch, ivrsNo,
-      source, generatedThrough, capacity, roofType, monthlyBill, notes, priority, tags,
-      salesExecutiveData: isSalesExecutiveLead(req.body) ? salesExecutiveData || {} : undefined,
+      source,
+      generatedThrough: isSalesExecutiveLead(req.body)
+        ? (selectedSalesExecutive?.name || salesExecutiveAssigneeName || generatedThrough || 'Sales Executive Registration')
+        : generatedThrough,
+      capacity, roofType, monthlyBill, notes, priority, tags,
+      salesExecutiveData: isSalesExecutiveLead(req.body)
+        ? {
+            ...(salesExecutiveData || {}),
+            executiveId: selectedSalesExecutive?._id || resolvedSalesExecutiveAssignee || salesExecutiveData?.executiveId || null,
+            executiveName: selectedSalesExecutive?.name || salesExecutiveAssigneeName || salesExecutiveData?.executiveName || '',
+          }
+        : undefined,
       assignedTo: resolvedAssignedTo,
       salesExecutiveAssignee: resolvedSalesExecutiveAssignee,
       createdBy: req.user._id,
@@ -569,6 +580,12 @@ exports.createLead = async (req, res) => {
         { role: 'Admin', isActive: true },
         { $push: { notifications: { message: `Sales executive lead submitted: ${name}${ivrsNo ? ` | IVRS ${ivrsNo}` : ''}` } } }
       );
+
+      if (selectedSalesExecutive?._id && String(selectedSalesExecutive._id) !== String(req.user._id)) {
+        await User.findByIdAndUpdate(selectedSalesExecutive._id, {
+          $push: { notifications: { message: `New sales executive registration linked to you: ${name}${ivrsNo ? ` | IVRS ${ivrsNo}` : ''}` } }
+        });
+      }
 
       if (assignedManager && String(assignedManager._id) !== String(req.user._id)) {
         await User.findByIdAndUpdate(assignedManager._id, {
