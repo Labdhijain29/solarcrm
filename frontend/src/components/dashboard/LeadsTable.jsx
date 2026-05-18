@@ -33,7 +33,7 @@ export default function LeadsTable({
   onView,
   onDelete,
   extraActions,
-  defaultSort = 'ivrs-asc',
+  defaultSort = 'latest',
   pagination,
   onQueryChange,
   onLeadUpdated,

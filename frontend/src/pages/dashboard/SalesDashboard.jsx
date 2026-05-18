@@ -690,7 +690,7 @@ export default function SalesDashboard() {
 
   const fetchLeads = () => {
     setLoading(true)
-    leadsAPI.getAll({ salesExecutiveOnly: true, sort: 'latest', limit: 100 })
+    leadsAPI.getAll({ salesExecutiveOnly: true, stage: 'Lead', sort: 'latest', limit: 100 })
       .then((response) => setLeads(response.data.data || []))
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -800,7 +800,7 @@ export default function SalesDashboard() {
         <div className="sales-exec-toolbar">
           <div>
             <h3>Executive Leads</h3>
-            <p>{isSalesExecutive ? 'Yahan sirf sales executive form se bani leads dikhengi, including completed status.' : 'Sales executive form se bani registrations yahin lead pipeline mein reflect hongi so the team can continue the workflow immediately.'}</p>
+            <p>{isSalesExecutive ? 'Yahan sirf pending sales executive registrations dikhengi.' : 'Sales executive form se bani pending registrations yahin approval ke liye dikhengi.'}</p>
           </div>
           <span className="badge badge-sun">{user?.role || 'Sales Team'}</span>
         </div>

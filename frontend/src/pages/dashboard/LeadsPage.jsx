@@ -22,7 +22,7 @@ export function LeadsPage() {
   const canDelete = ['Admin', 'Manager'].includes(user?.role)
 
   const fetch = () => {
-    leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).finally(() => setLoading(false))
+    leadsAPI.getAll({ sort: 'latest' }).then(r => setLeads(r.data.data)).finally(() => setLoading(false))
   }
   useEffect(fetch, [])
 

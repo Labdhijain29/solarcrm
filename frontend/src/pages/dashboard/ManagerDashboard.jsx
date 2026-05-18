@@ -92,7 +92,7 @@ export function ManagerDashboard() {
   const { user } = useAuthStore()
 
   const fetchLeads = () => {
-    leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+    leadsAPI.getAll({ sort: 'latest' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
   }
 
   const viewLead = async (lead) => {
@@ -468,7 +468,7 @@ export function SalesDashboard() {
   const [editingLeadId, setEditingLeadId] = useState('')
   const { user } = useAuthStore()
 
-  const fetchLeads = () => leadsAPI.getAll({ sort: 'ivrs-asc' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+  const fetchLeads = () => leadsAPI.getAll({ sort: 'latest' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
 
   useEffect(() => {
     fetchLeads()
@@ -557,8 +557,8 @@ export function StageDashboard({ roleOverride }) {
   const fetchLeads = () => {
     setLoading(true)
     const requests = [
-      leadsAPI.getAll({ stage: myStage, sort: 'ivrs-asc' }),
-      leadsAPI.getAll({ completedStage: myStage, sort: 'ivrs-asc' }),
+      leadsAPI.getAll({ stage: myStage, sort: 'latest' }),
+      leadsAPI.getAll({ completedStage: myStage, sort: 'latest' }),
     ]
     if (showPanelNumberRows) requests.push(dispatchAPI.getAll())
 

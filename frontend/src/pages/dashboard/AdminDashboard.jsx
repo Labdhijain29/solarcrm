@@ -26,7 +26,7 @@ export default function AdminDashboard() {
   const [activity, setActivity] = useState([])
   const [leads, setLeads] = useState([])
   const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
-  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'ivrs-asc' })
+  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [tab, setTab] = useState(() => normalizeTab(searchParams.get('tab')))
   const [selectedLead, setSelectedLead] = useState(null)
   const [dashboardLoading, setDashboardLoading] = useState(true)
@@ -133,7 +133,7 @@ export default function AdminDashboard() {
   }
 
   const handleLeadQueryChange = (query) => {
-    setLeadQuery({ page: 1, sort: 'ivrs-asc', ...query })
+    setLeadQuery({ page: 1, sort: 'latest', ...query })
   }
 
   const refreshDashboardAndLeads = () => {

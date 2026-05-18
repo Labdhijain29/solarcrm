@@ -349,6 +349,7 @@ const buildQuery = (query, user) => {
   };
 
   if (role !== 'Admin' && isPipelineOwnerRole && !canViewDispatchQueue && !completedStage && !query.stage && !salesExecutiveOnly) {
+    q.currentStage = stageAccess;
     q.$or = [
       { assignedTo: user._id },
       { salesExecutiveAssignee: user._id },
@@ -382,7 +383,11 @@ const buildQuery = (query, user) => {
       delete q.assignedTo;
     }
     q.tags = 'sales-executive';
-    delete q.currentStage;
+    if (isPipelineOwnerRole) {
+      q.currentStage = stageAccess;
+    } else {
+      delete q.currentStage;
+    }
   }
 
   if (query.stage && !completedStage && (role === 'Admin' || !stageAccess || query.stage === stageAccess)) {
