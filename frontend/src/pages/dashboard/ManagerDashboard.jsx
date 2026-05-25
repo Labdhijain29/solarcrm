@@ -52,19 +52,28 @@ const INITIAL_MANAGER_LEAD = {
 }
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
+const MANAGER_LEAD_QUERY = { stage: 'Lead', sort: 'latest' }
+const PIPELINE_QUERY = { sort: 'latest' }
 
 function KanbanPipeline({ leads, onView }) {
+  const [expandedStages, setExpandedStages] = useState({})
+  const toggleStage = (stage) => {
+    setExpandedStages((prev) => ({ ...prev, [stage]: !prev[stage] }))
+  }
+
   return (
     <div className="kanban-wrap" style={{ overflowX: 'auto' }}>
       {STAGES.map(stage => {
         const cols = leads.filter(l => l.currentStage === stage)
+        const isExpanded = Boolean(expandedStages[stage])
+        const visibleLeads = isExpanded ? cols : cols.slice(0, 5)
         return (
           <div key={stage} className="kanban-col">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: .5, color: stageColor(stage) }}>{stage.split(' ')[0]}</div>
               <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11, padding: '1px 7px' }}>{cols.length}</div>
             </div>
-            {cols.slice(0, 5).map(l => (
+            {visibleLeads.map(l => (
               <div key={l._id} className="kanban-card" onClick={() => onView(l)}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 3 }}>{l.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>{l.capacity} | {l.city}</div>
@@ -73,7 +82,16 @@ function KanbanPipeline({ leads, onView }) {
                 </div>
               </div>
             ))}
-            {cols.length > 5 && <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', padding: '6px 0' }}>+{cols.length - 5} more</div>}
+            {cols.length > 5 && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => toggleStage(stage)}
+                style={{ width: '100%', justifyContent: 'center', marginTop: 6, fontSize: 11 }}
+              >
+                {isExpanded ? 'Show less' : `+${cols.length - 5} more`}
+              </button>
+            )}
           </div>
         )
       })}
@@ -83,6 +101,7 @@ function KanbanPipeline({ leads, onView }) {
 
 export function ManagerDashboard() {
   const [leads, setLeads] = useState([])
+  const [pipelineLeads, setPipelineLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('leads')
   const [selected, setSelected] = useState(null)
@@ -92,7 +111,17 @@ export function ManagerDashboard() {
   const { user } = useAuthStore()
 
   const fetchLeads = () => {
-    leadsAPI.getAll({ sort: 'latest' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+    setLoading(true)
+    Promise.all([
+      leadsAPI.getAll(MANAGER_LEAD_QUERY),
+      leadsAPI.getAll(PIPELINE_QUERY),
+    ])
+      .then(([leadRes, pipelineRes]) => {
+        setLeads(leadRes.data.data || [])
+        setPipelineLeads(pipelineRes.data.data || [])
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
   }
 
   const viewLead = async (lead) => {
@@ -244,7 +273,7 @@ export function ManagerDashboard() {
       </div>
 
       {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} onLeadUpdated={fetchLeads} /></div>}
-      {tab === 'pipeline' && <KanbanPipeline leads={leads} onView={viewLead} />}
+      {tab === 'pipeline' && <KanbanPipeline leads={pipelineLeads} onView={viewLead} />}
 
       {showCreate && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowCreate(false)}>
