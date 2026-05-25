@@ -7,17 +7,62 @@ import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '.
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
-import { getCitiesForState, STAGE_COLORS, STATE_OPTIONS } from '../../utils/constants'
+import { getCitiesForState, STAGES, STAGE_COLORS, STATE_OPTIONS, stageColor } from '../../utils/constants'
 
 const TT_STYLE = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, color:'var(--text)' }
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const CAPITALIZED_ENQUIRY_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
-const VALID_TABS = ['overview', 'leads', 'analytics']
+const VALID_TABS = ['overview', 'leads', 'pipeline', 'analytics']
 const LEADS_PAGE_SIZE = 25
+const PIPELINE_QUERY = { sort: 'latest', limit: 1000 }
 const normalizeTab = (value) => VALID_TABS.includes(value) ? value : 'overview'
 const getRequestError = (label, error) => `${label}: ${error?.response?.data?.message || error?.message || 'Request failed'}`
+
+function AdminPipeline({ leads, onView }) {
+  const [expandedStages, setExpandedStages] = useState({})
+  const toggleStage = (stage) => {
+    setExpandedStages((prev) => ({ ...prev, [stage]: !prev[stage] }))
+  }
+
+  return (
+    <div className="kanban-wrap" style={{ overflowX: 'auto' }}>
+      {STAGES.map(stage => {
+        const cols = leads.filter(l => l.currentStage === stage)
+        const isExpanded = Boolean(expandedStages[stage])
+        const visibleLeads = isExpanded ? cols : cols.slice(0, 5)
+        return (
+          <div key={stage} className="kanban-col">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: .5, color: stageColor(stage) }}>{stage.split(' ')[0]}</div>
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11, padding: '1px 7px' }}>{cols.length}</div>
+            </div>
+            {visibleLeads.map(l => (
+              <div key={l._id} className="kanban-card" onClick={() => onView(l)}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 3 }}>{l.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{l.capacity} | {l.city}</div>
+                <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
+                  {STAGES.map((_, i) => <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= STAGES.indexOf(stage) ? stageColor(stage) : 'var(--bg3)' }} />)}
+                </div>
+              </div>
+            ))}
+            {cols.length > 5 && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => toggleStage(stage)}
+                style={{ width: '100%', justifyContent: 'center', marginTop: 6, fontSize: 11 }}
+              >
+                {isExpanded ? 'Show less' : `+${cols.length - 5} more`}
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function AdminDashboard() {
   const { user } = useAuthStore()
@@ -25,14 +70,17 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [activity, setActivity] = useState([])
   const [leads, setLeads] = useState([])
+  const [pipelineLeads, setPipelineLeads] = useState([])
   const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
   const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [tab, setTab] = useState(() => normalizeTab(searchParams.get('tab')))
   const [selectedLead, setSelectedLead] = useState(null)
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [leadsLoading, setLeadsLoading] = useState(false)
+  const [pipelineLoading, setPipelineLoading] = useState(false)
   const [dashboardErrors, setDashboardErrors] = useState([])
   const [leadError, setLeadError] = useState('')
+  const [pipelineError, setPipelineError] = useState('')
   const leadRequestId = useRef(0)
   const [editingEnquiry, setEditingEnquiry] = useState(null)
   const [editForm, setEditForm] = useState({
@@ -98,6 +146,18 @@ export default function AdminDashboard() {
       })
   }
 
+  const loadPipeline = () => {
+    setPipelineLoading(true)
+    setPipelineError('')
+    leadsAPI.getAll(PIPELINE_QUERY)
+      .then((response) => setPipelineLeads(response.data.data || []))
+      .catch((error) => {
+        setPipelineLeads([])
+        setPipelineError(error?.response?.data?.message || error?.message || 'Failed to load pipeline')
+      })
+      .finally(() => setPipelineLoading(false))
+  }
+
   useEffect(() => {
     loadDashboard()
   }, [])
@@ -115,6 +175,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (tab === 'leads') loadLeads(leadQuery)
   }, [tab, leadQuery])
+
+  useEffect(() => {
+    if (tab === 'pipeline') loadPipeline()
+  }, [tab])
 
   const selectTab = (nextTab) => {
     setTab(nextTab)
@@ -139,6 +203,7 @@ export default function AdminDashboard() {
   const refreshDashboardAndLeads = () => {
     loadDashboard()
     if (tab === 'leads') loadLeads(leadQuery)
+    if (tab === 'pipeline') loadPipeline()
   }
 
   const {
@@ -203,6 +268,7 @@ export default function AdminDashboard() {
         {[
           ['overview', 'Overview'],
           ['leads', 'Leads'],
+          ['pipeline', 'Pipeline'],
           ['analytics', 'Analytics'],
         ].map(([key, label]) => (
           <button key={key} className={`crm-tab ${tab === key ? 'active' : ''}`} onClick={() => selectTab(key)}>
@@ -352,6 +418,15 @@ export default function AdminDashboard() {
             onQueryChange={handleLeadQueryChange}
             onLeadUpdated={refreshDashboardAndLeads}
           />
+        </div>
+      )}
+
+      {tab === 'pipeline' && (
+        <div style={{ animation:'fadeIn .3s ease' }}>
+          {pipelineError && (
+            <div className="crm-card" style={{ marginBottom:16, color:'var(--red)', fontSize:13 }}>{pipelineError}</div>
+          )}
+          {pipelineLoading ? <Spinner /> : <AdminPipeline leads={pipelineLeads} onView={viewLead} />}
         </div>
       )}
 
