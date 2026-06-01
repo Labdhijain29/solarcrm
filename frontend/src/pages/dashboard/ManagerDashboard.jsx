@@ -255,6 +255,7 @@ export function ManagerDashboard() {
         title="Manager Dashboard"
         subtitle="Generate leads, assign tasks, monitor the full pipeline"
         action={<button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Lead</button>}
+        
       />
 
       <div className="dashboard-grid-metrics">
