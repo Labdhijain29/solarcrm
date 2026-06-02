@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { FaMoon, FaSun } from 'react-icons/fa'
 import { useAppStore } from '../../store'
-import EnquiryForm from '../website/EnquiryForm'
 import SiteFooter from './SiteFooter'
 import mahaveerSolarLogo from '../../assets/mahaveer-solar-logo.svg'
 
@@ -18,7 +17,6 @@ export default function SiteLayout() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useAppStore()
-  const [enquiryOpen, setEnquiryOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const ThemeIcon = theme === 'dark' ? FaSun : FaMoon
 
@@ -51,9 +49,6 @@ export default function SiteLayout() {
         </ul>
 
         <div className="site-nav-actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => setEnquiryOpen(true)}>
-            Enquiry Form
-          </button>
           <button className="btn-icon btn-ghost btn" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             <ThemeIcon />
           </button>
@@ -68,27 +63,6 @@ export default function SiteLayout() {
       </main>
 
       <SiteFooter />
-
-      {enquiryOpen && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEnquiryOpen(false)
-          }}
-          style={{ overflowY:'auto' }}
-        >
-          <div style={{ width:'100%', maxWidth:680, position:'relative' }}>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => setEnquiryOpen(false)}
-              style={{ position:'absolute', top:12, right:12, zIndex:2 }}
-            >
-              Close
-            </button>
-            <EnquiryForm />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

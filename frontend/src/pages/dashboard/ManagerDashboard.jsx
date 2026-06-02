@@ -504,7 +504,6 @@ export function SalesDashboard() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [editingLeadId, setEditingLeadId] = useState('')
-  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const { user } = useAuthStore()
 
   const fetchLeads = () => leadsAPI.getAll({ sort: 'latest' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
@@ -542,7 +541,6 @@ export function SalesDashboard() {
         icon={<FaUsers />}
         title="Sales Manager Dashboard"
         subtitle="Full pipeline overview and conversion tracking"
-        action={<button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>}
       />
       <div className="dashboard-grid-metrics">
         <MetricCard icon={<FaClipboardList />} label="Total Leads" value={stats.total} />
@@ -565,7 +563,6 @@ export function SalesDashboard() {
           startEditing={editingLeadId === selected._id}
         />
       )}
-      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }
@@ -594,7 +591,6 @@ export function StageDashboard({ roleOverride }) {
   const [installationDispatches, setInstallationDispatches] = useState([])
   const [selectedDispatch, setSelectedDispatch] = useState(null)
   const [savingDispatchId, setSavingDispatchId] = useState('')
-  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const { user } = useAuthStore()
   const dashboardRole = roleOverride || user?.role
   const myStage = ROLE_STAGE_MAP[dashboardRole]
@@ -736,7 +732,6 @@ export function StageDashboard({ roleOverride }) {
         icon={(() => { const Icon = STAGE_ROLE_ICONS[dashboardRole] || FaUserCheck; return <Icon /> })()}
         title={`${dashboardRole} Dashboard`}
         subtitle={<>Stage: <strong style={{ color: stageColor(myStage) }}>{myStage}</strong> - review and action leads for this role</>}
-        action={<button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>}
       />
 
       <div className="dashboard-grid-metrics">
@@ -839,7 +834,6 @@ export function StageDashboard({ roleOverride }) {
         </div>
       )}
 
-      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }

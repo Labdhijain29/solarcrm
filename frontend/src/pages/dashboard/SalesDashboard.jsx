@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FaBell, FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaPlus, FaUsers } from 'react-icons/fa'
+import { FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaPlus, FaUsers } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
 import { FilePreview, MetricCard, PageHeader, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
-import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 import { ALL_BRAND_OPTIONS } from './inventoryStructure'
@@ -685,7 +684,6 @@ export default function SalesDashboard() {
   const [editingLeadId, setEditingLeadId] = useState('')
   const [showExecutiveCreate, setShowExecutiveCreate] = useState(false)
   const [showLeadCreate, setShowLeadCreate] = useState(false)
-  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const { user } = useAuthStore()
   const isSalesExecutive = user?.role === 'Sales Executive'
   const canCreateSalesRegistration = ['Admin', 'Sales Executive', 'Sales Manager'].includes(user?.role)
@@ -747,7 +745,6 @@ export default function SalesDashboard() {
         subtitle={isSalesExecutive ? 'Sirf isi dashboard se bani registrations aur unka latest status yahan dikhega' : 'Old sales executive registration form yahin se create hoga aur process me details show hongi'}
         action={
           <div className="dashboard-inline-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>
             {canCreateSalesRegistration && (
               <button className="btn btn-primary" onClick={() => setShowLeadCreate(true)}>
                 <FaPlus /> Sales Executive Form
@@ -824,7 +821,6 @@ export default function SalesDashboard() {
           startEditing={editingLeadId === selected._id}
         />
       )}
-      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }

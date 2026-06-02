@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { FaBell, FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaMinus, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
+import { FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaMinus, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dispatchAPI, leadsAPI, productAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
-import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 
@@ -447,7 +446,6 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
   const [filters, setFilters] = useState({ search: '', category: '' })
   const [leadSearch, setLeadSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState(null)
-  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
 
   const isDispatchDashboard = dashboardType === 'dispatch' || user?.role === 'Dispatch Manager'
   const visibleTabs = useMemo(() => (
@@ -1165,7 +1163,6 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
         subtitle="Inventory, dispatch, remaining stock, customer-wise material tracking"
         action={(
           <div className="dashboard-inline-actions">
-            {isDispatchDashboard && <button type="button" className="btn btn-ghost" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>}
             {canManageStock && <button className="btn btn-primary" onClick={openCreateProduct}><FaPlus /> Add Stock</button>}
             {canDispatch && <button className="btn btn-secondary" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>}
           </div>
@@ -2125,7 +2122,6 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
           currentUser={user}
         />
       )}
-      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }
