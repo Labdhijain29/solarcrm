@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FaBolt, FaCheckCircle, FaExclamationTriangle, FaSolarPanel, FaTools } from 'react-icons/fa'
+import { FaBell, FaBolt, FaCheckCircle, FaExclamationTriangle, FaSolarPanel, FaTools } from 'react-icons/fa'
 import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
+import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import ReassignLeadModal, { canReassignLead } from '../../components/dashboard/ReassignLeadModal'
 import { enquiriesAPI, leadsAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
@@ -26,6 +27,7 @@ export default function ServiceManagerDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reassignLead, setReassignLead] = useState(null)
+  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const { user } = useAuthStore()
 
   const loadServiceData = () => {
@@ -72,6 +74,7 @@ export default function ServiceManagerDashboard() {
         icon={<FaTools />}
         title="Service Manager Dashboard"
         subtitle="Service enquiries plus solar maintenance, visit scheduling, and system health"
+        action={<button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>}
       />
 
       <div className="dashboard-grid-metrics">
@@ -260,6 +263,7 @@ export default function ServiceManagerDashboard() {
           onReassigned={loadServiceData}
         />
       )}
+      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }

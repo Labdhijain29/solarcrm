@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaMinus, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
+import { FaBell, FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaMinus, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dispatchAPI, leadsAPI, productAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
+import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 
@@ -420,7 +421,7 @@ const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace
 const makeBillNo = () => `DSP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-5)}`
 const makeStockReceiptNo = () => `STK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-5)}`
 
-export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
+export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashboardType = 'stock' }) {
   const { user } = useAuthStore()
   const [tab, setTab] = useState(defaultTab)
   const [products, setProducts] = useState([])
@@ -446,9 +447,20 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   const [filters, setFilters] = useState({ search: '', category: '' })
   const [leadSearch, setLeadSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState(null)
+  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
 
-  const canManageStock = ['Admin', 'Stock Manager'].includes(user?.role)
-  const canDispatch = ['Admin', 'Dispatch Manager'].includes(user?.role)
+  const isDispatchDashboard = dashboardType === 'dispatch' || user?.role === 'Dispatch Manager'
+  const visibleTabs = useMemo(() => (
+    isDispatchDashboard
+      ? [['dashboard', 'Dashboard'], ['dispatch', 'Dispatch']]
+      : [['dashboard', 'Dashboard'], ['stock', 'Stock'], ['dispatch', 'Dispatch'], ['reports', 'Reports']]
+  ), [isDispatchDashboard])
+  const canManageStock = !isDispatchDashboard && ['Admin', 'Stock Manager'].includes(user?.role)
+  const canDispatch = isDispatchDashboard || ['Admin', 'Dispatch Manager'].includes(user?.role)
+
+  useEffect(() => {
+    if (!visibleTabs.some(([key]) => key === tab)) setTab('dashboard')
+  }, [tab, visibleTabs])
 
   const loadData = () => {
     setLoading(true)
@@ -1148,11 +1160,12 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
   return (
     <div className="dashboard-page dispatch-dashboard-page">
       <PageHeader
-        icon={<FaWarehouse />}
-        title={user?.role === 'Dispatch Manager' ? 'Dispatch Management' : 'Stock Manager Dashboard'}
+        icon={isDispatchDashboard ? <FaShippingFast /> : <FaWarehouse />}
+        title={isDispatchDashboard ? 'Dispatch Manager Dashboard' : 'Stock Manager Dashboard'}
         subtitle="Inventory, dispatch, remaining stock, customer-wise material tracking"
         action={(
           <div className="dashboard-inline-actions">
+            {isDispatchDashboard && <button type="button" className="btn btn-ghost" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>}
             {canManageStock && <button className="btn btn-primary" onClick={openCreateProduct}><FaPlus /> Add Stock</button>}
             {canDispatch && <button className="btn btn-secondary" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>}
           </div>
@@ -1160,12 +1173,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
       />
 
       <div className="crm-tabs">
-        {[
-          ['dashboard', 'Dashboard'],
-          ['stock', 'Stock'],
-          ['dispatch', 'Dispatch'],
-          ['reports', 'Reports'],
-        ].map(([key, label]) => (
+        {visibleTabs.map(([key, label]) => (
           <button key={key} className={`crm-tab ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
@@ -2117,6 +2125,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard' }) {
           currentUser={user}
         />
       )}
+      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }

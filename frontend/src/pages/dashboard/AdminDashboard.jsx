@@ -6,6 +6,7 @@ import { dashboardAPI, enquiriesAPI, leadsAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
+import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STAGES, STAGE_COLORS, STATE_OPTIONS, stageColor } from '../../utils/constants'
 
@@ -81,6 +82,7 @@ export default function AdminDashboard() {
   const [dashboardErrors, setDashboardErrors] = useState([])
   const [leadError, setLeadError] = useState('')
   const [pipelineError, setPipelineError] = useState('')
+  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const leadRequestId = useRef(0)
   const [editingEnquiry, setEditingEnquiry] = useState(null)
   const [editForm, setEditForm] = useState({
@@ -262,7 +264,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader icon={<FaCog />} title="Admin Dashboard" subtitle="System overview only. Open other dashboards from the sidebar." />
+      <PageHeader
+        icon={<FaCog />}
+        title="Admin Dashboard"
+        subtitle="System overview only. Open other dashboards from the sidebar."
+        action={<button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>}
+      />
 
       <div className="crm-tabs">
         {[
@@ -566,6 +573,8 @@ export default function AdminDashboard() {
           currentUser={user}
         />
       )}
+
+      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }

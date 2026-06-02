@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { FaEye, FaSolarPanel } from 'react-icons/fa'
+import { FaBell, FaEye, FaSolarPanel } from 'react-icons/fa'
 import { EmptyState, MetricCard, PageHeader, Spinner } from '../../components/common'
 import DispatchBillView from '../../components/dashboard/DispatchBillView'
+import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import { dispatchAPI } from '../../services/api'
 
 const statuses = ['Pending', 'In Progress', 'Completed']
@@ -11,6 +12,7 @@ export default function InstallationManagerDashboard() {
   const [dispatches, setDispatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [viewingDispatch, setViewingDispatch] = useState(null)
+  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
 
   const loadDispatches = () => {
     setLoading(true)
@@ -37,7 +39,12 @@ export default function InstallationManagerDashboard() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader icon={<FaSolarPanel />} title="Installation Manager Dashboard" subtitle="Approved dispatches, locked bills and installation progress." />
+      <PageHeader
+        icon={<FaSolarPanel />}
+        title="Installation Manager Dashboard"
+        subtitle="Approved dispatches, locked bills and installation progress."
+        action={<button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryForm(true)}><FaBell /> Enquiry Form</button>}
+      />
 
       <div className="dashboard-grid-metrics">
         {statuses.map(status => (
@@ -93,6 +100,7 @@ export default function InstallationManagerDashboard() {
           </select>
         </DispatchBillView>
       )}
+      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
     </div>
   )
 }
