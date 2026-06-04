@@ -12,7 +12,7 @@ const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
 const MODULE_PANEL_COUNT = 6
-const EDITABLE_PRE_APPROVAL_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager']
+const EDITABLE_LEAD_STAGE_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager']
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'other', 'generatedThrough'])
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
@@ -127,10 +127,10 @@ export default function LeadModal({
     return Object.keys(ROLE_STAGE_MAP).find((role) => ROLE_STAGE_MAP[role] === nextStage) || ''
   }, [isSalesManagerHandoff, nextStage])
   const assignmentStage = isSalesManagerHandoff ? 'Lead' : nextStage
-  const canEditBeforeApproval = lead.status === 'active' && (
-    (lead.currentStage === 'Lead' && EDITABLE_PRE_APPROVAL_ROLES.includes(currentUser?.role)) ||
+  const canEditLeadDetails = ['Admin', 'Sales Manager'].includes(currentUser?.role) || (lead.status === 'active' && (
+    (lead.currentStage === 'Lead' && EDITABLE_LEAD_STAGE_ROLES.includes(currentUser?.role)) ||
     (lead.currentStage === 'Registration' && ['Admin', 'Registration Executive'].includes(currentUser?.role))
-  )
+  ))
   const canAddBankRemark = showBankRemarkInput && lead.currentStage === 'Bank Approval'
   const canAddLoanApplication = showLoanApplicationInput && lead.currentStage === 'Loan Disbursement'
   const canAddRegistrationPhotos = showRegistrationPhotoUpload && lead.currentStage === 'Registration'
@@ -432,7 +432,7 @@ export default function LeadModal({
     })
   }
 
-  const doSavePreApprovalEdit = async () => {
+  const doSaveLeadDetailsEdit = async () => {
     if (!editForm.name.trim()) return toast.error('Customer name is required.')
     if (!PHONE_REGEX.test(editForm.phone)) return toast.error('Contact number must be a valid 10-digit mobile number.')
     if (!editForm.branch.trim()) return toast.error('Branch is required.')
@@ -479,7 +479,7 @@ export default function LeadModal({
     payload.append('roofType', editForm.roofType)
     payload.append('monthlyBill', editForm.monthlyBill || 0)
     payload.append('salesExecutiveData', JSON.stringify(nextSalesExecutiveData))
-    payload.append('updateNote', 'Pre-approval registration details edited')
+    payload.append('updateNote', currentUser?.role === 'Sales Manager' ? 'Sales manager edited registration details' : 'Registration details edited')
     if (editFiles.photoOne) payload.append('photoOne', editFiles.photoOne)
     if (editFiles.photoTwo) payload.append('photoTwo', editFiles.photoTwo)
     if (editFiles.documentPdf) payload.append('documentPdf', editFiles.documentPdf)
@@ -519,7 +519,7 @@ export default function LeadModal({
               <StatusBadge status={lead.status} />
             </div>
           </div>
-          {canEditBeforeApproval && (
+          {canEditLeadDetails && (
             <button
               className="btn btn-secondary btn-sm"
               disabled={loading}
@@ -531,9 +531,9 @@ export default function LeadModal({
           <button onClick={onClose} style={{ background:'none', border:'none', fontSize:22, color:'var(--dim)', cursor:'pointer' }}>x</button>
         </div>
 
-        {isEditing && canEditBeforeApproval && (
+        {isEditing && canEditLeadDetails && (
           <div className="crm-card-sm" style={{ marginBottom:14 }}>
-            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Edit Registration Before Approval</div>
+            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Edit Registration Details</div>
             <div className="dashboard-form-grid">
               <div>
                 <label className="form-label">Customer Name</label>
@@ -688,7 +688,7 @@ export default function LeadModal({
               </div>
             </div>
             <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
-              <button className="btn btn-primary" disabled={loading} onClick={doSavePreApprovalEdit}>Save Changes</button>
+              <button className="btn btn-primary" disabled={loading} onClick={doSaveLeadDetailsEdit}>Save Changes</button>
               <button className="btn btn-ghost btn-sm" disabled={loading} onClick={() => setIsEditing(false)}>Cancel</button>
             </div>
           </div>

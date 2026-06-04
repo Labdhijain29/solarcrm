@@ -14,14 +14,19 @@ import { dispatchAPI, productAPI, usersAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import {
   AC_DC_GROUP,
+  AC_WIRE_GROUP,
   BASE_PLATE_GROUP,
   C_CHANNEL_GROUP,
+  C_CLIP_GROUP,
   CABLE_TRY_GROUP,
   DCR_GROUP,
+  DC_CABLE_GROUP,
   EARTHING_KIT_GROUP,
+  EARTHING_WIRE_16MM_GROUP,
   FASTNER_GROUP,
   HEAD_PARLIN_GROUP,
   INVERTER_GROUP,
+  MC4_CONNECTOR_GROUP,
   MODULE_GROUP_OPTIONS,
   NON_MODULE_GROUPS,
   PIPE_GROUP,
@@ -92,7 +97,7 @@ const money = (value) => Number(value || 0).toLocaleString('en-IN', { style: 'cu
 const productCode = (product) => product.productCode || product.sku || product._id?.slice(-6)?.toUpperCase() || ''
 const getPrice = (product) => Number(product.salePrice || product.price || 0)
 const productSearchText = (product) => [product.name, product.sku, product.productCode, product.brand, product.category, product.type, product.capacity].join(' ').toLowerCase()
-const SIMPLE_SIZE_GROUPS = [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP, BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP]
+const SIMPLE_SIZE_GROUPS = [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP, BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP, AC_WIRE_GROUP, DC_CABLE_GROUP, EARTHING_WIRE_16MM_GROUP, C_CLIP_GROUP]
 const groupLabel = (group) => MODULE_GROUP_OPTIONS.find(option => option.value === group)?.label || group || '-'
 const productModuleType = (product) => product.capacity || product.type || product.name || '-'
 const productMeta = (product) => ({
@@ -111,6 +116,7 @@ const moduleTypeOptionsByGroup = (group) => {
   if (group === INVERTER_GROUP) return ['Capacity']
   if (group === AC_DC_GROUP) return ['Phase']
   if (group === CABLE_TRY_GROUP) return ['Item']
+  if (group === MC4_CONNECTOR_GROUP) return []
   if (SIMPLE_SIZE_GROUPS.includes(group)) return ['Size']
   return ['Type']
 }

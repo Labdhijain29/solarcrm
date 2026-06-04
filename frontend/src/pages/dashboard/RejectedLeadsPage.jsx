@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FaBan, FaCalendarAlt, FaClipboardList, FaExclamationTriangle, FaLayerGroup } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { leadsAPI } from '../../services/api'
@@ -7,6 +7,8 @@ import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 import { STAGES, formatDate } from '../../utils/constants'
+
+const LEADS_PAGE_SIZE = 25
 
 const getRejectedHistory = (lead) => {
   return [...(lead.history || [])].reverse().find((item) => item.action === 'Rejected')
@@ -20,20 +22,42 @@ const getRejectedAt = (lead) => {
 export default function RejectedLeadsPage() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
+  const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [selected, setSelected] = useState(null)
+  const leadRequestId = useRef(0)
   const { user } = useAuthStore()
   const canDelete = ['Admin', 'Manager'].includes(user?.role)
 
-  const fetchRejectedLeads = () => {
+  const fetchRejectedLeads = (query = leadQuery) => {
+    const requestId = leadRequestId.current + 1
+    leadRequestId.current = requestId
     setLoading(true)
     leadsAPI
-      .getAll({ status: 'rejected', limit: 1000, sort: 'latest' })
-      .then((response) => setLeads(response.data.data || []))
-      .catch(console.error)
-      .finally(() => setLoading(false))
+      .getAll({ status: 'rejected', limit: LEADS_PAGE_SIZE, ...query })
+      .then((response) => {
+        if (requestId !== leadRequestId.current) return
+        setLeads(response.data.data || [])
+        setLeadPagination(response.data.pagination || { page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .catch((error) => {
+        if (requestId !== leadRequestId.current) return
+        console.error(error)
+        setLeads([])
+        setLeadPagination({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .finally(() => {
+        if (requestId === leadRequestId.current) setLoading(false)
+      })
   }
 
-  useEffect(fetchRejectedLeads, [])
+  useEffect(() => {
+    fetchRejectedLeads(leadQuery)
+  }, [leadQuery])
+
+  const handleLeadQueryChange = (query) => {
+    setLeadQuery({ page: 1, sort: 'latest', ...query, status: 'rejected' })
+  }
 
   const deleteLead = async (lead) => {
     if (!canDelete) return
@@ -63,13 +87,13 @@ export default function RejectedLeadsPage() {
     const latest = [...leads].sort((a, b) => new Date(getRejectedAt(b)) - new Date(getRejectedAt(a)))[0]
 
     return {
-      total: leads.length,
+      total: leadPagination.total || leads.length,
       thisMonth,
       stages: byStage.length,
       latest,
       byStage,
     }
-  }, [leads])
+  }, [leadPagination.total, leads])
 
   const latestRejectedHistory = stats.latest ? getRejectedHistory(stats.latest) : null
 
@@ -83,11 +107,11 @@ export default function RejectedLeadsPage() {
 
       <div className="dashboard-grid-metrics">
         <MetricCard icon={<FaBan />} label="Rejected Leads" value={stats.total} changeColor="var(--red)" />
-        <MetricCard icon={<FaCalendarAlt />} label="This Month" value={stats.thisMonth} changeColor="var(--sun)" />
-        <MetricCard icon={<FaLayerGroup />} label="Rejected Stages" value={stats.stages} changeColor="var(--blue)" />
+        <MetricCard icon={<FaCalendarAlt />} label="Visible This Month" value={stats.thisMonth} changeColor="var(--sun)" />
+        <MetricCard icon={<FaLayerGroup />} label="Visible Stages" value={stats.stages} changeColor="var(--blue)" />
         <MetricCard
           icon={<FaClipboardList />}
-          label="Latest Rejection"
+          label="Latest Visible"
           value={stats.latest ? formatDate(getRejectedAt(stats.latest)) : '-'}
           change={stats.latest?.name}
           changeColor="var(--red)"
@@ -140,7 +164,16 @@ export default function RejectedLeadsPage() {
 
       <div className="crm-card">
         <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Rejected Leads ({stats.total})</h3>
-        <LeadsTable leads={leads} loading={loading} onView={setSelected} onDelete={canDelete ? deleteLead : undefined} onLeadUpdated={fetchRejectedLeads} />
+        <LeadsTable
+          leads={leads}
+          loading={loading}
+          onView={setSelected}
+          onDelete={canDelete ? deleteLead : undefined}
+          pagination={leadPagination}
+          onQueryChange={handleLeadQueryChange}
+          onLeadUpdated={fetchRejectedLeads}
+          showStatusFilter={false}
+        />
       </div>
 
       {selected && (

@@ -13,6 +13,11 @@ export const EARTHING_KIT_CATEGORY = 'EARTHING KIT'
 export const PIPE_CATEGORY = 'PIPE'
 export const ALBA_CATEGORY = 'ALBA'
 export const TE_CATEGORY = 'TE'
+export const AC_WIRE_CATEGORY = 'AC Wire'
+export const DC_CABLE_CATEGORY = 'DC Cable'
+export const MC4_CONNECTOR_CATEGORY = 'MC4 Connector'
+export const EARTHING_WIRE_16MM_CATEGORY = 'Earthing Wire 16mm'
+export const C_CLIP_CATEGORY = 'C Clip'
 
 export const DCR_GROUP = 'DCR'
 export const INVERTER_GROUP = 'INVERTER_ON_GRID'
@@ -28,8 +33,13 @@ export const EARTHING_KIT_GROUP = 'EARTHING_KIT'
 export const PIPE_GROUP = 'PIPE'
 export const ALBA_GROUP = 'ALBA'
 export const TE_GROUP = 'TE'
+export const AC_WIRE_GROUP = 'AC_WIRE'
+export const DC_CABLE_GROUP = 'DC_CABLE'
+export const MC4_CONNECTOR_GROUP = 'MC4_CONNECTOR'
+export const EARTHING_WIRE_16MM_GROUP = 'EARTHING_WIRE_16MM'
+export const C_CLIP_GROUP = 'C_CLIP'
 
-export const MODULE_BRANDS = ['Warree', 'Adani', 'Tata']
+export const MODULE_BRANDS = ['Warree', 'Adani', 'Tata', 'Luminous', 'Havells']
 export const MODULE_TYPES = {
   'DCR P-Type': ['530WP', '535WP', '540WP', '545WP', '550WP'],
   'N-Type TOPCon': ['560WP', '565WP', '570WP', '575WP', '580WP', '585WP'],
@@ -42,7 +52,7 @@ export const CABLE_TRY_ITEMS = ['Cable Try']
 export const STRUCTURE_BRANDS = ['JSW']
 export const ALL_BRAND_OPTIONS = [...new Set([...MODULE_BRANDS, ...INVERTER_BRANDS, ...AC_DC_BRANDS, ...STRUCTURE_BRANDS])]
 export const STRUCTURE_SIZE = '140*50*2mm'
-export const STRUCTURE_FEET = ['6.5feet', '8.5feet', '13 feet']
+export const STRUCTURE_FEET = ['6.5feet', '8.5feet', '13 feet', '10 feet', '21 feet']
 export const HEAD_PARLIN_SIZE = '70*50*1.5mm'
 export const HEAD_PARLIN_FEET = ['21 feet', '13 feet']
 export const C_CHANNEL_SIZE = '41*41mm'
@@ -54,6 +64,10 @@ export const EARTHING_KIT_SIZES = ['17*1 Mtr', 'LA 17*1 mtr']
 export const PIPE_SIZES = ['10*25']
 export const ALBA_SIZES = ['10*25']
 export const TE_SIZES = ['10*25']
+export const AC_WIRE_SIZES = ['40 Mtr', '200 Mtr']
+export const DC_CABLE_SIZES = ['30 Mtr']
+export const EARTHING_WIRE_16MM_SIZES = ['100 Mtr']
+export const C_CLIP_SIZES = ['25 mm']
 
 export const makeStructureVariant = (feet) => `${STRUCTURE_SIZE} | ${feet}`
 export const makeHeadParlinVariant = (feet) => `${HEAD_PARLIN_SIZE} | ${feet}`
@@ -77,6 +91,11 @@ export const STOCK_CATEGORY_OPTIONS = Object.keys({
   [PIPE_CATEGORY]: true,
   [ALBA_CATEGORY]: true,
   [TE_CATEGORY]: true,
+  [AC_WIRE_CATEGORY]: true,
+  [DC_CABLE_CATEGORY]: true,
+  [MC4_CONNECTOR_CATEGORY]: true,
+  [EARTHING_WIRE_16MM_CATEGORY]: true,
+  [C_CLIP_CATEGORY]: true,
   CABLE: true,
   'STRUCTURE MATERIAL': true,
   'EARTHING & SAFETY': true,
@@ -98,6 +117,11 @@ export const CATEGORIES = {
   [PIPE_CATEGORY]: { brands: [], types: { Size: PIPE_SIZES }, unit: 'pcs' },
   [ALBA_CATEGORY]: { brands: [], types: { Size: ALBA_SIZES }, unit: 'pcs' },
   [TE_CATEGORY]: { brands: [], types: { Size: TE_SIZES }, unit: 'pcs' },
+  [AC_WIRE_CATEGORY]: { brands: [], types: { Size: AC_WIRE_SIZES }, unit: 'mtr' },
+  [DC_CABLE_CATEGORY]: { brands: [], types: { Size: DC_CABLE_SIZES }, unit: 'mtr' },
+  [MC4_CONNECTOR_CATEGORY]: { brands: [], types: {}, unit: 'pcs' },
+  [EARTHING_WIRE_16MM_CATEGORY]: { brands: [], types: { Size: EARTHING_WIRE_16MM_SIZES }, unit: 'mtr' },
+  [C_CLIP_CATEGORY]: { brands: [], types: { Size: C_CLIP_SIZES }, unit: 'pcs' },
   CABLE: { brands: [], types: { Type: ['DC Cable', 'AC Cable', 'Earthing Cable', 'Solar Cable'] }, unit: 'mtr' },
   'STRUCTURE MATERIAL': {
     brands: [],
@@ -126,6 +150,11 @@ export const MODULE_GROUP_OPTIONS = [
   { value: PIPE_GROUP, label: 'Pipe' },
   { value: ALBA_GROUP, label: 'Alba' },
   { value: TE_GROUP, label: 'Te' },
+  { value: AC_WIRE_GROUP, label: 'AC Wire' },
+  { value: DC_CABLE_GROUP, label: 'DC Cable' },
+  { value: MC4_CONNECTOR_GROUP, label: 'MC4 Connector' },
+  { value: EARTHING_WIRE_16MM_GROUP, label: 'Earthing Wire 16mm' },
+  { value: C_CLIP_GROUP, label: 'C Clip' },
 ]
 
 export const NON_MODULE_GROUPS = [
@@ -142,10 +171,16 @@ export const NON_MODULE_GROUPS = [
   PIPE_GROUP,
   ALBA_GROUP,
   TE_GROUP,
+  AC_WIRE_GROUP,
+  DC_CABLE_GROUP,
+  MC4_CONNECTOR_GROUP,
+  EARTHING_WIRE_16MM_GROUP,
+  C_CLIP_GROUP,
 ]
 
 export const isSizedLengthGroup = (group) => [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP].includes(group)
-export const isSimpleSizeGroup = (group) => [BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(group)
+export const isStandaloneGroup = (group) => [MC4_CONNECTOR_GROUP].includes(group)
+export const isSimpleSizeGroup = (group) => [BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP, AC_WIRE_GROUP, DC_CABLE_GROUP, EARTHING_WIRE_16MM_GROUP, C_CLIP_GROUP].includes(group)
 export const isStructuredCategory = (category) => [
   MODULE_CATEGORY,
   LEGACY_MODULE_CATEGORY,
@@ -162,6 +197,11 @@ export const isStructuredCategory = (category) => [
   PIPE_CATEGORY,
   ALBA_CATEGORY,
   TE_CATEGORY,
+  AC_WIRE_CATEGORY,
+  DC_CABLE_CATEGORY,
+  MC4_CONNECTOR_CATEGORY,
+  EARTHING_WIRE_16MM_CATEGORY,
+  C_CLIP_CATEGORY,
 ].includes(category)
 export const getCategoryLabel = (category) => category === MODULE_CATEGORY ? 'Module' : category
 export const getProductModuleKind = (type) => type === 'N-Type TOPCon' ? 'N-Type' : 'P-Type'
@@ -180,6 +220,11 @@ export const getProductGroup = (form) => {
   if (form.category === PIPE_CATEGORY) return PIPE_GROUP
   if (form.category === ALBA_CATEGORY) return ALBA_GROUP
   if (form.category === TE_CATEGORY) return TE_GROUP
+  if (form.category === AC_WIRE_CATEGORY) return AC_WIRE_GROUP
+  if (form.category === DC_CABLE_CATEGORY) return DC_CABLE_GROUP
+  if (form.category === MC4_CONNECTOR_CATEGORY) return MC4_CONNECTOR_GROUP
+  if (form.category === EARTHING_WIRE_16MM_CATEGORY) return EARTHING_WIRE_16MM_GROUP
+  if (form.category === C_CLIP_CATEGORY) return C_CLIP_GROUP
   return DCR_GROUP
 }
 
@@ -197,6 +242,11 @@ export const getCapacityOptionsByGroup = (group, moduleType = 'P-Type') => {
   if (group === PIPE_GROUP) return PIPE_SIZES
   if (group === ALBA_GROUP) return ALBA_SIZES
   if (group === TE_GROUP) return TE_SIZES
+  if (group === AC_WIRE_GROUP) return AC_WIRE_SIZES
+  if (group === DC_CABLE_GROUP) return DC_CABLE_SIZES
+  if (group === EARTHING_WIRE_16MM_GROUP) return EARTHING_WIRE_16MM_SIZES
+  if (group === C_CLIP_GROUP) return C_CLIP_SIZES
+  if (isStandaloneGroup(group)) return []
   return MODULE_TYPES[moduleType === 'N-Type' ? 'N-Type TOPCon' : 'DCR P-Type'] || []
 }
 
@@ -284,8 +334,14 @@ export const setStructuredProductField = (prev, key, value) => {
       [PIPE_GROUP]: { category: PIPE_CATEGORY, brand: '', type: 'Size', capacity: PIPE_SIZES[0] },
       [ALBA_GROUP]: { category: ALBA_CATEGORY, brand: '', type: 'Size', capacity: ALBA_SIZES[0] },
       [TE_GROUP]: { category: TE_CATEGORY, brand: '', type: 'Size', capacity: TE_SIZES[0] },
+      [AC_WIRE_GROUP]: { category: AC_WIRE_CATEGORY, brand: '', type: 'Size', capacity: AC_WIRE_SIZES[0], unit: 'mtr' },
+      [DC_CABLE_GROUP]: { category: DC_CABLE_CATEGORY, brand: '', type: 'Size', capacity: DC_CABLE_SIZES[0], unit: 'mtr' },
+      [MC4_CONNECTOR_GROUP]: { category: MC4_CONNECTOR_CATEGORY, brand: '', type: '', capacity: '', unit: 'pcs' },
+      [EARTHING_WIRE_16MM_GROUP]: { category: EARTHING_WIRE_16MM_CATEGORY, brand: '', type: 'Size', capacity: EARTHING_WIRE_16MM_SIZES[0], unit: 'mtr' },
+      [C_CLIP_GROUP]: { category: C_CLIP_CATEGORY, brand: '', type: 'Size', capacity: C_CLIP_SIZES[0], unit: 'pcs' },
     }
-    return { ...prev, ...(groupMap[value] || emptyStructuredProduct), unit: 'pcs' }
+    const groupDefaults = groupMap[value] || emptyStructuredProduct
+    return { ...prev, ...groupDefaults, unit: groupDefaults.unit || 'pcs' }
   }
   return { ...prev, [key]: value }
 }
@@ -324,6 +380,7 @@ export const matchesDispatchModule = (product, item) => {
   const brandOptions = getBrandOptionsByGroup(group)
 
   if (getProductGroup(product) !== group) return false
+  if (isStandaloneGroup(group)) return true
   if (expectedType && group === DCR_GROUP && normalizeModuleType(product.type) !== expectedType) return false
   if (normalizeModuleValue(product.capacity) !== normalizeModuleValue(item.capacity)) return false
   if (brandOptions.length && normalizeModuleBrand(product.brand) !== normalizeModuleBrand(item.brand)) return false

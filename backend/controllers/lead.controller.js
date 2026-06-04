@@ -279,6 +279,10 @@ const canUserViewLead = (user, lead) => {
   return (lead.history || []).some((item) => String(item.performedBy || '') === userId);
 };
 
+const canSalesManagerUpdateSalesLead = (user, lead) => {
+  return user.role === 'Sales Manager' && isSalesExecutiveLead(lead) && canUserViewLead(user, lead);
+};
+
 const ensureUserCanActOnLead = (user, lead, action) => {
   if (canUserActOnLead(user, lead)) return;
   const userStage = ROLE_STAGE_MAP[user.role];
@@ -624,7 +628,8 @@ exports.updateLead = async (req, res) => {
   try {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
-    if (req.user.role !== 'Admin' && String(lead.assignedTo || '') !== String(req.user._id)) {
+    const isAssignedUser = String(lead.assignedTo || '') === String(req.user._id);
+    if (req.user.role !== 'Admin' && !isAssignedUser && !canSalesManagerUpdateSalesLead(req.user, lead)) {
       return res.status(403).json({ success: false, message: 'You can only update leads assigned to you.' });
     }
 

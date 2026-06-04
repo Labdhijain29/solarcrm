@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaPlus, FaUsers } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
@@ -14,8 +14,10 @@ const PHONE_REGEX = /^[6-9]\d{9}$/
 const IVRS_REGEX = /^[A-Za-z0-9]{1,15}$/
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
+const LEADS_PAGE_SIZE = 25
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'permanentAddress', 'address', 'jobTitle', 'branch', 'brand', 'other', 'generatedThrough'])
-const canEditBeforeApproval = (lead, role) => (
+const canEditSalesDashboardLead = (lead, role) => (
+  ['Admin', 'Sales Manager'].includes(role) ||
   ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(role) &&
   lead?.currentStage === 'Lead' &&
   lead?.status === 'active'
@@ -680,20 +682,37 @@ export default function SalesDashboard() {
   const [leads, setLeads] = useState([])
   const [salesExecutives, setSalesExecutives] = useState([])
   const [loading, setLoading] = useState(true)
+  const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [selected, setSelected] = useState(null)
   const [editingLeadId, setEditingLeadId] = useState('')
   const [showExecutiveCreate, setShowExecutiveCreate] = useState(false)
   const [showLeadCreate, setShowLeadCreate] = useState(false)
+  const [activeTab, setActiveTab] = useState('leads')
+  const leadRequestId = useRef(0)
   const { user } = useAuthStore()
   const isSalesExecutive = user?.role === 'Sales Executive'
   const canCreateSalesRegistration = ['Admin', 'Sales Executive', 'Sales Manager'].includes(user?.role)
 
-  const fetchLeads = () => {
+  const fetchLeads = (query = leadQuery) => {
+    const requestId = leadRequestId.current + 1
+    leadRequestId.current = requestId
     setLoading(true)
-    leadsAPI.getAll({ salesExecutiveOnly: true, sort: 'latest', limit: 1000 })
-      .then((response) => setLeads(response.data.data || []))
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    leadsAPI.getAll({ salesExecutiveOnly: true, limit: LEADS_PAGE_SIZE, ...query })
+      .then((response) => {
+        if (requestId !== leadRequestId.current) return
+        setLeads(response.data.data || [])
+        setLeadPagination(response.data.pagination || { page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .catch((error) => {
+        if (requestId !== leadRequestId.current) return
+        console.error(error)
+        setLeads([])
+        setLeadPagination({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .finally(() => {
+        if (requestId === leadRequestId.current) setLoading(false)
+      })
   }
 
   const fetchSalesExecutives = () => {
@@ -711,14 +730,26 @@ export default function SalesDashboard() {
   }
 
   useEffect(() => {
-    refreshData()
+    fetchLeads(leadQuery)
+  }, [user?.role, leadQuery])
+
+  useEffect(() => {
+    fetchSalesExecutives()
   }, [user?.role])
 
+  useEffect(() => {
+    if (user?.role !== 'Admin' && activeTab === 'users') setActiveTab('leads')
+  }, [activeTab, user?.role])
+
   const stats = {
-    total: leads.length,
+    total: leadPagination.total || leads.length,
     active: leads.filter((lead) => lead.status === 'active').length,
     completed: leads.filter((lead) => lead.status === 'completed').length,
     rejected: leads.filter((lead) => lead.status === 'rejected').length,
+  }
+
+  const handleLeadQueryChange = (query) => {
+    setLeadQuery({ page: 1, sort: 'latest', ...query })
   }
 
   const viewLead = (lead) => {
@@ -731,7 +762,7 @@ export default function SalesDashboard() {
     setSelected(lead)
   }
 
-  const leadRowActions = (lead) => canEditBeforeApproval(lead, user?.role) ? (
+  const leadRowActions = (lead) => canEditSalesDashboardLead(lead, user?.role) ? (
     <button className="btn btn-primary btn-sm" type="button" onClick={() => editLead(lead)} aria-label="Edit lead" title="Edit lead">
       <FaEdit />
     </button>
@@ -766,37 +797,50 @@ export default function SalesDashboard() {
         <MetricCard icon={<FaUsers />} label="Sales Executives" value={isSalesExecutive ? '-' : salesExecutives.length} change="Users" changeColor="var(--sun)" />
       </div>
 
-      {user?.role === 'Admin' && <div className="crm-card" style={{ marginBottom:16 }}>
-        <div className="sales-exec-toolbar">
-          <div>
-            <h3>Sales Executive Users</h3>
-            <p>Use the Add button to create a Sales Executive login with optional uploaded registration document.</p>
-          </div>
-          <span className="badge badge-indigo">{salesExecutives.length} executives</span>
-        </div>
-        {!salesExecutives.length ? (
-          <div style={{ fontSize:13, color:'var(--muted)' }}>No Sales Executive users found.</div>
-        ) : (
-          <div className="crm-table-wrap">
-            <table className="crm-table">
-              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Joined</th></tr></thead>
-              <tbody>
-                {salesExecutives.map((executive) => (
-                  <tr key={executive._id}>
-                    <td><strong>{executive.name}</strong><div style={{ fontSize:11, color:'var(--muted)' }}>{executive.jobTitle || 'Sales Executive'}</div></td>
-                    <td>{executive.email}</td>
-                    <td>{executive.phone || '-'}</td>
-                    <td><span className={`badge ${executive.approvalStatus === 'approved' ? 'badge-green' : 'badge-sun'}`}>{executive.approvalStatus || 'approved'}</span></td>
-                    <td>{executive.dateOfJoining ? new Date(executive.dateOfJoining).toLocaleDateString('en-IN') : '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="crm-tabs">
+        {user?.role === 'Admin' && (
+          <button type="button" className={`crm-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
+            Sales Executive Users ({salesExecutives.length})
+          </button>
         )}
-      </div>}
+        <button type="button" className={`crm-tab ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}>
+          Executive Leads ({leadPagination.total || leads.length})
+        </button>
+      </div>
 
-      <div className="crm-card">
+      {user?.role === 'Admin' && activeTab === 'users' && (
+        <div className="crm-card">
+          <div className="sales-exec-toolbar">
+            <div>
+              <h3>Sales Executive Users</h3>
+              <p>Use the Add button to create a Sales Executive login with optional uploaded registration document.</p>
+            </div>
+            <span className="badge badge-indigo">{salesExecutives.length} executives</span>
+          </div>
+          {!salesExecutives.length ? (
+            <div style={{ fontSize:13, color:'var(--muted)' }}>No Sales Executive users found.</div>
+          ) : (
+            <div className="crm-table-wrap">
+              <table className="crm-table">
+                <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Joined</th></tr></thead>
+                <tbody>
+                  {salesExecutives.map((executive) => (
+                    <tr key={executive._id}>
+                      <td><strong>{executive.name}</strong><div style={{ fontSize:11, color:'var(--muted)' }}>{executive.jobTitle || 'Sales Executive'}</div></td>
+                      <td>{executive.email}</td>
+                      <td>{executive.phone || '-'}</td>
+                      <td><span className={`badge ${executive.approvalStatus === 'approved' ? 'badge-green' : 'badge-sun'}`}>{executive.approvalStatus || 'approved'}</span></td>
+                      <td>{executive.dateOfJoining ? new Date(executive.dateOfJoining).toLocaleDateString('en-IN') : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'leads' && <div className="crm-card">
         <div className="sales-exec-toolbar">
           <div>
             <h3>Executive Leads</h3>
@@ -804,8 +848,17 @@ export default function SalesDashboard() {
           </div>
           <span className="badge badge-sun">{user?.role || 'Sales Team'}</span>
         </div>
-        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} defaultSort="latest" onLeadUpdated={refreshData} />
-      </div>
+        <LeadsTable
+          leads={leads}
+          loading={loading}
+          onView={viewLead}
+          extraActions={leadRowActions}
+          defaultSort="latest"
+          pagination={leadPagination}
+          onQueryChange={handleLeadQueryChange}
+          onLeadUpdated={refreshData}
+        />
+      </div>}
 
       {showExecutiveCreate && <SalesExecutiveForm onClose={() => setShowExecutiveCreate(false)} onCreated={refreshData} />}
       {showLeadCreate && <SalesExecutiveLeadForm onClose={() => setShowLeadCreate(false)} onCreated={refreshData} />}

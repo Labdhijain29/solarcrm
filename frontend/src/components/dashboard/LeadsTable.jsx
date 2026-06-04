@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState, LeadAvatar, PipelineBar, StageBadge, StatusBadge } from '../common'
 import { SOURCES, STAGES } from '../../utils/constants'
@@ -19,6 +19,21 @@ const formatLeadDate = (date) => {
   return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+const getPaginationItems = (page = 1, pages = 1) => {
+  const currentPage = Number(page) || 1
+  const totalPages = Number(pages) || 1
+  const items = [1, currentPage - 1, currentPage, currentPage + 1, totalPages]
+    .filter((item) => item >= 1 && item <= totalPages)
+    .sort((a, b) => a - b)
+  const uniqueItems = [...new Set(items)]
+
+  return uniqueItems.reduce((result, item, index) => {
+    if (index > 0 && item - uniqueItems[index - 1] > 1) result.push('ellipsis')
+    result.push(item)
+    return result
+  }, [])
+}
+
 const getGeneratedByName = (lead) => {
   if (lead.salesExecutiveAssignee?.name) return lead.salesExecutiveAssignee.name
   if (lead.salesExecutiveData?.executiveName) return lead.salesExecutiveData.executiveName
@@ -37,6 +52,8 @@ export default function LeadsTable({
   pagination,
   onQueryChange,
   onLeadUpdated,
+  showStatusFilter = true,
+  showStageFilter = true,
 }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
@@ -45,6 +62,8 @@ export default function LeadsTable({
   const [stageFilter, setStage] = useState('All')
   const [sortBy, setSortBy] = useState(defaultSort)
   const [hiddenLeadIds, setHiddenLeadIds] = useState([])
+  const searchDebounceReadyRef = useRef(false)
+  const skipNextSearchDebounceRef = useRef(false)
   const serverMode = typeof onQueryChange === 'function'
 
   const toServerQuery = (overrides = {}) => {
@@ -72,11 +91,29 @@ export default function LeadsTable({
     if (serverMode) onQueryChange(toServerQuery(overrides))
   }
 
+  useEffect(() => {
+    if (!serverMode) return
+    if (!searchDebounceReadyRef.current) {
+      searchDebounceReadyRef.current = true
+      return
+    }
+    if (skipNextSearchDebounceRef.current) {
+      skipNextSearchDebounceRef.current = false
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      updateServerQuery({ search, page: 1 })
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [search])
+
   const hasActiveFilters =
     search.trim() !== '' ||
     srcFilter !== 'All' ||
-    statusFilter !== 'All' ||
-    stageFilter !== 'All' ||
+    (showStatusFilter && statusFilter !== 'All') ||
+    (showStageFilter && stageFilter !== 'All') ||
     sortBy !== defaultSort
 
   const visibleLeads = leads.filter((lead) => !hiddenLeadIds.includes(lead._id || lead.id))
@@ -120,6 +157,7 @@ export default function LeadsTable({
   }
 
   const resetFilters = () => {
+    skipNextSearchDebounceRef.current = search !== ''
     setSearch('')
     setSrc('All')
     setStatus('All')
@@ -136,23 +174,16 @@ export default function LeadsTable({
     if (serverMode) updateServerQuery({})
   }
 
-  if (loading) {
-    return <div style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>Loading leads...</div>
-  }
-
   return (
     <div>
       <div className="dashboard-table-filters">
         <div className="dashboard-search">
-          <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'var(--dim)', fontSize:14 }}>SR</span>
           <input
             className="crm-input"
-            style={{ paddingLeft:34 }}
             placeholder="Search ID, name, phone, city, branch, IVRS..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              updateServerQuery({ search: e.target.value, page: 1 })
             }}
           />
         </div>
@@ -162,18 +193,22 @@ export default function LeadsTable({
         }}>
           {['All', ...SOURCES].map((item) => <option key={item}>{item}</option>)}
         </select>
-        <select className="crm-input" style={{ width:'auto' }} value={stageFilter} onChange={(e) => {
-          setStage(e.target.value)
-          updateServerQuery({ stage: e.target.value, page: 1 })
-        }}>
-          {['All', ...STAGES].map((item) => <option key={item}>{item}</option>)}
-        </select>
-        <select className="crm-input" style={{ width:'auto' }} value={statusFilter} onChange={(e) => {
-          setStatus(e.target.value)
-          updateServerQuery({ status: e.target.value, page: 1 })
-        }}>
-          {['All', 'active', 'completed', 'rejected', 'on-hold'].map((item) => <option key={item}>{item}</option>)}
-        </select>
+        {showStageFilter && (
+          <select className="crm-input" style={{ width:'auto' }} value={stageFilter} onChange={(e) => {
+            setStage(e.target.value)
+            updateServerQuery({ stage: e.target.value, page: 1 })
+          }}>
+            {['All', ...STAGES].map((item) => <option key={item}>{item}</option>)}
+          </select>
+        )}
+        {showStatusFilter && (
+          <select className="crm-input" style={{ width:'auto' }} value={statusFilter} onChange={(e) => {
+            setStatus(e.target.value)
+            updateServerQuery({ status: e.target.value, page: 1 })
+          }}>
+            {['All', 'active', 'completed', 'rejected', 'on-hold'].map((item) => <option key={item}>{item}</option>)}
+          </select>
+        )}
         <select className="crm-input" style={{ width:'auto' }} value={sortBy} onChange={(e) => {
           setSortBy(e.target.value)
           updateServerQuery({ sort: e.target.value, page: 1 })
@@ -198,7 +233,9 @@ export default function LeadsTable({
       </div>
 
       <div className="crm-table-wrap">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>Loading leads...</div>
+        ) : filtered.length === 0 ? (
           <EmptyState
             title={leads.length === 0 ? 'No leads found' : 'No leads match these filters'}
             subtitle={hasActiveFilters ? 'Change or reset the filters to see leads again' : 'Leads will appear here once they are added'}
@@ -302,7 +339,7 @@ export default function LeadsTable({
         )}
       </div>
       {serverMode && pagination && pagination.pages > 1 && (
-        <div className="dashboard-split-row" style={{ marginTop:12 }}>
+        <div className="lead-pagination">
           <button
             className="btn btn-ghost btn-sm"
             type="button"
@@ -311,9 +348,37 @@ export default function LeadsTable({
           >
             Previous
           </button>
-          <span style={{ fontSize:12, color:'var(--muted)' }}>
-            Page {pagination.page} of {pagination.pages}
-          </span>
+          <div className="lead-pagination-pages">
+            {getPaginationItems(pagination.page, pagination.pages).map((item, index) => (
+              item === 'ellipsis' ? (
+                <span key={`ellipsis-${index}`} className="lead-pagination-ellipsis">...</span>
+              ) : (
+                <button
+                  key={item}
+                  className={`btn btn-sm ${pagination.page === item ? 'btn-primary' : 'btn-ghost'}`}
+                  type="button"
+                  disabled={pagination.page === item}
+                  onClick={() => updateServerQuery({ page: item })}
+                >
+                  {item}
+                </button>
+              )
+            ))}
+          </div>
+          <div className="lead-pagination-spacer" />
+          <form
+            className="lead-pagination-jump"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const form = new FormData(event.currentTarget)
+              const requestedPage = Math.min(Math.max(Number(form.get('page')) || pagination.page, 1), pagination.pages)
+              updateServerQuery({ page: requestedPage })
+            }}
+          >
+            <span>Page {pagination.page} of {pagination.pages}</span>
+            <input className="crm-input" name="page" type="number" min={1} max={pagination.pages} placeholder="Go to" />
+            <button className="btn btn-ghost btn-sm" type="submit">Go</button>
+          </form>
           <button
             className="btn btn-ghost btn-sm"
             type="button"

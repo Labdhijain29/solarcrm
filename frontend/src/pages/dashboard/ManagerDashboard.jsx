@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase, FaShippingFast } from 'react-icons/fa'
 import { dispatchAPI, leadsAPI } from '../../services/api'
-import { FilePreview, MetricCard, PageHeader, Spinner, EmptyState, SearchableSelect } from '../../components/common'
+import { FilePreview, MetricCard, PageHeader, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
@@ -16,6 +16,7 @@ const PINCODE_REGEX = /^\d{6}$/
 const IVRS_REGEX = /^[A-Za-z0-9]{1,15}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'generatedThrough', 'other'])
+const LEADS_PAGE_SIZE = 25
 const canEditBeforeApproval = (lead, role) => (
   lead?.status === 'active' && (
     (['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(role) && lead?.currentStage === 'Lead') ||
@@ -104,26 +105,47 @@ export function ManagerDashboard() {
   const [leads, setLeads] = useState([])
   const [pipelineLeads, setPipelineLeads] = useState([])
   const [loading, setLoading] = useState(true)
+  const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [tab, setTab] = useState('leads')
   const [selected, setSelected] = useState(null)
   const [editingLeadId, setEditingLeadId] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const [newLead, setNewLead] = useState(INITIAL_MANAGER_LEAD)
+  const leadRequestId = useRef(0)
   const { user } = useAuthStore()
 
-  const fetchLeads = () => {
+  const fetchLeads = (query = leadQuery) => {
+    const requestId = leadRequestId.current + 1
+    leadRequestId.current = requestId
     setLoading(true)
-    Promise.all([
-      leadsAPI.getAll(MANAGER_LEAD_QUERY),
-      leadsAPI.getAll(PIPELINE_QUERY),
-    ])
-      .then(([leadRes, pipelineRes]) => {
+    leadsAPI.getAll({ ...MANAGER_LEAD_QUERY, limit: LEADS_PAGE_SIZE, ...query })
+      .then((leadRes) => {
+        if (requestId !== leadRequestId.current) return
         setLeads(leadRes.data.data || [])
-        setPipelineLeads(pipelineRes.data.data || [])
+        setLeadPagination(leadRes.data.pagination || { page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
       })
+      .catch((error) => {
+        if (requestId !== leadRequestId.current) return
+        console.error(error)
+        setLeads([])
+        setLeadPagination({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .finally(() => {
+        if (requestId === leadRequestId.current) setLoading(false)
+      })
+  }
+
+  const fetchPipeline = () => {
+    leadsAPI.getAll(PIPELINE_QUERY)
+      .then((response) => setPipelineLeads(response.data.data || []))
       .catch(console.error)
-      .finally(() => setLoading(false))
+  }
+
+  const refreshData = () => {
+    fetchLeads()
+    fetchPipeline()
   }
 
   const viewLead = async (lead) => {
@@ -138,8 +160,16 @@ export function ManagerDashboard() {
   }
 
   useEffect(() => {
-    fetchLeads()
+    fetchLeads(leadQuery)
+  }, [leadQuery])
+
+  useEffect(() => {
+    fetchPipeline()
   }, [])
+
+  const handleLeadQueryChange = (query) => {
+    setLeadQuery({ page: 1, sort: 'latest', ...query })
+  }
 
   const createLead = async () => {
     const phone = normalizePhone(newLead.phone)
@@ -201,7 +231,7 @@ export function ManagerDashboard() {
       toast.success('Lead created!')
       setShowCreate(false)
       setNewLead(INITIAL_MANAGER_LEAD)
-      fetchLeads()
+      refreshData()
     } catch (e) {
       const validationMessage = e.response?.data?.errors?.[0]?.message
       toast.error(validationMessage || e.response?.data?.message || 'Failed to create lead')
@@ -239,7 +269,7 @@ export function ManagerDashboard() {
   }
 
   const stats = {
-    total: leads.length,
+    total: leadPagination.total || leads.length,
     active: leads.filter(l => l.status === 'active').length,
     completed: leads.filter(l => l.status === 'completed').length,
   }
@@ -280,7 +310,17 @@ export function ManagerDashboard() {
         ))}
       </div>
 
-      {tab === 'leads' && <div className="crm-card"><LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} onLeadUpdated={fetchLeads} /></div>}
+      {tab === 'leads' && <div className="crm-card">
+        <LeadsTable
+          leads={leads}
+          loading={loading}
+          onView={viewLead}
+          extraActions={leadRowActions}
+          pagination={leadPagination}
+          onQueryChange={handleLeadQueryChange}
+          onLeadUpdated={refreshData}
+        />
+      </div>}
       {tab === 'pipeline' && <KanbanPipeline leads={pipelineLeads} onView={viewLead} />}
 
       {showCreate && (
@@ -489,7 +529,7 @@ export function ManagerDashboard() {
             setSelected(null)
             setEditingLeadId('')
           }}
-          onUpdated={fetchLeads}
+          onUpdated={refreshData}
           currentUser={user}
           startEditing={editingLeadId === selected._id}
         />
@@ -502,18 +542,44 @@ export function ManagerDashboard() {
 export function SalesDashboard() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
+  const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [selected, setSelected] = useState(null)
   const [editingLeadId, setEditingLeadId] = useState('')
+  const leadRequestId = useRef(0)
   const { user } = useAuthStore()
 
-  const fetchLeads = () => leadsAPI.getAll({ sort: 'latest' }).then(r => setLeads(r.data.data)).catch(console.error).finally(() => setLoading(false))
+  const fetchLeads = (query = leadQuery) => {
+    const requestId = leadRequestId.current + 1
+    leadRequestId.current = requestId
+    setLoading(true)
+    leadsAPI.getAll({ limit: LEADS_PAGE_SIZE, ...query })
+      .then((response) => {
+        if (requestId !== leadRequestId.current) return
+        setLeads(response.data.data || [])
+        setLeadPagination(response.data.pagination || { page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .catch((error) => {
+        if (requestId !== leadRequestId.current) return
+        console.error(error)
+        setLeads([])
+        setLeadPagination({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .finally(() => {
+        if (requestId === leadRequestId.current) setLoading(false)
+      })
+  }
 
   useEffect(() => {
-    fetchLeads()
-  }, [])
+    fetchLeads(leadQuery)
+  }, [leadQuery])
+
+  const handleLeadQueryChange = (query) => {
+    setLeadQuery({ page: 1, sort: 'latest', ...query })
+  }
 
   const stats = {
-    total: leads.length,
+    total: leadPagination.total || leads.length,
     active: leads.filter(l => l.status === 'active').length,
     completed: leads.filter(l => l.status === 'completed').length,
     rejected: leads.filter(l => l.status === 'rejected').length,
@@ -549,7 +615,15 @@ export function SalesDashboard() {
         <MetricCard icon={<FaChartLine />} label="Conv. Rate" value={`${stats.total > 0 ? Math.round(stats.completed / stats.total * 100) : 0}%`} changeColor="var(--indigo)" />
       </div>
       <div className="crm-card">
-        <LeadsTable leads={leads} loading={loading} onView={viewLead} extraActions={leadRowActions} onLeadUpdated={fetchLeads} />
+        <LeadsTable
+          leads={leads}
+          loading={loading}
+          onView={viewLead}
+          extraActions={leadRowActions}
+          pagination={leadPagination}
+          onQueryChange={handleLeadQueryChange}
+          onLeadUpdated={fetchLeads}
+        />
       </div>
       {selected && (
         <LeadModal
@@ -584,6 +658,8 @@ export function StageDashboard({ roleOverride }) {
   const [leads, setLeads] = useState([])
   const [completedCount, setCompletedCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+  const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [selected, setSelected] = useState(null)
   const [editingLeadId, setEditingLeadId] = useState('')
   const [panelNumbers, setPanelNumbers] = useState({})
@@ -591,34 +667,52 @@ export function StageDashboard({ roleOverride }) {
   const [installationDispatches, setInstallationDispatches] = useState([])
   const [selectedDispatch, setSelectedDispatch] = useState(null)
   const [savingDispatchId, setSavingDispatchId] = useState('')
+  const leadRequestId = useRef(0)
   const { user } = useAuthStore()
   const dashboardRole = roleOverride || user?.role
   const myStage = ROLE_STAGE_MAP[dashboardRole]
   const showPanelNumberRows = dashboardRole === 'Installation Manager'
 
-  const fetchLeads = () => {
+  const fetchLeads = (query = leadQuery) => {
+    const requestId = leadRequestId.current + 1
+    leadRequestId.current = requestId
     setLoading(true)
     const requests = [
-      leadsAPI.getAll({ stage: myStage, sort: 'latest' }),
-      leadsAPI.getAll({ completedStage: myStage, sort: 'latest' }),
+      leadsAPI.getAll({ stage: myStage, status: 'active', limit: LEADS_PAGE_SIZE, ...query }),
+      leadsAPI.getAll({ completedStage: myStage, limit: 1, sort: 'latest' }),
     ]
     if (showPanelNumberRows) requests.push(dispatchAPI.getAll())
 
     Promise.all(requests)
       .then(([activeRes, completedRes, dispatchRes]) => {
+        if (requestId !== leadRequestId.current) return
         const nextLeads = activeRes.data.data || []
         setLeads(nextLeads)
+        setLeadPagination(activeRes.data.pagination || { page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
         setPanelNumbers(Object.fromEntries(nextLeads.map((lead) => [lead._id, lead.installationData?.panelNumber || ''])))
         setCompletedCount(completedRes.data.pagination?.total ?? completedRes.data.data?.length ?? 0)
         setInstallationDispatches(dispatchRes?.data?.data || [])
       })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+      .catch((error) => {
+        if (requestId !== leadRequestId.current) return
+        console.error(error)
+        setLeads([])
+        setLeadPagination({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
+      })
+      .finally(() => {
+        if (requestId === leadRequestId.current) setLoading(false)
+      })
   }
 
-  useEffect(fetchLeads, [myStage])
+  useEffect(() => {
+    fetchLeads(leadQuery)
+  }, [myStage, leadQuery])
 
-  const activeLeads = leads.filter((lead) => lead.status === 'active')
+  const handleLeadQueryChange = (query) => {
+    setLeadQuery({ page: 1, sort: 'latest', ...query, stage: myStage, status: 'active' })
+  }
+
+  const activeLeads = leads
   const approvedInstallationDispatches = installationDispatches.filter((dispatch) => dispatch.approvalStatus === 'Approved')
 
   const viewStageLead = (lead) => {
@@ -735,23 +829,27 @@ export function StageDashboard({ roleOverride }) {
       />
 
       <div className="dashboard-grid-metrics">
-        <MetricCard icon={<FaTasks />} label="Pending Action" value={activeLeads.length} changeColor="var(--sun)" />
+        <MetricCard icon={<FaTasks />} label="Pending Action" value={leadPagination.total || activeLeads.length} changeColor="var(--sun)" />
         <MetricCard icon={<FaCheckCircle />} label="Completed Leads" value={completedCount} changeColor="var(--green)" />
         <MetricCard icon={<FaWrench />} label="My Stage" value={myStage?.split(' ')[0]} />
         <MetricCard icon={<FaUserCheck />} label="Visible To" value={dashboardRole?.split(' ')[0]} />
         {showPanelNumberRows && <MetricCard icon={<FaShippingFast />} label="Dispatch Bills" value={installationDispatches.length} change={`${approvedInstallationDispatches.length} approved`} changeColor="var(--blue)" />}
       </div>
 
-      {loading ? <Spinner /> : activeLeads.length === 0 ? (
-        <div className="crm-card">
-          <EmptyState icon={<FaCheckCircle />} title="All caught up!" subtitle={`No leads pending at the ${myStage} stage`} />
-        </div>
-      ) : (
-        <div className="crm-card">
-          <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Leads at {myStage} ({activeLeads.length})</h3>
-          <LeadsTable leads={activeLeads} loading={false} onView={viewStageLead} extraActions={stageRowActions} onLeadUpdated={fetchLeads} />
-        </div>
-      )}
+      <div className="crm-card">
+        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Leads at {myStage} ({leadPagination.total || activeLeads.length})</h3>
+        <LeadsTable
+          leads={activeLeads}
+          loading={loading}
+          onView={viewStageLead}
+          extraActions={stageRowActions}
+          pagination={leadPagination}
+          onQueryChange={handleLeadQueryChange}
+          onLeadUpdated={fetchLeads}
+          showStageFilter={false}
+          showStatusFilter={false}
+        />
+      </div>
 
       {selected && (
         <LeadModal

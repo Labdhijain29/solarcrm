@@ -22,6 +22,11 @@ const EARTHING_KIT_CATEGORY = 'EARTHING KIT'
 const PIPE_CATEGORY = 'PIPE'
 const ALBA_CATEGORY = 'ALBA'
 const TE_CATEGORY = 'TE'
+const AC_WIRE_CATEGORY = 'AC Wire'
+const DC_CABLE_CATEGORY = 'DC Cable'
+const MC4_CONNECTOR_CATEGORY = 'MC4 Connector'
+const EARTHING_WIRE_16MM_CATEGORY = 'Earthing Wire 16mm'
+const C_CLIP_CATEGORY = 'C Clip'
 const DCR_GROUP = 'DCR'
 const INVERTER_GROUP = 'INVERTER_ON_GRID'
 const AC_DC_GROUP = 'AC_DC_BOX'
@@ -36,7 +41,12 @@ const EARTHING_KIT_GROUP = 'EARTHING_KIT'
 const PIPE_GROUP = 'PIPE'
 const ALBA_GROUP = 'ALBA'
 const TE_GROUP = 'TE'
-const MODULE_BRANDS = ['Warree', 'Adani', 'Tata']
+const AC_WIRE_GROUP = 'AC_WIRE'
+const DC_CABLE_GROUP = 'DC_CABLE'
+const MC4_CONNECTOR_GROUP = 'MC4_CONNECTOR'
+const EARTHING_WIRE_16MM_GROUP = 'EARTHING_WIRE_16MM'
+const C_CLIP_GROUP = 'C_CLIP'
+const MODULE_BRANDS = ['Warree', 'Adani', 'Tata', 'Luminous', 'Havells']
 const MODULE_TYPES = {
   'DCR P-Type': ['530WP', '535WP', '540WP', '545WP', '550WP'],
   'N-Type TOPCon': ['560WP', '565WP', '570WP', '575WP', '580WP', '585WP'],
@@ -48,7 +58,7 @@ const AC_DC_PHASES = ['Single Phase', 'Three Phase']
 const CABLE_TRY_ITEMS = ['Cable Try']
 const STRUCTURE_BRANDS = ['JSW']
 const STRUCTURE_SIZE = '140*50*2mm'
-const STRUCTURE_FEET = ['6.5feet', '8.5feet', '13 feet']
+const STRUCTURE_FEET = ['6.5feet', '8.5feet', '13 feet', '10 feet', '21 feet']
 const makeStructureVariant = (feet) => `${STRUCTURE_SIZE} | ${feet}`
 const getStructureFeet = (variant) => String(variant || '').split('|').pop().trim()
 const HEAD_PARLIN_SIZE = '70*50*1.5mm'
@@ -66,6 +76,10 @@ const EARTHING_KIT_SIZES = ['17*1 Mtr', 'LA 17*1 mtr']
 const PIPE_SIZES = ['10*25']
 const ALBA_SIZES = ['10*25']
 const TE_SIZES = ['10*25']
+const AC_WIRE_SIZES = ['40 Mtr', '200 Mtr']
+const DC_CABLE_SIZES = ['30 Mtr']
+const EARTHING_WIRE_16MM_SIZES = ['100 Mtr']
+const C_CLIP_SIZES = ['25 mm']
 const UNIT_OPTIONS = ['pcs', 'mtr', 'kg', 'set', 'box', 'roll']
 const STOCK_CATEGORY_OPTIONS = Object.keys({
   [MODULE_CATEGORY]: true,
@@ -82,6 +96,11 @@ const STOCK_CATEGORY_OPTIONS = Object.keys({
   [PIPE_CATEGORY]: true,
   [ALBA_CATEGORY]: true,
   [TE_CATEGORY]: true,
+  [AC_WIRE_CATEGORY]: true,
+  [DC_CABLE_CATEGORY]: true,
+  [MC4_CONNECTOR_CATEGORY]: true,
+  [EARTHING_WIRE_16MM_CATEGORY]: true,
+  [C_CLIP_CATEGORY]: true,
   CABLE: true,
   'STRUCTURE MATERIAL': true,
   'EARTHING & SAFETY': true,
@@ -104,6 +123,11 @@ const MODULE_GROUP_SELECT_OPTIONS = [
   { value: PIPE_GROUP, label: 'Pipe' },
   { value: ALBA_GROUP, label: 'Alba' },
   { value: TE_GROUP, label: 'Te' },
+  { value: AC_WIRE_GROUP, label: 'AC Wire' },
+  { value: DC_CABLE_GROUP, label: 'DC Cable' },
+  { value: MC4_CONNECTOR_GROUP, label: 'MC4 Connector' },
+  { value: EARTHING_WIRE_16MM_GROUP, label: 'Earthing Wire 16mm' },
+  { value: C_CLIP_GROUP, label: 'C Clip' },
 ]
 
 const CATEGORIES = {
@@ -186,6 +210,31 @@ const CATEGORIES = {
     types: { Size: TE_SIZES },
     unit: 'pcs',
   },
+  [AC_WIRE_CATEGORY]: {
+    brands: [],
+    types: { Size: AC_WIRE_SIZES },
+    unit: 'mtr',
+  },
+  [DC_CABLE_CATEGORY]: {
+    brands: [],
+    types: { Size: DC_CABLE_SIZES },
+    unit: 'mtr',
+  },
+  [MC4_CONNECTOR_CATEGORY]: {
+    brands: [],
+    types: {},
+    unit: 'pcs',
+  },
+  [EARTHING_WIRE_16MM_CATEGORY]: {
+    brands: [],
+    types: { Size: EARTHING_WIRE_16MM_SIZES },
+    unit: 'mtr',
+  },
+  [C_CLIP_CATEGORY]: {
+    brands: [],
+    types: { Size: C_CLIP_SIZES },
+    unit: 'pcs',
+  },
   CABLE: {
     brands: [],
     types: { Type: ['DC Cable', 'AC Cable', 'Earthing Cable', 'Solar Cable'] },
@@ -231,6 +280,11 @@ const getDispatchCapacityOptions = (item) => {
   if (item.moduleGroup === PIPE_GROUP) return PIPE_SIZES
   if (item.moduleGroup === ALBA_GROUP) return ALBA_SIZES
   if (item.moduleGroup === TE_GROUP) return TE_SIZES
+  if (item.moduleGroup === AC_WIRE_GROUP) return AC_WIRE_SIZES
+  if (item.moduleGroup === DC_CABLE_GROUP) return DC_CABLE_SIZES
+  if (item.moduleGroup === EARTHING_WIRE_16MM_GROUP) return EARTHING_WIRE_16MM_SIZES
+  if (item.moduleGroup === C_CLIP_GROUP) return C_CLIP_SIZES
+  if (item.moduleGroup === MC4_CONNECTOR_GROUP) return []
   return MODULE_TYPES[getDispatchModuleType(item)] || []
 }
 const getDispatchBrandOptions = (item) => {
@@ -247,6 +301,11 @@ const getDispatchBrandOptions = (item) => {
   if (item.moduleGroup === PIPE_GROUP) return []
   if (item.moduleGroup === ALBA_GROUP) return []
   if (item.moduleGroup === TE_GROUP) return []
+  if (item.moduleGroup === AC_WIRE_GROUP) return []
+  if (item.moduleGroup === DC_CABLE_GROUP) return []
+  if (item.moduleGroup === MC4_CONNECTOR_GROUP) return []
+  if (item.moduleGroup === EARTHING_WIRE_16MM_GROUP) return []
+  if (item.moduleGroup === C_CLIP_GROUP) return []
   return MODULE_BRANDS
 }
 const getProductModuleKind = (type) => type === 'N-Type TOPCon' ? 'N-Type' : 'P-Type'
@@ -264,6 +323,11 @@ const getProductGroup = (productForm) => {
   if (productForm.category === PIPE_CATEGORY) return PIPE_GROUP
   if (productForm.category === ALBA_CATEGORY) return ALBA_GROUP
   if (productForm.category === TE_CATEGORY) return TE_GROUP
+  if (productForm.category === AC_WIRE_CATEGORY) return AC_WIRE_GROUP
+  if (productForm.category === DC_CABLE_CATEGORY) return DC_CABLE_GROUP
+  if (productForm.category === MC4_CONNECTOR_CATEGORY) return MC4_CONNECTOR_GROUP
+  if (productForm.category === EARTHING_WIRE_16MM_CATEGORY) return EARTHING_WIRE_16MM_GROUP
+  if (productForm.category === C_CLIP_CATEGORY) return C_CLIP_GROUP
   return DCR_GROUP
 }
 const getProductCapacityOptions = (productForm) => {
@@ -280,6 +344,11 @@ const getProductCapacityOptions = (productForm) => {
   if (getProductGroup(productForm) === PIPE_GROUP) return PIPE_SIZES
   if (getProductGroup(productForm) === ALBA_GROUP) return ALBA_SIZES
   if (getProductGroup(productForm) === TE_GROUP) return TE_SIZES
+  if (getProductGroup(productForm) === AC_WIRE_GROUP) return AC_WIRE_SIZES
+  if (getProductGroup(productForm) === DC_CABLE_GROUP) return DC_CABLE_SIZES
+  if (getProductGroup(productForm) === EARTHING_WIRE_16MM_GROUP) return EARTHING_WIRE_16MM_SIZES
+  if (getProductGroup(productForm) === C_CLIP_GROUP) return C_CLIP_SIZES
+  if (getProductGroup(productForm) === MC4_CONNECTOR_GROUP) return []
   return MODULE_TYPES[productForm.type] || []
 }
 const getProductBrandOptions = (productForm) => {
@@ -296,6 +365,11 @@ const getProductBrandOptions = (productForm) => {
   if (getProductGroup(productForm) === PIPE_GROUP) return []
   if (getProductGroup(productForm) === ALBA_GROUP) return []
   if (getProductGroup(productForm) === TE_GROUP) return []
+  if (getProductGroup(productForm) === AC_WIRE_GROUP) return []
+  if (getProductGroup(productForm) === DC_CABLE_GROUP) return []
+  if (getProductGroup(productForm) === MC4_CONNECTOR_GROUP) return []
+  if (getProductGroup(productForm) === EARTHING_WIRE_16MM_GROUP) return []
+  if (getProductGroup(productForm) === C_CLIP_GROUP) return []
   return MODULE_BRANDS
 }
 const normalizeModuleValue = (value) => String(value || '').replace(/\s+/g, '').toLowerCase()
@@ -316,7 +390,14 @@ const isEarthingKitProduct = (product) => product.category === EARTHING_KIT_CATE
 const isPipeProduct = (product) => product.category === PIPE_CATEGORY
 const isAlbaProduct = (product) => product.category === ALBA_CATEGORY
 const isTeProduct = (product) => product.category === TE_CATEGORY
-const isStructuredCategory = (category) => isModuleCategory(category) || category === INVERTER_CATEGORY || category === AC_DC_CATEGORY || category === CABLE_TRY_CATEGORY || category === STRUCTURE_CATEGORY || category === HEAD_PARLIN_CATEGORY || category === C_CHANNEL_CATEGORY || category === BASE_PLATE_CATEGORY || category === FASTNER_CATEGORY || category === SS_NUT_BOLT_CATEGORY || category === EARTHING_KIT_CATEGORY || category === PIPE_CATEGORY || category === ALBA_CATEGORY || category === TE_CATEGORY
+const isAcWireProduct = (product) => product.category === AC_WIRE_CATEGORY
+const isDcCableProduct = (product) => product.category === DC_CABLE_CATEGORY
+const isMc4ConnectorProduct = (product) => product.category === MC4_CONNECTOR_CATEGORY
+const isEarthingWire16mmProduct = (product) => product.category === EARTHING_WIRE_16MM_CATEGORY
+const isCClipProduct = (product) => product.category === C_CLIP_CATEGORY
+const SIMPLE_SIZE_GROUPS = [BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP, AC_WIRE_GROUP, DC_CABLE_GROUP, EARTHING_WIRE_16MM_GROUP, C_CLIP_GROUP]
+const NON_DCR_GROUPS = [INVERTER_GROUP, AC_DC_GROUP, CABLE_TRY_GROUP, STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP, ...SIMPLE_SIZE_GROUPS, MC4_CONNECTOR_GROUP]
+const isStructuredCategory = (category) => isModuleCategory(category) || category === INVERTER_CATEGORY || category === AC_DC_CATEGORY || category === CABLE_TRY_CATEGORY || category === STRUCTURE_CATEGORY || category === HEAD_PARLIN_CATEGORY || category === C_CHANNEL_CATEGORY || category === BASE_PLATE_CATEGORY || category === FASTNER_CATEGORY || category === SS_NUT_BOLT_CATEGORY || category === EARTHING_KIT_CATEGORY || category === PIPE_CATEGORY || category === ALBA_CATEGORY || category === TE_CATEGORY || category === AC_WIRE_CATEGORY || category === DC_CABLE_CATEGORY || category === MC4_CONNECTOR_CATEGORY || category === EARTHING_WIRE_16MM_CATEGORY || category === C_CLIP_CATEGORY
 const makeDispatchItem = () => ({
   category: MODULE_CATEGORY,
   moduleGroup: DCR_GROUP,
@@ -394,6 +475,29 @@ const matchesDispatchModule = (product, item) => {
   }
   if (item.moduleGroup === TE_GROUP) {
     if (!isTeProduct(product)) return false
+    return normalizeModuleType(product.type) === 'Size' &&
+      normalizeModuleValue(product.capacity) === normalizeModuleValue(item.capacity)
+  }
+  if (item.moduleGroup === AC_WIRE_GROUP) {
+    if (!isAcWireProduct(product)) return false
+    return normalizeModuleType(product.type) === 'Size' &&
+      normalizeModuleValue(product.capacity) === normalizeModuleValue(item.capacity)
+  }
+  if (item.moduleGroup === DC_CABLE_GROUP) {
+    if (!isDcCableProduct(product)) return false
+    return normalizeModuleType(product.type) === 'Size' &&
+      normalizeModuleValue(product.capacity) === normalizeModuleValue(item.capacity)
+  }
+  if (item.moduleGroup === MC4_CONNECTOR_GROUP) {
+    return isMc4ConnectorProduct(product)
+  }
+  if (item.moduleGroup === EARTHING_WIRE_16MM_GROUP) {
+    if (!isEarthingWire16mmProduct(product)) return false
+    return normalizeModuleType(product.type) === 'Size' &&
+      normalizeModuleValue(product.capacity) === normalizeModuleValue(item.capacity)
+  }
+  if (item.moduleGroup === C_CLIP_GROUP) {
+    if (!isCClipProduct(product)) return false
     return normalizeModuleType(product.type) === 'Size' &&
       normalizeModuleValue(product.capacity) === normalizeModuleValue(item.capacity)
   }
@@ -775,6 +879,21 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
         if (value === TE_GROUP) {
           return { ...prev, category: TE_CATEGORY, brand: '', type: 'Size', capacity: TE_SIZES[0], unit: 'pcs' }
         }
+        if (value === AC_WIRE_GROUP) {
+          return { ...prev, category: AC_WIRE_CATEGORY, brand: '', type: 'Size', capacity: AC_WIRE_SIZES[0], unit: 'mtr' }
+        }
+        if (value === DC_CABLE_GROUP) {
+          return { ...prev, category: DC_CABLE_CATEGORY, brand: '', type: 'Size', capacity: DC_CABLE_SIZES[0], unit: 'mtr' }
+        }
+        if (value === MC4_CONNECTOR_GROUP) {
+          return { ...prev, category: MC4_CONNECTOR_CATEGORY, brand: '', type: '', capacity: '', unit: 'pcs' }
+        }
+        if (value === EARTHING_WIRE_16MM_GROUP) {
+          return { ...prev, category: EARTHING_WIRE_16MM_CATEGORY, brand: '', type: 'Size', capacity: EARTHING_WIRE_16MM_SIZES[0], unit: 'mtr' }
+        }
+        if (value === C_CLIP_GROUP) {
+          return { ...prev, category: C_CLIP_CATEGORY, brand: '', type: 'Size', capacity: C_CLIP_SIZES[0], unit: 'pcs' }
+        }
         return { ...prev, category: MODULE_CATEGORY, brand: MODULE_BRANDS[0], type: 'DCR P-Type', capacity: MODULE_TYPES['DCR P-Type'][0], unit: 'pcs' }
       }
       return { ...prev, [key]: value }
@@ -815,17 +934,23 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
     const pipeProduct = isPipeProduct(product)
     const albaProduct = isAlbaProduct(product)
     const teProduct = isTeProduct(product)
-    const structuredCategory = inverterProduct ? INVERTER_CATEGORY : acDcProduct ? AC_DC_CATEGORY : cableTryProduct ? CABLE_TRY_CATEGORY : structureProduct ? STRUCTURE_CATEGORY : headParlinProduct ? HEAD_PARLIN_CATEGORY : cChannelProduct ? C_CHANNEL_CATEGORY : basePlateProduct ? BASE_PLATE_CATEGORY : fastnerProduct ? FASTNER_CATEGORY : ssNutBoltProduct ? SS_NUT_BOLT_CATEGORY : earthingKitProduct ? EARTHING_KIT_CATEGORY : pipeProduct ? PIPE_CATEGORY : albaProduct ? ALBA_CATEGORY : teProduct ? TE_CATEGORY : MODULE_CATEGORY
-    const structuredType = moduleProduct ? normalizeModuleType(product.type || 'DCR P-Type') : inverterProduct ? 'Capacity' : acDcProduct ? 'Phase' : cableTryProduct ? 'Item' : structureProduct || headParlinProduct || cChannelProduct || basePlateProduct || fastnerProduct || ssNutBoltProduct || earthingKitProduct || pipeProduct || albaProduct || teProduct ? 'Size' : product.type || ''
+    const acWireProduct = isAcWireProduct(product)
+    const dcCableProduct = isDcCableProduct(product)
+    const mc4ConnectorProduct = isMc4ConnectorProduct(product)
+    const earthingWire16mmProduct = isEarthingWire16mmProduct(product)
+    const cClipProduct = isCClipProduct(product)
+    const structuredProduct = moduleProduct || inverterProduct || acDcProduct || cableTryProduct || structureProduct || headParlinProduct || cChannelProduct || basePlateProduct || fastnerProduct || ssNutBoltProduct || earthingKitProduct || pipeProduct || albaProduct || teProduct || acWireProduct || dcCableProduct || mc4ConnectorProduct || earthingWire16mmProduct || cClipProduct
+    const structuredCategory = inverterProduct ? INVERTER_CATEGORY : acDcProduct ? AC_DC_CATEGORY : cableTryProduct ? CABLE_TRY_CATEGORY : structureProduct ? STRUCTURE_CATEGORY : headParlinProduct ? HEAD_PARLIN_CATEGORY : cChannelProduct ? C_CHANNEL_CATEGORY : basePlateProduct ? BASE_PLATE_CATEGORY : fastnerProduct ? FASTNER_CATEGORY : ssNutBoltProduct ? SS_NUT_BOLT_CATEGORY : earthingKitProduct ? EARTHING_KIT_CATEGORY : pipeProduct ? PIPE_CATEGORY : albaProduct ? ALBA_CATEGORY : teProduct ? TE_CATEGORY : acWireProduct ? AC_WIRE_CATEGORY : dcCableProduct ? DC_CABLE_CATEGORY : mc4ConnectorProduct ? MC4_CONNECTOR_CATEGORY : earthingWire16mmProduct ? EARTHING_WIRE_16MM_CATEGORY : cClipProduct ? C_CLIP_CATEGORY : MODULE_CATEGORY
+    const structuredType = moduleProduct ? normalizeModuleType(product.type || 'DCR P-Type') : inverterProduct ? 'Capacity' : acDcProduct ? 'Phase' : cableTryProduct ? 'Item' : mc4ConnectorProduct ? '' : structureProduct || headParlinProduct || cChannelProduct || basePlateProduct || fastnerProduct || ssNutBoltProduct || earthingKitProduct || pipeProduct || albaProduct || teProduct || acWireProduct || dcCableProduct || earthingWire16mmProduct || cClipProduct ? 'Size' : product.type || ''
     const structuredBrands = getProductBrandOptions({ category: structuredCategory })
     const structuredCapacities = getProductCapacityOptions({ category: structuredCategory, type: structuredType })
     setProductForm({
       name: product.name || '',
       category: moduleProduct ? MODULE_CATEGORY : product.category || MODULE_CATEGORY,
       subCategory: product.subCategory || '',
-      brand: moduleProduct || inverterProduct || acDcProduct || cableTryProduct || structureProduct || headParlinProduct || cChannelProduct || basePlateProduct || fastnerProduct || ssNutBoltProduct || earthingKitProduct || pipeProduct || albaProduct || teProduct ? structuredBrands.find(brand => normalizeModuleBrand(brand) === normalizeModuleBrand(product.brand)) || product.brand || structuredBrands[0] || '' : product.brand || '',
+      brand: structuredProduct ? structuredBrands.find(brand => normalizeModuleBrand(brand) === normalizeModuleBrand(product.brand)) || product.brand || structuredBrands[0] || '' : product.brand || '',
       type: structuredType,
-      capacity: moduleProduct || inverterProduct || acDcProduct || cableTryProduct || structureProduct || headParlinProduct || cChannelProduct || basePlateProduct || fastnerProduct || ssNutBoltProduct || earthingKitProduct || pipeProduct || albaProduct || teProduct ? structuredCapacities.find(capacity => normalizeModuleValue(capacity) === normalizeModuleValue(product.capacity)) || product.capacity || structuredCapacities[0] : product.capacity || '',
+      capacity: structuredProduct ? structuredCapacities.find(capacity => normalizeModuleValue(capacity) === normalizeModuleValue(product.capacity)) || product.capacity || structuredCapacities[0] || '' : product.capacity || '',
       quantity: product.quantity ?? 0,
       price: product.price ?? 0,
       unit: product.unit || 'pcs',
@@ -952,6 +1077,21 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
           }
           if (value === TE_GROUP) {
             return { ...item, moduleGroup: value, moduleType: '', technology: '', brand: '', capacity: TE_SIZES[0], productId: '' }
+          }
+          if (value === AC_WIRE_GROUP) {
+            return { ...item, moduleGroup: value, moduleType: '', technology: '', brand: '', capacity: AC_WIRE_SIZES[0], productId: '' }
+          }
+          if (value === DC_CABLE_GROUP) {
+            return { ...item, moduleGroup: value, moduleType: '', technology: '', brand: '', capacity: DC_CABLE_SIZES[0], productId: '' }
+          }
+          if (value === MC4_CONNECTOR_GROUP) {
+            return { ...item, moduleGroup: value, moduleType: '', technology: '', brand: '', capacity: '', productId: '' }
+          }
+          if (value === EARTHING_WIRE_16MM_GROUP) {
+            return { ...item, moduleGroup: value, moduleType: '', technology: '', brand: '', capacity: EARTHING_WIRE_16MM_SIZES[0], productId: '' }
+          }
+          if (value === C_CLIP_GROUP) {
+            return { ...item, moduleGroup: value, moduleType: '', technology: '', brand: '', capacity: C_CLIP_SIZES[0], productId: '' }
           }
           return { ...item, moduleGroup: DCR_GROUP, moduleType: 'P-Type', technology: '', brand: MODULE_BRANDS[0], capacity: MODULE_TYPES['DCR P-Type'][0], productId: '' }
         }
@@ -1734,25 +1874,27 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                       </select>
                     </div>
                   )}
-                  <div>
-                    <label className="form-label">{[AC_DC_GROUP, CABLE_TRY_GROUP].includes(getProductGroup(productForm)) ? 'Category' : [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP].includes(getProductGroup(productForm)) ? 'Feet' : [BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(getProductGroup(productForm)) ? 'Size' : 'Capacity'}</label>
-                    <SearchableSelect
-                      name="product-capacity"
-                      value={productForm.capacity}
-                      onChange={(value) => setProductField('capacity', value)}
-                      options={toOptions(
-                        getProductCapacityOptions(productForm),
-                        (item) => getProductGroup(productForm) === STRUCTURE_GROUP
-                          ? getStructureFeet(item)
-                          : getProductGroup(productForm) === HEAD_PARLIN_GROUP
-                            ? getHeadParlinFeet(item)
-                            : getProductGroup(productForm) === C_CHANNEL_GROUP
-                              ? getCChannelFeet(item)
-                              : item
-                      )}
-                      searchPlaceholder="Search option..."
-                    />
-                  </div>
+                  {getProductCapacityOptions(productForm).length > 0 && (
+                    <div>
+                      <label className="form-label">{[AC_DC_GROUP, CABLE_TRY_GROUP].includes(getProductGroup(productForm)) ? 'Category' : [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP].includes(getProductGroup(productForm)) ? 'Feet' : SIMPLE_SIZE_GROUPS.includes(getProductGroup(productForm)) ? 'Size' : 'Capacity'}</label>
+                      <SearchableSelect
+                        name="product-capacity"
+                        value={productForm.capacity}
+                        onChange={(value) => setProductField('capacity', value)}
+                        options={toOptions(
+                          getProductCapacityOptions(productForm),
+                          (item) => getProductGroup(productForm) === STRUCTURE_GROUP
+                            ? getStructureFeet(item)
+                            : getProductGroup(productForm) === HEAD_PARLIN_GROUP
+                              ? getHeadParlinFeet(item)
+                              : getProductGroup(productForm) === C_CHANNEL_GROUP
+                                ? getCChannelFeet(item)
+                                : item
+                        )}
+                        searchPlaceholder="Search option..."
+                      />
+                    </div>
+                  )}
                   {getProductBrandOptions(productForm).length > 0 && (
                     <div>
                       <label className="form-label">Brand</label>
@@ -1776,7 +1918,6 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
               )}
               <div style={{ gridColumn:'1/-1' }}><label className="form-label">Item Name</label><input className="crm-input" value={productForm.name} onChange={e => setProductField('name', e.target.value)} placeholder="Auto name bhi chalega, ya custom item name likhein" /></div>
               <div><label className="form-label">Quantity</label><input className="crm-input" type="number" min="0" value={productForm.quantity} onChange={e => setProductField('quantity', e.target.value)} required /></div>
-              <div><label className="form-label">Price / Unit</label><input className="crm-input" type="number" min="0" step="0.01" value={productForm.price} onChange={e => setProductField('price', e.target.value)} placeholder="0" /></div>
               <div>
                 <label className="form-label">Unit</label>
                 <select className="crm-input" value={productForm.unit} onChange={e => setProductField('unit', e.target.value)}>
@@ -1994,7 +2135,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                           required
                         />
                       </div>
-                      {![INVERTER_GROUP, AC_DC_GROUP, CABLE_TRY_GROUP, STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP, BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(item.moduleGroup) && (
+                      {!NON_DCR_GROUPS.includes(item.moduleGroup) && (
                         <div>
                           <label className="form-label">Module Type</label>
                           <select className="crm-input" value={item.moduleType || 'P-Type'} onChange={e => updateDispatchItem(index, 'moduleType', e.target.value)} required>
@@ -2003,7 +2144,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                           </select>
                         </div>
                       )}
-                      {![INVERTER_GROUP, AC_DC_GROUP, CABLE_TRY_GROUP, STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP, BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(item.moduleGroup) && item.moduleType === 'N-Type' && (
+                      {!NON_DCR_GROUPS.includes(item.moduleGroup) && item.moduleType === 'N-Type' && (
                         <div>
                           <label className="form-label">Technology</label>
                           <select className="crm-input" value={item.technology || 'TOPCon'} onChange={e => updateDispatchItem(index, 'technology', e.target.value)} required>
@@ -2019,26 +2160,28 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                           </select>
                         </div>
                       )}
-                      <div>
-                        <label className="form-label">{[AC_DC_GROUP, CABLE_TRY_GROUP].includes(item.moduleGroup) ? 'Category' : [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP].includes(item.moduleGroup) ? 'Feet' : [BASE_PLATE_GROUP, FASTNER_GROUP, SS_NUT_BOLT_GROUP, EARTHING_KIT_GROUP, PIPE_GROUP, ALBA_GROUP, TE_GROUP].includes(item.moduleGroup) ? 'Size' : 'Capacity'}</label>
-                        <SearchableSelect
-                          name={`dispatch-row-capacity-${index}`}
-                          value={item.capacity || ''}
-                          onChange={(value) => updateDispatchItem(index, 'capacity', value)}
-                          options={toOptions(
-                            capacityOptions,
-                            (capacity) => item.moduleGroup === STRUCTURE_GROUP
-                              ? getStructureFeet(capacity)
-                              : item.moduleGroup === HEAD_PARLIN_GROUP
-                                ? getHeadParlinFeet(capacity)
-                                : item.moduleGroup === C_CHANNEL_GROUP
-                                  ? getCChannelFeet(capacity)
-                                  : capacity
-                          )}
-                          searchPlaceholder="Search option..."
-                          required
-                        />
-                      </div>
+                      {capacityOptions.length > 0 && (
+                        <div>
+                          <label className="form-label">{[AC_DC_GROUP, CABLE_TRY_GROUP].includes(item.moduleGroup) ? 'Category' : [STRUCTURE_GROUP, HEAD_PARLIN_GROUP, C_CHANNEL_GROUP].includes(item.moduleGroup) ? 'Feet' : SIMPLE_SIZE_GROUPS.includes(item.moduleGroup) ? 'Size' : 'Capacity'}</label>
+                          <SearchableSelect
+                            name={`dispatch-row-capacity-${index}`}
+                            value={item.capacity || ''}
+                            onChange={(value) => updateDispatchItem(index, 'capacity', value)}
+                            options={toOptions(
+                              capacityOptions,
+                              (capacity) => item.moduleGroup === STRUCTURE_GROUP
+                                ? getStructureFeet(capacity)
+                                : item.moduleGroup === HEAD_PARLIN_GROUP
+                                  ? getHeadParlinFeet(capacity)
+                                  : item.moduleGroup === C_CHANNEL_GROUP
+                                    ? getCChannelFeet(capacity)
+                                    : capacity
+                            )}
+                            searchPlaceholder="Search option..."
+                            required
+                          />
+                        </div>
+                      )}
                       {brandOptions.length > 0 && (
                         <div>
                           <label className="form-label">Brand</label>
