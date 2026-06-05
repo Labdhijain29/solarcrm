@@ -4,6 +4,7 @@ import { FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriang
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { dispatchAPI, leadsAPI, productAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
+import DispatchBillView from '../../components/dashboard/DispatchBillView'
 import LeadModal from '../../components/dashboard/LeadModal'
 import { useAuthStore } from '../../store'
 
@@ -524,7 +525,7 @@ const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace
 const makeBillNo = () => `DSP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-5)}`
 const makeStockReceiptNo = () => `STK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-5)}`
 
-export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashboardType = 'stock' }) {
+export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashboardType = 'auto' }) {
   const { user } = useAuthStore()
   const [tab, setTab] = useState(defaultTab)
   const [products, setProducts] = useState([])
@@ -544,6 +545,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
   const [dispatchStockSearch, setDispatchStockSearch] = useState('')
   const [dispatchSaving, setDispatchSaving] = useState(false)
   const [editingDispatch, setEditingDispatch] = useState(null)
+  const [viewingDispatchBill, setViewingDispatchBill] = useState(null)
   const [dispatchEditForm, setDispatchEditForm] = useState(null)
   const [dispatchEditSaving, setDispatchEditSaving] = useState(false)
   const [approvalSavingId, setApprovalSavingId] = useState('')
@@ -551,14 +553,14 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
   const [leadSearch, setLeadSearch] = useState('')
   const [selectedLead, setSelectedLead] = useState(null)
 
-  const isDispatchDashboard = dashboardType === 'dispatch' || user?.role === 'Dispatch Manager'
+  const isDispatchDashboard = dashboardType === 'dispatch' || (dashboardType === 'auto' && user?.role === 'Dispatch Manager')
   const visibleTabs = useMemo(() => (
     isDispatchDashboard
       ? [['dashboard', 'Dashboard'], ['dispatch', 'Dispatch']]
       : [['dashboard', 'Dashboard'], ['stock', 'Stock'], ['dispatch', 'Dispatch'], ['reports', 'Reports']]
   ), [isDispatchDashboard])
   const canManageStock = !isDispatchDashboard && ['Admin', 'Stock Manager'].includes(user?.role)
-  const canDispatch = isDispatchDashboard || ['Admin', 'Dispatch Manager'].includes(user?.role)
+  const canDispatch = isDispatchDashboard || user?.role === 'Admin' || (dashboardType === 'auto' && user?.role === 'Dispatch Manager')
 
   useEffect(() => {
     if (!visibleTabs.some(([key]) => key === tab)) setTab('dashboard')
@@ -1704,9 +1706,14 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                         <td>{formatDate(dispatch.dispatchDate)}</td>
                         <td>
                           <div className="dashboard-inline-actions">
-                            <button className="btn btn-ghost btn-sm" onClick={() => openDispatchEditor(dispatch)}>
-                              {dispatch.approvalStatus === 'Pending' ? <FaEdit /> : <FaSearch />} {dispatch.approvalStatus === 'Pending' ? 'Review' : 'View'}
+                            <button className="btn btn-ghost btn-sm" onClick={() => setViewingDispatchBill(dispatch)}>
+                              <FaSearch /> View
                             </button>
+                            {dispatch.approvalStatus === 'Pending' && (
+                              <button className="btn btn-ghost btn-sm" onClick={() => openDispatchEditor(dispatch)}>
+                                <FaEdit /> Review
+                              </button>
+                            )}
                             {canDispatch && dispatch.approvalStatus === 'Pending' && (
                               <button className="btn btn-secondary btn-sm" onClick={() => approvePendingDispatch(dispatch)} disabled={approvalSavingId === dispatch._id}>
                                 <FaCheck /> {approvalSavingId === dispatch._id ? 'Approving...' : 'Approve'}
@@ -1734,9 +1741,14 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                       <div className="crm-mobile-row"><span className="crm-mobile-label">Date</span><span>{formatDate(dispatch.dispatchDate)}</span></div>
                       <div className="crm-mobile-row"><span className="crm-mobile-label">Items</span><span>{dispatch.items.map(item => `${item.productName} (${item.quantity} ${item.unit})`).join(', ')}</span></div>
                       <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openDispatchEditor(dispatch)}>
-                          {dispatch.approvalStatus === 'Pending' ? <FaEdit /> : <FaSearch />} {dispatch.approvalStatus === 'Pending' ? 'Review' : 'View'}
+                        <button className="btn btn-ghost btn-sm" onClick={() => setViewingDispatchBill(dispatch)}>
+                          <FaSearch /> View
                         </button>
+                        {dispatch.approvalStatus === 'Pending' && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => openDispatchEditor(dispatch)}>
+                            <FaEdit /> Review
+                          </button>
+                        )}
                         {canDispatch && dispatch.approvalStatus === 'Pending' && (
                           <button className="btn btn-secondary btn-sm" onClick={() => approvePendingDispatch(dispatch)} disabled={approvalSavingId === dispatch._id}>
                             <FaCheck /> {approvalSavingId === dispatch._id ? 'Approving...' : 'Approve'}
@@ -2255,6 +2267,10 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
             </button>
           </form>
         </div>
+      )}
+
+      {viewingDispatchBill && (
+        <DispatchBillView dispatch={viewingDispatchBill} onClose={() => setViewingDispatchBill(null)} />
       )}
 
       {selectedLead && (
