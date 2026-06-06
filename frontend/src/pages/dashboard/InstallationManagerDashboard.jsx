@@ -91,11 +91,15 @@ export default function InstallationManagerDashboard() {
       )}
 
       {viewingDispatch && (
-        <DispatchBillView dispatch={viewingDispatch} onClose={() => setViewingDispatch(null)}>
-          <select className="crm-input" style={{ maxWidth:220 }} value={viewingDispatch.installationStatus} onChange={e => updateStatus(viewingDispatch, e.target.value)}>
-            {statuses.map(status => <option key={status} value={status}>{status}</option>)}
-          </select>
-        </DispatchBillView>
+        <DispatchBillView
+          dispatch={viewingDispatch}
+          onClose={() => setViewingDispatch(null)}
+          statusControl={(
+            <select className="crm-input" value={viewingDispatch.installationStatus} onChange={e => updateStatus(viewingDispatch, e.target.value)}>
+              {statuses.map(status => <option key={status} value={status}>{status}</option>)}
+            </select>
+          )}
+        />
       )}
     </div>
   )

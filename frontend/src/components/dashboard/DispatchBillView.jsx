@@ -1,10 +1,6 @@
-import { FaClipboardList, FaRupeeSign, FaTimes, FaTruck, FaUserCog } from 'react-icons/fa'
+import { FaClipboardList, FaRupeeSign, FaTruck, FaUserCog } from 'react-icons/fa'
 
-const money = (value) => Number(value || 0).toLocaleString('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 0,
-})
+const money = (value) => `Rs. ${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
 
 const formatDate = (value) => {
   if (!value) return '-'
@@ -18,7 +14,7 @@ const badgeClass = (status) => {
   return 'badge-gray'
 }
 
-export default function DispatchBillView({ dispatch, onClose, children }) {
+export default function DispatchBillView({ dispatch, onClose, children, statusControl }) {
   if (!dispatch) return null
 
   const totalQty = (dispatch.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)
@@ -32,8 +28,8 @@ export default function DispatchBillView({ dispatch, onClose, children }) {
             <h2>{dispatch.billNo || 'Dispatch Bill'}</h2>
             <p>{dispatch.customerName || '-'} | {dispatch.mobile || '-'} | {dispatch.siteAddress || '-'}</p>
           </div>
-          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close bill view">
-            <FaTimes />
+          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Close bill view">
+            Close
           </button>
         </div>
 
@@ -79,11 +75,11 @@ export default function DispatchBillView({ dispatch, onClose, children }) {
           </label>
           <label>
             <span>Dispatch Status</span>
-            <strong><span className={`badge ${badgeClass(dispatch.dispatchStatus)}`}>{dispatch.dispatchStatus || '-'}</span></strong>
+            <strong><span className={`badge dispatch-bill-status-badge ${badgeClass(dispatch.dispatchStatus)}`}>{dispatch.dispatchStatus || '-'}</span></strong>
           </label>
           <label>
             <span>Installation Status</span>
-            <strong><span className={`badge ${badgeClass(dispatch.installationStatus)}`}>{dispatch.installationStatus || 'Pending'}</span></strong>
+            <strong>{statusControl || <span className={`badge dispatch-bill-status-badge ${badgeClass(dispatch.installationStatus)}`}>{dispatch.installationStatus || 'Pending'}</span>}</strong>
           </label>
           <label>
             <span>Payment Mode</span>

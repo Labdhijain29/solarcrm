@@ -559,7 +559,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
       ? [['dashboard', 'Dashboard'], ['dispatch', 'Dispatch']]
       : [['dashboard', 'Dashboard'], ['stock', 'Stock'], ['dispatch', 'Dispatch'], ['reports', 'Reports']]
   ), [isDispatchDashboard])
-  const canManageStock = !isDispatchDashboard && ['Admin', 'Stock Manager'].includes(user?.role)
+  const canManageStock = !isDispatchDashboard && ['Admin', 'Stock Manager', 'Dispatch Manager'].includes(user?.role)
   const canDispatch = isDispatchDashboard || user?.role === 'Admin' || (dashboardType === 'auto' && user?.role === 'Dispatch Manager')
 
   useEffect(() => {
