@@ -7,6 +7,7 @@ import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '.
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
+import EnquiriesPage from './EnquiriesPage'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STAGES, STAGE_COLORS, STATE_OPTIONS, stageColor } from '../../utils/constants'
 
@@ -15,7 +16,7 @@ const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const CAPITALIZED_ENQUIRY_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
-const VALID_TABS = ['overview', 'leads', 'pipeline', 'analytics']
+const VALID_TABS = ['overview', 'leads', 'enquiries', 'pipeline', 'analytics']
 const LEADS_PAGE_SIZE = 25
 const PIPELINE_QUERY = { sort: 'latest', limit: 1000 }
 const normalizeTab = (value) => VALID_TABS.includes(value) ? value : 'overview'
@@ -83,6 +84,7 @@ export default function AdminDashboard() {
   const [leadError, setLeadError] = useState('')
   const [pipelineError, setPipelineError] = useState('')
   const [showEnquiryForm, setShowEnquiryForm] = useState(false)
+  const [enquiriesRefreshKey, setEnquiriesRefreshKey] = useState(0)
   const leadRequestId = useRef(0)
   const [editingEnquiry, setEditingEnquiry] = useState(null)
   const [editForm, setEditForm] = useState({
@@ -275,6 +277,7 @@ export default function AdminDashboard() {
         {[
           ['overview', 'Overview'],
           ['leads', 'Leads'],
+          ['enquiries', 'Enquiries'],
           ['pipeline', 'Pipeline'],
           ['analytics', 'Analytics'],
         ].map(([key, label]) => (
@@ -299,7 +302,7 @@ export default function AdminDashboard() {
             <MetricCard icon={<FaClipboardList />} label="Total Leads" value={summary?.total} change="+12 this week" changeColor="var(--sun)" onClick={() => selectTab('leads')} />
             <MetricCard icon={<FaTasks />} label="Active" value={summary?.active} change="In pipeline" changeColor="var(--blue)" onClick={() => selectTab('leads')} />
             <MetricCard icon={<FaCheckCircle />} label="Completed" value={summary?.completed} change={`${summary?.conversionRate}% conversion`} changeColor="var(--green)" onClick={() => selectTab('leads')} />
-            <MetricCard icon={<FaBell />} label="Enquiries" value={summary?.enquiries} change="Website forms" changeColor="var(--indigo)" onClick={() => selectTab('leads')} />
+            <MetricCard icon={<FaBell />} label="Enquiries" value={summary?.enquiries} change="Website forms" changeColor="var(--indigo)" onClick={() => selectTab('enquiries')} />
             <MetricCard icon={<FaUsers />} label="Pending Registrations" value={registrationStats.pendingCount} change="Admin approval queue" changeColor="var(--red)" onClick={() => selectTab('leads')} />
             <MetricCard icon={<FaWarehouse />} label="Stock Manager Dashboard" value="Open" change="Inventory & dispatch ERP" changeColor="var(--green)" onClick={() => selectTab('leads')} />
           </div>
@@ -427,6 +430,8 @@ export default function AdminDashboard() {
           />
         </div>
       )}
+
+      {tab === 'enquiries' && <EnquiriesPage embedded refreshKey={enquiriesRefreshKey} />}
 
       {tab === 'pipeline' && (
         <div style={{ animation:'fadeIn .3s ease' }}>
@@ -574,7 +579,7 @@ export default function AdminDashboard() {
         />
       )}
 
-      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
+      {showEnquiryForm && <EnquiryFormModal onClose={() => { setShowEnquiryForm(false); loadDashboard() }} onSubmitted={() => setEnquiriesRefreshKey(value => value + 1)} />}
     </div>
   )
 }

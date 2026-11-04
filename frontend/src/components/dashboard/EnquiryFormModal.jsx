@@ -1,6 +1,6 @@
 import EnquiryForm from '../website/EnquiryForm'
 
-export default function EnquiryFormModal({ onClose }) {
+export default function EnquiryFormModal({ onClose, onSubmitted }) {
   return (
     <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && onClose()}>
       <div className="modal-box" style={{ maxWidth:720 }}>
@@ -11,7 +11,7 @@ export default function EnquiryFormModal({ onClose }) {
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
         </div>
-        <EnquiryForm compact />
+        <EnquiryForm compact onSubmitted={onSubmitted} />
       </div>
     </div>
   )

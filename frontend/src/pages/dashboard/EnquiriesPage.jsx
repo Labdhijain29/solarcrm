@@ -24,7 +24,7 @@ const emptyEditForm = {
   notes: '',
 }
 
-export default function EnquiriesPage() {
+export default function EnquiriesPage({ embedded = false, refreshKey = 0 }) {
   const { user } = useAuthStore()
   const [enquiries, setEnquiries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -56,7 +56,7 @@ export default function EnquiriesPage() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [refreshKey])
 
   const convert = async (id) => {
     try {
@@ -150,7 +150,7 @@ export default function EnquiriesPage() {
   if (loading) return <Spinner />
 
   return (
-    <div className="dashboard-page">
+    <div className={embedded ? undefined : 'dashboard-page'}>
       <PageHeader icon={<FaBell />} title="Website Enquiries" subtitle={`${enquiries.length} enquiries visible for ${user?.role || 'your role'}`} />
 
       <div className="dashboard-table-filters" style={{ marginBottom:16 }}>

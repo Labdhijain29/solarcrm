@@ -9,7 +9,7 @@ const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
-export default function EnquiryForm({ compact = false }) {
+export default function EnquiryForm({ compact = false, onSubmitted }) {
   const emptyForm = {
     name: '',
     contact: '',
@@ -42,6 +42,7 @@ export default function EnquiryForm({ compact = false }) {
     setLoading(true)
     try {
       await enquiriesAPI.create(form)
+      onSubmitted?.()
       setSent(true)
       toast.success('Enquiry submitted successfully.')
       setTimeout(() => {
