@@ -190,7 +190,7 @@ export default function App() {
           <Route path="service" element={<AdminOnlyRoute><ServiceManagerDashboard /></AdminOnlyRoute>} />
           <Route path="stock-manager" element={<RoleRoute roles={['Admin', 'Stock Manager', 'Dispatch Manager']}><StockManagerDashboard /></RoleRoute>} />
           <Route path="inventory" element={<InventoryDispatchPage defaultTab="dashboard" />} />
-          <Route path="dispatch-erp" element={<DispatchManagerDashboard defaultTab="dispatch" />} />
+          <Route path="dispatch-erp" element={<DispatchManagerDashboard key="dispatch-erp-dashboard" defaultTab="dashboard" />} />
           {ADMIN_STAGE_DASHBOARD_ROUTES.map(({ path, element }) => (
             <Route
               key={path}
