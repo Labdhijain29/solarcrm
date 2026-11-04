@@ -24,7 +24,7 @@ const emptyEditForm = {
   notes: '',
 }
 
-export default function EnquiriesPage({ embedded = false, refreshKey = 0 }) {
+export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConverted }) {
   const { user } = useAuthStore()
   const [enquiries, setEnquiries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -62,6 +62,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0 }) {
     try {
       await enquiriesAPI.convertToLead(id)
       toast.success('Lead created from enquiry.')
+      onConverted?.()
       fetchData()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to convert enquiry')

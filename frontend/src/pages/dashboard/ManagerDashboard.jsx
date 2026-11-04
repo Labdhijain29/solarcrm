@@ -5,6 +5,7 @@ import { FilePreview, MetricCard, PageHeader, SearchableSelect } from '../../com
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
 import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
+import EnquiriesPage from './EnquiriesPage'
 import { useAuthStore } from '../../store'
 import { CITIES, STAGES, ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
 import toast from 'react-hot-toast'
@@ -108,6 +109,7 @@ export function ManagerDashboard() {
   const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
   const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [tab, setTab] = useState('leads')
+  const [enquiriesRefreshKey, setEnquiriesRefreshKey] = useState(0)
   const [selected, setSelected] = useState(null)
   const [editingLeadId, setEditingLeadId] = useState('')
   const [showCreate, setShowCreate] = useState(false)
@@ -303,7 +305,7 @@ export function ManagerDashboard() {
       </div>
 
       <div className="crm-tabs">
-        {['leads', 'pipeline'].map(t => (
+        {['leads', 'enquiries', 'pipeline'].map(t => (
           <button key={t} className={`crm-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -321,6 +323,7 @@ export function ManagerDashboard() {
           onLeadUpdated={refreshData}
         />
       </div>}
+      {tab === 'enquiries' && <EnquiriesPage embedded refreshKey={enquiriesRefreshKey} onConverted={refreshData} />}
       {tab === 'pipeline' && <KanbanPipeline leads={pipelineLeads} onView={viewLead} />}
 
       {showCreate && (
@@ -534,7 +537,7 @@ export function ManagerDashboard() {
           startEditing={editingLeadId === selected._id}
         />
       )}
-      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} />}
+      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} onSubmitted={() => setEnquiriesRefreshKey(value => value + 1)} />}
     </div>
   )
 }
