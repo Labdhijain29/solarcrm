@@ -18,16 +18,11 @@ const validateLogin = [
   handleValidation
 ];
 
-const validateRegister = [
+const accountValidation = (allowAdmin = false) => [
   body('name').trim().notEmpty().withMessage('Name required'),
   body('email').trim().isEmail().withMessage('Valid email required').bail().normalizeEmail(),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role').isIn([
-    'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',
-    'Bank/Finance Executive', 'Loan Officer', 'Stock Manager', 'Dispatch Manager',
-    'Installation Manager', 'Net Metering Officer', 'Subsidy Officer', 'Subsidy Reading Officer',
-    'Service Manager'
-  ]).withMessage('Valid role required'),
+  body('password').isString().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').isIn(require('../models/User').schema.path('role').enumValues.filter(role => allowAdmin || role !== 'Admin')).withMessage('Valid role required'),
   body('phone')
     .trim()
     .notEmpty().withMessage('Contact required')
@@ -43,7 +38,7 @@ const validateRegister = [
   body('address').optional({ checkFalsy: true }).trim(),
   body('state').optional({ checkFalsy: true }).trim(),
   body('city').optional({ checkFalsy: true }).trim(),
-  body('pincode').optional({ checkFalsy: true }).trim(),
+  body('pincode').optional({ checkFalsy: true }).trim().matches(/^\d{6}$/).withMessage('Valid 6-digit pincode required'),
   body('franchiseEnabled').optional().isBoolean().withMessage('Franchise flag must be true or false'),
   body('franchiseName').optional({ checkFalsy: true }).trim(),
   body('franchiseState').optional({ checkFalsy: true }).trim(),
@@ -55,6 +50,9 @@ const validateRegister = [
   body('dateOfJoining').optional({ checkFalsy: true }).isISO8601().withMessage('Valid date of joining required'),
   handleValidation
 ];
+
+const validateRegister = accountValidation();
+const validateCreateUser = accountValidation(true);
 
 const validateLead = [
   body('name').trim().notEmpty().withMessage('Customer name required'),
@@ -98,4 +96,4 @@ const validateEnquiry = [
   handleValidation
 ];
 
-module.exports = { validateLogin, validateRegister, validateLead, validateEnquiry, handleValidation };
+module.exports = { validateLogin, validateRegister, validateCreateUser, validateLead, validateEnquiry, handleValidation };

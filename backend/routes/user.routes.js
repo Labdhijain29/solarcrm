@@ -7,6 +7,7 @@ const {
 } = require('../controllers/user.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { uploadRegistrationDocument } = require('../middleware/upload.middleware');
+const { validateCreateUser } = require('../middleware/validate.middleware');
 
 router.use(protect);
 
@@ -17,7 +18,7 @@ router.get('/assignable', getAssignableUsers);
 
 router.route('/')
   .get(authorize('Admin', 'Manager'), getUsers)
-  .post(authorize('Admin'), uploadRegistrationDocument, createUser);
+  .post(authorize('Admin'), uploadRegistrationDocument, validateCreateUser, createUser);
 
 router.route('/:id')
   .get(getUser)

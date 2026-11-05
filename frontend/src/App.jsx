@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Spinner } from './components/common'
 import { useAppStore, useAuthStore } from './store'
@@ -80,8 +80,12 @@ function AuthBootstrapScreen() {
 
 function PrivateRoute({ children }) {
   const { user, initialized, checkingAuth } = useAuthStore()
+  const { pathname } = useLocation()
 
   if (!initialized || checkingAuth) return <AuthBootstrapScreen />
+  if (user?.role === 'Enquiry Executive' && !['/dashboard/enquiries', '/dashboard/profile'].includes(pathname.replace(/\/+$/, ''))) {
+    return <Navigate to="/dashboard/enquiries" replace />
+  }
   return user ? children : <Navigate to="/login" replace />
 }
 
@@ -112,6 +116,7 @@ function DashboardRouter() {
 
   if (!initialized || checkingAuth) return <AuthBootstrapScreen />
   if (!user) return <Navigate to="/login" replace />
+  if (role === 'enquiry executive') return <Navigate to="/dashboard/enquiries" replace />
   if (role === 'admin') return <AdminDashboard />
   if (role === 'manager') return <ManagerDashboard />
   if (role === 'sales executive') return <SalesExecutiveDashboard />

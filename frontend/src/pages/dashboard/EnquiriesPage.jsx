@@ -5,6 +5,7 @@ import { EmptyState, PageHeader, SearchableSelect, Spinner } from '../../compone
 import { enquiriesAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
+import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
@@ -34,10 +35,17 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('latest')
+  const [showEnquiryForm, setShowEnquiryForm] = useState(false)
+  const [convertingId, setConvertingId] = useState('')
 
-  const canEdit = ['Admin', 'Manager'].includes(user?.role)
-  const canDelete = ['Admin', 'Manager'].includes(user?.role)
-  const canConvert = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(user?.role)
+  const isExecutive = user?.role === 'Enquiry Executive'
+  const canChangeEnquiry = (enquiry) => ['Admin', 'Manager'].includes(user?.role) || (
+    isExecutive && String(enquiry.createdBy?._id || enquiry.createdBy || '') === String(user?._id)
+    && !enquiry.convertedTo && enquiry.status !== 'converted'
+  )
+  const canConvert = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Enquiry Executive'].includes(user?.role)
+  const canConvertEnquiry = (enquiry) => canConvert && enquiry.enquiryType?.trim().toLowerCase() !== 'service enquiry'
+    && !enquiry.convertedTo && enquiry.status !== 'converted'
 
   const fetchData = async () => {
     setLoading(true)
@@ -59,13 +67,17 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   }, [refreshKey])
 
   const convert = async (id) => {
+    if (convertingId) return
+    setConvertingId(id)
     try {
-      await enquiriesAPI.convertToLead(id)
-      toast.success('Lead created from enquiry.')
+      const response = await enquiriesAPI.convertToLead(id)
+      toast.success(response.data.message || 'Lead created from enquiry.')
       onConverted?.()
       fetchData()
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to convert enquiry')
+    } finally {
+      setConvertingId('')
     }
   }
 
@@ -114,7 +126,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   }
 
   const deleteEnquiry = async (enquiry) => {
-    if (!canDelete) return
+    if (!canChangeEnquiry(enquiry)) return
     if (!window.confirm(`Delete enquiry "${enquiry.name}" permanently?`)) return
     try {
       await enquiriesAPI.delete(enquiry._id)
@@ -152,7 +164,8 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
 
   return (
     <div className={embedded ? undefined : 'dashboard-page'}>
-      <PageHeader icon={<FaBell />} title="Website Enquiries" subtitle={`${enquiries.length} enquiries visible for ${user?.role || 'your role'}`} />
+      <PageHeader icon={<FaBell />} title={isExecutive ? 'Enquiries' : 'Website Enquiries'} subtitle={`${enquiries.length} enquiries visible for ${user?.role || 'your role'}`}
+        action={isExecutive ? <button type="button" className="btn btn-primary" onClick={() => setShowEnquiryForm(true)}>Enquiry Form</button> : undefined} />
 
       <div className="dashboard-table-filters" style={{ marginBottom:16 }}>
         <div className="dashboard-search">
@@ -210,13 +223,13 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
                 </td>
                 <td>
                   <div className="dashboard-inline-actions">
-                    {canConvert && enquiry.enquiryType !== 'Service Enquiry' && !enquiry.convertedTo && (
-                      <button className="btn btn-success btn-sm" onClick={() => convert(enquiry._id)}>Create Lead</button>
+                    {canConvertEnquiry(enquiry) && (
+                      <button className="btn btn-success btn-sm" disabled={Boolean(convertingId)} onClick={() => convert(enquiry._id)}>{convertingId === enquiry._id ? 'Converting...' : 'Create Lead'}</button>
                     )}
                     {enquiry.convertedTo && <span className="badge badge-green">Converted</span>}
                     {enquiry.enquiryType === 'Service Enquiry' && <span className="badge badge-blue">Service Queue</span>}
-                    {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
-                    {canDelete && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
+                    {canChangeEnquiry(enquiry) && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
+                    {canChangeEnquiry(enquiry) && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
                   </div>
                 </td>
               </tr>
@@ -254,13 +267,13 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
               <div style={{ paddingTop:8, fontSize:12, color:'var(--muted)' }}>{enquiry.address || '-'}</div>
 
               <div className="dashboard-inline-actions" style={{ marginTop:10 }}>
-                {canConvert && enquiry.enquiryType !== 'Service Enquiry' && !enquiry.convertedTo && (
-                  <button className="btn btn-success btn-sm" onClick={() => convert(enquiry._id)}>Create Lead</button>
+                {canConvertEnquiry(enquiry) && (
+                  <button className="btn btn-success btn-sm" disabled={Boolean(convertingId)} onClick={() => convert(enquiry._id)}>{convertingId === enquiry._id ? 'Converting...' : 'Create Lead'}</button>
                 )}
                 {enquiry.convertedTo && <span className="badge badge-green">Converted</span>}
                 {enquiry.enquiryType === 'Service Enquiry' && <span className="badge badge-blue">Service Queue</span>}
-                {canEdit && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
-                {canDelete && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
+                {canChangeEnquiry(enquiry) && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
+                {canChangeEnquiry(enquiry) && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
               </div>
             </div>
           ))}
@@ -274,6 +287,8 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
           />
         )}
       </div>
+
+      {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} onSubmitted={() => { setShowEnquiryForm(false); fetchData() }} />}
 
       {editing && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeEdit()}>
@@ -338,7 +353,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
               <div>
                 <label className="form-label">Status</label>
                 <select className="crm-input" value={editForm.status} onChange={e => updateField('status', e.target.value)}>
-                  {ENQUIRY_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
+                  {ENQUIRY_STATUSES.filter(status => !isExecutive || status !== 'converted').map(status => <option key={status} value={status}>{status}</option>)}
                 </select>
               </div>
             </div>

@@ -132,7 +132,41 @@ Lead → Registration → Bank Approval → Loan Disbursement
 
 ## 🔌 API Endpoints
 
+### Enquiry Executive
+
+Admin can add users from **Users → Add User**. This uses the same account form as public
+registration, including alternate contact, addresses, state/city, pincode, joining date,
+franchise details and documents. Admin-created users are active and approved immediately;
+public registrations remain pending. Both APIs share backend account validation, creation
+and document-upload helpers. Documents accept PDF, JPG, PNG, DOC or DOCX, up to 5MB.
+Joining date defaults to the current local date. Deleting a user requires a SweetAlert
+confirmation; cancelling or dismissing the alert does not send a deletion request.
+
+Register with the **Enquiry Executive** role and wait for Admin approval. After login,
+the account opens `/dashboard/enquiries` with the enquiry form and shared enquiry list.
+Executives can convert any non-service, unconverted enquiry. They can edit or delete
+only their own unconverted enquiries. Profile, password change and logout remain available;
+other business pages and APIs are blocked for this role.
+
+Conversion assigns the lead at the **Lead** stage to the earliest-created active,
+approved Manager (user ID breaks ties). No eligible Manager means conversion is blocked.
+Existing roles retain their current assignment behaviour. Legacy/anonymous enquiries have
+no creator; executives cannot edit or delete them, but can convert eligible records.
+
+The new sparse unique `Lead.sourceEnquiry` index is created by Mongoose and explicitly
+ensured before conversion. No ownership backfill is needed. Conversion keeps a private
+reservation until the lead and enquiry link are saved. If a conversion fails, retry
+**Create Lead** to resume that same reservation; edits/deletes stay blocked during recovery.
+
+Run isolated backend permission and conversion tests (no application database writes):
+
+```bash
+cd backend
+node --test tests/enquiry-executive.test.js
+```
+
 ### Auth
+
 ```
 POST   /api/auth/login           — Login
 GET    /api/auth/me              — Get current user

@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 
 const enquirySchema = new mongoose.Schema({
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  // Durable reservation: retries resume the same lead; edits/deletes cannot race conversion.
+  pendingConversion: { type: mongoose.Schema.Types.Mixed, select: false },
   name:        { type: String, required: true, trim: true },
   contact:     { type: String, required: true, trim: true },
   phone:       { type: String, trim: true, default: '' },

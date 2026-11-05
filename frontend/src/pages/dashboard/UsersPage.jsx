@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { FaBell, FaChartLine, FaCheck, FaClipboardList, FaEdit, FaExchangeAlt, FaEye, FaFileInvoice, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTimes, FaTrash, FaUser, FaUserShield, FaUsers, FaWrench } from 'react-icons/fa'
+import { FaBell, FaChartLine, FaCheck, FaClipboardList, FaEdit, FaExchangeAlt, FaEye, FaFileInvoice, FaMoneyBillWave, FaPlus, FaRegBuilding, FaSolarPanel, FaTimes, FaTrash, FaUser, FaUserShield, FaUsers, FaWrench } from 'react-icons/fa'
 import toast from 'react-hot-toast'
 import { usersAPI, dashboardAPI, authAPI, getPublicFileUrl } from '../../services/api'
 import { EmptyState, FilePreview, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import { getCitiesForState, ROLE_STAGE_MAP, STAGE_COLORS, STATE_OPTIONS } from '../../utils/constants'
 import { useAuthStore } from '../../store'
 import { getFileDisplayName } from '../../utils/files'
+import UserAccountForm from '../../components/common/UserAccountForm'
+import { submitUserAccount, deleteUserAccount } from '../../services/userAccount'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell,
@@ -69,7 +71,7 @@ function UserDetailsModal({ user, onClose }) {
   const approvalItems = [
     ['Approval Status', user.approvalStatus || (user.isActive ? 'approved' : 'pending')],
     ['Access', user.isActive ? 'Active' : 'Blocked'],
-    ['Stage Access', ROLE_STAGE_MAP[user.role] || 'All Stages'],
+    ['Stage Access', user.role === 'Enquiry Executive' ? 'Enquiries only' : ROLE_STAGE_MAP[user.role] || 'All Stages'],
     ['Joined', formatDate(user.createdAt)],
     ['Approved On', formatDate(user.approvedAt, true)],
   ]
@@ -168,14 +170,38 @@ function UserDetailsModal({ user, onClose }) {
   )
 }
 
+function AddUserModal({ onClose, onCreated }) {
+  const [saving, setSaving] = useState(false)
+  const submit = async form => {
+    const { data } = await submitUserAccount(form, { admin: true })
+    toast.success('User created and approved')
+    onCreated(data.data)
+  }
+  return (
+    <div className="modal-backdrop" onClick={event => !saving && event.target === event.currentTarget && onClose()}>
+      <div className="modal-box" style={{ maxWidth:720 }} role="dialog" aria-modal="true" aria-labelledby="add-user-title">
+        <div className="dashboard-split-row" style={{ marginBottom:20 }}>
+          <div>
+            <h2 id="add-user-title" style={{ fontFamily:'Syne,sans-serif', fontSize:20, fontWeight:700 }}>Add User</h2>
+            <p style={{ fontSize:12, color:'var(--muted)', marginTop:6 }}>The account will be active and approved immediately.</p>
+          </div>
+          <button type="button" className="btn btn-ghost btn-sm btn-icon" onClick={onClose} disabled={saving} aria-label="Close add user"><FaTimes /></button>
+        </div>
+        <UserAccountForm admin defaultRole="Enquiry Executive" onSubmit={submit} onBusyChange={setSaving} onCancel={onClose} />
+      </div>
+    </div>
+  )
+}
+
 export function UsersPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [actioningId, setActioningId] = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
-  const [activeTab, setActiveTab] = useState('unapproved')
+  const [activeTab, setActiveTab] = useState('approved')
   const [search, setSearch] = useState('')
   const [approvedRoleFilter, setApprovedRoleFilter] = useState('all')
+  const [showAddUser, setShowAddUser] = useState(false)
   const { user: currentUser } = useAuthStore()
 
   const fetchUsers = () => {
@@ -216,9 +242,11 @@ export function UsersPage() {
   }
 
   const handleDelete = async (id) => {
+    if (actioningId) return
     setActioningId(id)
     try {
-      await usersAPI.delete(id)
+      const target = users.find(user => user._id === id)
+      if (!await deleteUserAccount({ _id: id, name: target?.name })) return
       toast.success('User deleted')
       fetchUsers()
     } catch (err) {
@@ -256,7 +284,15 @@ export function UsersPage() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader icon={<FaUsers />} title="User Management" subtitle={`${users.length} system users`} />
+      <PageHeader icon={<FaUsers />} title="User Management" subtitle={`${users.length} system users`}
+        action={currentUser?.role === 'Admin' ? <button type="button" className="btn btn-primary" onClick={() => setShowAddUser(true)}><FaPlus /> Add User</button> : undefined} />
+      {showAddUser && currentUser?.role === 'Admin' && <AddUserModal onClose={() => setShowAddUser(false)} onCreated={created => {
+        setUsers(previous => [created, ...previous])
+        setActiveTab('approved')
+        setApprovedRoleFilter('all')
+        setSearch('')
+        setShowAddUser(false)
+      }} />}
       <div className="dashboard-table-filters" style={{ marginBottom: 16 }}>
         <div className="dashboard-search">
           <input
@@ -283,6 +319,13 @@ export function UsersPage() {
       <div className="crm-tabs" style={{ marginBottom: 16 }}>
         <button
           type="button"
+          className={`crm-tab ${activeTab === 'approved' ? 'active' : ''}`}
+          onClick={() => setActiveTab('approved')}
+        >
+          Approved ({approvedUsers.length})
+        </button>
+        <button
+          type="button"
           className={`crm-tab ${activeTab === 'unapproved' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('unapproved')
@@ -290,13 +333,6 @@ export function UsersPage() {
           }}
         >
           Unapproved ({unapprovedUsers.length})
-        </button>
-        <button
-          type="button"
-          className={`crm-tab ${activeTab === 'approved' ? 'active' : ''}`}
-          onClick={() => setActiveTab('approved')}
-        >
-          Approved ({approvedUsers.length})
         </button>
       </div>
       <div className="crm-table-wrap">
@@ -614,7 +650,7 @@ export function ProfilePage() {
     ['Email', user?.email || '-'],
     ['Phone', user?.phone || '-'],
     ['Role', user?.role || '-'],
-    ['Stage Access', ROLE_STAGE_MAP[user?.role] || 'All Stages'],
+    ['Stage Access', user?.role === 'Enquiry Executive' ? 'Enquiries only' : ROLE_STAGE_MAP[user?.role] || 'All Stages'],
     ['Last Login', user?.lastLogin ? new Date(user.lastLogin).toLocaleString('en-IN') : '-'],
     ['Status', 'Active'],
   ]

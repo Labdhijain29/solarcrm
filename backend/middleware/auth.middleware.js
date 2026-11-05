@@ -18,6 +18,9 @@ const protect = async (req, res, next) => {
     }
 
     req.user = user;
+    if (user.role === 'Enquiry Executive' && !isEnquiryExecutiveRequestAllowed(req)) {
+      return res.status(403).json({ success: false, message: 'This account has access to enquiries and its own profile only.' });
+    }
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
@@ -26,6 +29,19 @@ const protect = async (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Invalid token.' });
   }
 };
+
+const isEnquiryExecutiveRequestAllowed = (req) => {
+  const path = req.originalUrl.split('?')[0].replace(/\/+$/, '');
+  const route = `${req.method} ${path}`;
+  if (['GET /api/auth/me', 'PUT /api/auth/change-password', 'POST /api/auth/logout',
+    'PUT /api/users/me', 'GET /api/users/notifications', 'PUT /api/users/notifications/read',
+    'GET /api/enquiries', 'POST /api/enquiries'].includes(route)) return true;
+  return /^(PUT|DELETE) \/api\/enquiries\/[a-f\d]{24}$/i.test(route)
+    || /^POST \/api\/enquiries\/[a-f\d]{24}\/(convert|delete)$/i.test(route);
+};
+
+const optionalProtect = (req, res, next) => req.headers.authorization !== undefined
+  ? protect(req, res, next) : next();
 
 // Role-based access control
 const authorize = (...roles) => (req, res, next) => {
@@ -41,6 +57,7 @@ const authorize = (...roles) => (req, res, next) => {
 // Stage-based access: only the user assigned to a stage OR admin can act
 const ROLE_STAGE_MAP = {
   'Admin': null,
+  'Enquiry Executive': null,
   'Manager': 'Lead',
   'Sales Executive': 'Lead',
   'Sales Manager': 'Lead',
@@ -65,4 +82,4 @@ const canActOnStage = (stage) => (req, res, next) => {
   });
 };
 
-module.exports = { protect, authorize, canActOnStage, ROLE_STAGE_MAP };
+module.exports = { protect, optionalProtect, authorize, canActOnStage, ROLE_STAGE_MAP, isEnquiryExecutiveRequestAllowed };

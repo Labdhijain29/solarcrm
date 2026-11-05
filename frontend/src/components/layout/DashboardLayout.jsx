@@ -26,13 +26,14 @@ const COMMON_NAV_ITEMS = [
   { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
   { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/rejected-leads', icon: FaBan, label: 'Rejected Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
-  { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager'] },
+  { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager', 'Enquiry Executive'] },
   { to: '/dashboard/inventory', icon: FaBoxOpen, label: 'Inventory', roles: ['Admin', 'Stock Manager', 'Dispatch Manager'] },
   { to: '/dashboard/users', icon: FaUsers, label: 'Users', roles: ['Admin'] },
   { to: '/dashboard/profile', icon: FaUser, label: 'Profile', roles: null },
 ]
 
 const ROLE_ICON_MAP = {
+  'Enquiry Executive': FaBell,
   Admin: FaUserTie,
   Manager: FaRegBuilding,
   'Sales Executive': FaUsers,
@@ -83,7 +84,9 @@ export default function DashboardLayout() {
   const notificationsRef = useRef(null)
   const userMenuRef = useRef(null)
   const stageAccess = ROLE_STAGE_MAP[user?.role]
-  const visibleNav = COMMON_NAV_ITEMS.filter(item => !item.roles || item.roles.includes(user?.role))
+  const visibleNav = COMMON_NAV_ITEMS.filter(item => user?.role === 'Enquiry Executive'
+    ? ['/dashboard/enquiries', '/dashboard/profile'].includes(item.to)
+    : !item.roles || item.roles.includes(user?.role))
   const showAdminDashboards = user?.role === 'Admin'
   const ThemeIcon = theme === 'dark' ? FaSun : FaMoon
 

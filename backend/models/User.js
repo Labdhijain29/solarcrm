@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const ROLES = [
+  'Enquiry Executive',
   'Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',
   'Bank/Finance Executive', 'Loan Officer', 'Stock Manager', 'Dispatch Manager',
   'Installation Manager', 'Net Metering Officer', 'Subsidy Officer', 'Subsidy Reading Officer',
@@ -75,6 +76,7 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 // Get stage for this role
 userSchema.virtual('stageAccess').get(function () {
   const map = {
+    'Enquiry Executive': null,
     'Admin': null,
     'Manager': 'Lead',
     'Sales Executive': 'Lead',

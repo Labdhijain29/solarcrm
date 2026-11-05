@@ -11,6 +11,7 @@ export const STAGE_COLORS = [
 ]
 
 export const ROLE_STAGE_MAP = {
+  'Enquiry Executive': null,
   'Admin': null,
   'Manager': 'Lead',
   'Sales Executive': 'Lead',
@@ -28,6 +29,7 @@ export const ROLE_STAGE_MAP = {
 }
 
 export const ROLE_ICONS = {
+  'Enquiry Executive': 'EQ',
   'Admin': 'AD',
   'Manager': 'MN',
   'Sales Executive': 'SE',

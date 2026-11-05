@@ -6,7 +6,8 @@ const WORKFLOW_STAGES = [
   'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
   'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed',
 ];
-const { uploadFileAsset, withFreshFileUrl } = require('../services/storage/fileAsset');
+const { withFreshFileUrl } = require('../services/storage/fileAsset');
+const { createUserAccount, uploadUserDocument } = require('../services/userAccount');
 const storageService = require('../services/storage/storageService');
 
 const serializeUser = async (user) => {
@@ -59,33 +60,6 @@ const buildSessionUser = async (user) => ({
   stageAccess: user.stageAccess,
   lastLogin: user.lastLogin,
 });
-
-const updateUserDocument = async (userId, file) => {
-  const uploadedDocument = await uploadFileAsset(file, { folder: 'users/registrations' });
-  await User.findByIdAndUpdate(userId, {
-    documents: uploadedDocument.fileUrl,
-    documentsFile: uploadedDocument,
-    documentsUploadStatus: 'completed',
-    documentsUploadError: '',
-  });
-  return uploadedDocument;
-};
-
-const queueUserDocumentUpload = (userId, file) => {
-  if (!file) return;
-
-  setImmediate(async () => {
-    try {
-      await updateUserDocument(userId, file);
-    } catch (error) {
-      await User.findByIdAndUpdate(userId, {
-        documentsUploadStatus: 'failed',
-        documentsUploadError: String(error.message || 'Document upload failed').slice(0, 500),
-      }).catch(() => {});
-      console.error('User document upload failed:', error);
-    }
-  });
-};
 
 exports.getUsers = async (req, res) => {
   try {
@@ -152,26 +126,13 @@ exports.getUser = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const {
-      name, email, password, role, phone, alternateContact,
-      permanentAddress, address, state, city, pincode, jobTitle,
-      resume, documents, dateOfJoining
-    } = req.body;
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    const existing = await User.findOne({ email: normalizedEmail });
-    if (existing) return res.status(400).json({ success: false, message: 'Email already in use' });
-    const user = await User.create({
-      name, email: normalizedEmail, password, role, phone, alternateContact,
-      permanentAddress, address, state, city, pincode, jobTitle,
-      resume,
-      documents: req.file?.originalname || documents,
-      documentsUploadStatus: req.file ? 'processing' : 'none',
-      dateOfJoining: dateOfJoining || undefined
-    });
-    queueUserDocumentUpload(user._id, req.file);
+    const user = await createUserAccount({ body: req.body, file: req.file, approvedBy: req.user._id });
     const safe = await User.findById(user._id).select('-password');
     res.status(201).json({ success: true, message: 'User created', data: await serializeUser(safe) });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) {
+    const status = err.code === 11000 ? 409 : err.name === 'ValidationError' ? 422 : err.statusCode || 500;
+    res.status(status).json({ success: false, message: err.code === 11000 ? 'Email already in use' : err.message });
+  }
 };
 
 exports.updateUser = async (req, res) => {
@@ -188,7 +149,7 @@ exports.updateUser = async (req, res) => {
     };
 
     if (req.file) {
-      const uploadedDocument = await uploadFileAsset(req.file, { folder: 'users/registrations' });
+      const uploadedDocument = await uploadUserDocument(req.params.id, req.file);
       updates.documents = uploadedDocument.fileUrl;
       updates.documentsFile = uploadedDocument;
     }

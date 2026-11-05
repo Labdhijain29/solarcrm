@@ -2,62 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { FaSolarPanel } from 'react-icons/fa'
-import { authAPI } from '../../services/api'
+import { submitUserAccount } from '../../services/userAccount'
 import { useAuthStore } from '../../store'
-import { getCitiesForState, getSubDistrictOptions, STATE_OPTIONS } from '../../utils/constants'
-import { FilePreview, SearchableSelect } from '../../components/common'
+import UserAccountForm from '../../components/common/UserAccountForm'
+import { normalizeAccountEmail } from '../../utils/userAccount'
 
-const REGISTER_ROLES = [
-  'Manager',
-  'Sales Executive',
-  'Sales Manager',
-  'Registration Executive',
-  'Bank/Finance Executive',
-  'Loan Officer',
-  'Stock Manager',
-  'Dispatch Manager',
-  'Installation Manager',
-  'Net Metering Officer',
-  'Subsidy Officer',
-  'Subsidy Reading Officer',
-  'Service Manager',
-]
-
-const emptyRegisterForm = {
-  name: '',
-  email: '',
-  password: '',
-  phone: '',
-  permanentAddress: '',
-  address: '',
-  alternateContact: '',
-  state: '',
-  city: '',
-  pincode: '',
-  franchiseEnabled: false,
-  franchiseName: '',
-  franchiseState: '',
-  franchiseCity: '',
-  franchiseSubDistrict: '',
-  documents: null,
-  dateOfJoining: '',
-  role: 'Sales Executive',
-}
-
-const normalizeIndianPhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
-const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
-const CAPITALIZED_REGISTER_FIELDS = new Set([
-  'name',
-  'permanentAddress',
-  'address',
-  'state',
-  'city',
-  'franchiseName',
-  'franchiseState',
-  'franchiseCity',
-  'franchiseSubDistrict',
-])
-const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const getApiErrorMessage = (err, fallback = 'Request failed') => {
   const firstValidationError = err.response?.data?.errors?.[0]?.message
   return firstValidationError || err.response?.data?.message || err.message || fallback
@@ -73,8 +22,6 @@ const getRememberedLogin = () => {
   }
 }
 
-const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
-
 export default function LoginPage() {
   const rememberedLogin = getRememberedLogin()
   const navigate = useNavigate()
@@ -84,38 +31,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState(rememberedLogin?.password || '')
   const [rememberMe, setRememberMe] = useState(localStorage.getItem(REMEMBER_ME_KEY) === 'true' && !!rememberedLogin)
   const [registering, setRegistering] = useState(false)
-  const [registerForm, setRegisterForm] = useState(emptyRegisterForm)
-
-  const setRegisterField = (key, value) => {
-    const nextValue = CAPITALIZED_REGISTER_FIELDS.has(key) ? capitalizeFirstLetter(value) : value
-    setRegisterForm((prev) => {
-      if (key === 'state') {
-        return { ...prev, state: nextValue, city: '' }
-      }
-      if (key === 'franchiseEnabled') {
-        if (nextValue) return { ...prev, franchiseEnabled: true }
-        return {
-          ...prev,
-          franchiseEnabled: false,
-          franchiseName: '',
-          franchiseState: '',
-          franchiseCity: '',
-          franchiseSubDistrict: '',
-        }
-      }
-      if (key === 'franchiseState') {
-        return { ...prev, franchiseState: nextValue, franchiseCity: '', franchiseSubDistrict: '' }
-      }
-      if (key === 'franchiseCity') {
-        return { ...prev, franchiseCity: nextValue, franchiseSubDistrict: '' }
-      }
-      return { ...prev, [key]: nextValue }
-    })
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const normalizedEmail = normalizeEmail(email)
+    const normalizedEmail = normalizeAccountEmail(email)
     setEmail(normalizedEmail)
     try {
       const user = await login(normalizedEmail, password)
@@ -134,62 +53,14 @@ export default function LoginPage() {
     }
   }
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
-    const normalizedEmail = normalizeEmail(registerForm.email)
-    const phone = normalizeIndianPhone(registerForm.phone)
-    const alternateContact = normalizeIndianPhone(registerForm.alternateContact)
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      toast.error('Contact number must be a valid 10-digit mobile number.')
-      return
-    }
-    if (registerForm.alternateContact && !/^[6-9]\d{9}$/.test(alternateContact)) {
-      toast.error('Alternate contact must also be a valid 10-digit number.')
-      return
-    }
-    setRegistering(true)
-    try {
-      const documentFile = registerForm.documents
-      const formData = new FormData()
-      formData.append('name', registerForm.name)
-      formData.append('email', normalizedEmail)
-      formData.append('password', registerForm.password)
-      formData.append('phone', phone)
-      formData.append('alternateContact', alternateContact)
-      formData.append('permanentAddress', registerForm.permanentAddress)
-      formData.append('address', registerForm.address)
-      formData.append('state', registerForm.state)
-      formData.append('city', registerForm.city)
-      formData.append('pincode', registerForm.pincode)
-      formData.append('franchiseEnabled', String(registerForm.franchiseEnabled))
-      formData.append('franchiseName', registerForm.franchiseName)
-      formData.append('franchiseState', registerForm.franchiseState)
-      formData.append('franchiseCity', registerForm.franchiseCity)
-      formData.append('franchiseSubDistrict', registerForm.franchiseSubDistrict)
-      formData.append('dateOfJoining', registerForm.dateOfJoining)
-      formData.append('role', registerForm.role)
-
-      const response = await authAPI.register(formData)
-      const userId = response.data?.data?._id
-      const uploadToken = response.data?.documentUploadToken
-      if (documentFile && userId && uploadToken) {
-        const documentData = new FormData()
-        documentData.append('documents', documentFile)
-        documentData.append('uploadToken', uploadToken)
-        authAPI.uploadRegistrationDocument(userId, documentData).catch(() => {
-          toast.error('Registration saved, but document upload failed. Admin can upload it later.')
-        })
-      }
-      setRegisterForm(emptyRegisterForm)
-      setMode('login')
-      setEmail(normalizedEmail)
-      setPassword('')
-      toast.success('Registration submitted. You can log in after admin approval.')
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, 'Unable to register. Please try again.'))
-    } finally {
-      setRegistering(false)
-    }
+  const handleRegister = async (form) => {
+    await submitUserAccount(form, {
+      onDocumentError: () => toast.error('Registration saved, but document upload failed. Admin can upload it later.'),
+    })
+    setMode('login')
+    setEmail(normalizeAccountEmail(form.email))
+    setPassword('')
+    toast.success('Registration submitted. You can log in after admin approval.')
   }
 
   return (
@@ -216,7 +87,7 @@ export default function LoginPage() {
                   placeholder="Enter email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  onBlur={(e) => setEmail(normalizeEmail(e.target.value))}
+                  onBlur={(e) => setEmail(normalizeAccountEmail(e.target.value))}
                   required
                 />
               </div>
@@ -276,174 +147,13 @@ export default function LoginPage() {
           </>
         ) : (
           <>
-            <form onSubmit={handleRegister}>
-              <div className="dashboard-form-grid" style={{ gap:12 }}>
-                <div>
-                  <label className="form-label">Name</label>
-                  <input className="crm-input" value={registerForm.name} onChange={(e) => setRegisterField('name', e.target.value)} required />
-                </div>
-
-                <div>
-                  <label className="form-label">Contact</label>
-                  <input className="crm-input" value={registerForm.phone} onChange={(e) => setRegisterField('phone', normalizeIndianPhone(e.target.value))} maxLength={10} placeholder="10-digit number" required />
-                </div>
-
-                <div>
-                  <label className="form-label">Alternate Contact</label>
-                  <input className="crm-input" value={registerForm.alternateContact} onChange={(e) => setRegisterField('alternateContact', normalizeIndianPhone(e.target.value))} maxLength={10} placeholder="10-digit number" />
-                </div>
-
-                <div>
-                  <label className="form-label">Email Address</label>
-                  <input className="crm-input" type="email" value={registerForm.email} onChange={(e) => setRegisterField('email', e.target.value)} onBlur={(e) => setRegisterField('email', normalizeEmail(e.target.value))} required />
-                </div>
-
-                <div>
-                  <label className="form-label">Password</label>
-                  <input className="crm-input" type="password" value={registerForm.password} onChange={(e) => setRegisterField('password', e.target.value)} required />
-                </div>
-
-                <div style={{ gridColumn:'1 / -1' }}>
-                  <label className="form-label">Role</label>
-                  <SearchableSelect
-                    name="role"
-                    value={registerForm.role}
-                    onChange={(value) => setRegisterField('role', value)}
-                    options={toOptions(REGISTER_ROLES)}
-                    placeholder="Select role..."
-                    searchPlaceholder="Search role..."
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">Permanent Address</label>
-                  <input className="crm-input" value={registerForm.permanentAddress} onChange={(e) => setRegisterField('permanentAddress', e.target.value)} />
-                </div>
-
-                <div>
-                  <label className="form-label">Address</label>
-                  <input className="crm-input" value={registerForm.address} onChange={(e) => setRegisterField('address', e.target.value)} />
-                </div>
-
-                <div>
-                  <label className="form-label">State</label>
-                  <SearchableSelect
-                    name="state"
-                    value={registerForm.state}
-                    onChange={(value) => setRegisterField('state', value)}
-                    options={toOptions(STATE_OPTIONS)}
-                    placeholder="Select state..."
-                    searchPlaceholder="Search state..."
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">City</label>
-                  <SearchableSelect
-                    name="city"
-                    value={registerForm.city}
-                    onChange={(value) => setRegisterField('city', value)}
-                    options={toOptions(getCitiesForState(registerForm.state))}
-                    placeholder={registerForm.state ? 'Select city...' : 'Select state first'}
-                    searchPlaceholder="Search city..."
-                    noOptionsText={registerForm.state ? 'No cities found' : 'Select state first'}
-                    disabled={!registerForm.state}
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">Pincode</label>
-                  <input className="crm-input" value={registerForm.pincode} onChange={(e) => setRegisterField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} maxLength={6} />
-                </div>
-
-                <div>
-                  <label className="form-label">Date of Joining</label>
-                  <input className="crm-input" type="date" value={registerForm.dateOfJoining} onChange={(e) => setRegisterField('dateOfJoining', e.target.value)} />
-                </div>
-
-                <div style={{ gridColumn:'1 / -1' }}>
-                  <label className="form-label">Franchise</label>
-                  <select className="crm-input" value={registerForm.franchiseEnabled ? 'yes' : 'no'} onChange={(e) => setRegisterField('franchiseEnabled', e.target.value === 'yes')}>
-                    <option value="no">No Franchise</option>
-                    <option value="yes">Franchise Required</option>
-                  </select>
-                </div>
-
-                {registerForm.franchiseEnabled && (
-                  <>
-                    <div>
-                      <label className="form-label">Franchise Name</label>
-                      <input className="crm-input" value={registerForm.franchiseName} onChange={(e) => setRegisterField('franchiseName', e.target.value)} />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Franchise State</label>
-                      <SearchableSelect
-                        name="franchiseState"
-                        value={registerForm.franchiseState}
-                        onChange={(value) => setRegisterField('franchiseState', value)}
-                        options={toOptions(STATE_OPTIONS)}
-                        placeholder="Select state..."
-                        searchPlaceholder="Search state..."
-                      />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Franchise City</label>
-                      <SearchableSelect
-                        name="franchiseCity"
-                        value={registerForm.franchiseCity}
-                        onChange={(value) => setRegisterField('franchiseCity', value)}
-                        options={toOptions(getCitiesForState(registerForm.franchiseState))}
-                        placeholder={registerForm.franchiseState ? 'Select city...' : 'Select state first'}
-                        searchPlaceholder="Search city..."
-                        noOptionsText={registerForm.franchiseState ? 'No cities found' : 'Select state first'}
-                        disabled={!registerForm.franchiseState}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="form-label">Franchise Sub-District</label>
-                      <SearchableSelect
-                        name="franchiseSubDistrict"
-                        value={registerForm.franchiseSubDistrict}
-                        onChange={(value) => setRegisterField('franchiseSubDistrict', value)}
-                        options={toOptions(getSubDistrictOptions(registerForm.franchiseCity))}
-                        placeholder={registerForm.franchiseCity ? 'Select sub-district...' : 'Select city first'}
-                        searchPlaceholder="Search sub-district..."
-                        noOptionsText={registerForm.franchiseCity ? 'No sub-districts found' : 'Select city first'}
-                        disabled={!registerForm.franchiseCity}
-                      />
-                    </div>
-                  </>
-                )}
-
-                <div style={{ gridColumn:'1 / -1' }}>
-                  <label className="form-label">Documents</label>
-                  <input
-                    className="crm-input"
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-                    onChange={(e) => setRegisterField('documents', e.target.files?.[0] || null)}
-                  />
-                  {registerForm.documents && (
-                    <div style={{ marginTop:8 }}>
-                      <FilePreview file={registerForm.documents} label="Selected document" compact />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <button type="submit" className="btn btn-primary" style={{ width:'100%', justifyContent:'center', padding:13, fontSize:15, marginTop:16 }} disabled={registering}>
-                {registering ? 'Creating account...' : 'Register'}
-              </button>
-            </form>
+            <UserAccountForm onSubmit={handleRegister} onBusyChange={setRegistering} />
 
             <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--dim)' }}>
               Already have an account?{' '}
               <button
                 type="button"
+                disabled={registering}
                 onClick={() => setMode('login')}
                 style={{ background:'transparent', border:0, padding:0, color:'var(--sun)', cursor:'pointer', fontWeight:700 }}
               >

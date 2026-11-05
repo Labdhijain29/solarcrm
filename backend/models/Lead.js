@@ -31,6 +31,7 @@ const historySchema = new mongoose.Schema({
 }, { _id: false });
 
 const leadSchema = new mongoose.Schema({
+  sourceEnquiry: { type: mongoose.Schema.Types.ObjectId, ref: 'Enquiry', unique: true, sparse: true },
   leadId: { type: Number, unique: true, sparse: true, index: true },
   // ─── Customer Info ──────────────────────────────────────────
   name: { type: String, required: [true, 'Customer name is required'], trim: true },

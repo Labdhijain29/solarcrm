@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
-const { uploadFileAsset, withFreshFileUrl } = require('../services/storage/fileAsset');
+const { withFreshFileUrl } = require('../services/storage/fileAsset');
+const { createUserAccount, uploadUserDocument } = require('../services/userAccount');
 
 const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
 const signDocumentUploadToken = (id) => jwt.sign(
@@ -37,33 +38,6 @@ const buildSessionUser = async (user) => ({
   stageAccess: ROLE_STAGE_MAP[user.role],
   lastLogin: user.lastLogin,
 });
-
-const updateRegistrationDocument = async (userId, file) => {
-  const uploadedDocument = await uploadFileAsset(file, { folder: 'users/registrations' });
-  await User.findByIdAndUpdate(userId, {
-    documents: uploadedDocument.fileUrl,
-    documentsFile: uploadedDocument,
-    documentsUploadStatus: 'completed',
-    documentsUploadError: '',
-  });
-  return uploadedDocument;
-};
-
-const queueRegistrationDocumentUpload = (userId, file) => {
-  if (!file) return;
-
-  setImmediate(async () => {
-    try {
-      await updateRegistrationDocument(userId, file);
-    } catch (error) {
-      await User.findByIdAndUpdate(userId, {
-        documentsUploadStatus: 'failed',
-        documentsUploadError: String(error.message || 'Document upload failed').slice(0, 500),
-      }).catch(() => {});
-      console.error('Registration document upload failed:', error);
-    }
-  });
-};
 
 const SERVICE_MANAGER_DEMO = {
   name: 'Vikram Service',
@@ -126,68 +100,13 @@ exports.login = async (req, res) => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      password,
-      role,
-      phone,
-      alternateContact,
-      permanentAddress,
-      address,
-      state,
-      city,
-      pincode,
-      franchiseEnabled,
-      franchiseName,
-      franchiseState,
-      franchiseCity,
-      franchiseSubDistrict,
-      jobTitle,
-      resume,
-      documents,
-      dateOfJoining
-    } = req.body;
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-
-    const existing = await User.findOne({ email: normalizedEmail });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'Email already in use' });
-    }
-
-    const user = await User.create({
-      name,
-      email: normalizedEmail,
-      password,
-      role,
-      phone,
-      alternateContact,
-      permanentAddress,
-      address,
-      state,
-      city,
-      pincode,
-      franchiseEnabled,
-      franchiseName,
-      franchiseState,
-      franchiseCity,
-      franchiseSubDistrict,
-      jobTitle,
-      resume,
-      documents: req.file?.originalname || documents,
-      documentsUploadStatus: req.file ? 'processing' : 'none',
-      dateOfJoining: dateOfJoining || undefined,
-      isActive: false,
-      approvalStatus: 'pending',
-    });
+    const user = await createUserAccount({ body: req.body, file: req.file });
     const safe = await User.findById(user._id).select('-password');
 
     await User.updateMany(
       { role: 'Admin', isActive: true },
       { $push: { notifications: { message: `New registration pending approval: ${user.name} (${user.role})` } } }
     );
-
-    queueRegistrationDocumentUpload(user._id, req.file);
 
     res.status(201).json({
       success: true,
@@ -199,7 +118,8 @@ exports.register = async (req, res) => {
       documentUploadToken: signDocumentUploadToken(user._id),
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    const status = err.code === 11000 ? 409 : err.name === 'ValidationError' ? 422 : err.statusCode || 500;
+    res.status(status).json({ success: false, message: err.code === 11000 ? 'Email already in use' : err.message });
   }
 };
 
@@ -223,13 +143,7 @@ exports.uploadRegistrationDocumentFile = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Document upload is only available while registration is pending.' });
     }
 
-    await User.findByIdAndUpdate(user._id, {
-      documents: req.file.originalname,
-      documentsUploadStatus: 'processing',
-      documentsUploadError: '',
-    });
-
-    const uploadedDocument = await updateRegistrationDocument(user._id, req.file);
+    const uploadedDocument = await uploadUserDocument(user._id, req.file);
 
     res.json({
       success: true,

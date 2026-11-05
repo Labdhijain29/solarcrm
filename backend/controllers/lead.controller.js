@@ -1,5 +1,5 @@
 const Lead = require('../models/Lead');
-const Counter = require('../models/Counter');
+const { getNextLeadId } = require('../services/leadNumber');
 const Enquiry = require('../models/Enquiry');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
@@ -192,33 +192,6 @@ const getSalesExecutiveManager = async () => {
 const getSalesExecutiveAssignee = async (userId) => {
   if (!userId) return null;
   return User.findOne(assignableUserFilter({ _id: userId, role: 'Sales Executive' })).select('name role email');
-};
-
-const getNextLeadId = async () => {
-  let counter = await Counter.findById('leadId');
-  if (!counter) {
-    const maxLead = await Lead.findOne({ leadId: { $exists: true, $ne: null } })
-      .sort({ leadId: -1 })
-      .select('leadId')
-      .lean();
-
-    try {
-      counter = await Counter.create({
-        _id: 'leadId',
-        seq: Math.max(Number(maxLead?.leadId || 999), 999),
-      });
-    } catch (error) {
-      if (error.code !== 11000) throw error;
-    }
-  }
-
-  const updated = await Counter.findByIdAndUpdate(
-    'leadId',
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true }
-  );
-
-  return Math.max(Number(updated.seq || 0), 1000);
 };
 
 const assignableUserFilter = (extra = {}) => ({
