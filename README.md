@@ -132,6 +132,21 @@ Lead → Registration → Bank Approval → Loan Disbursement
 
 ## 🔌 API Endpoints
 
+### Frontend update checks
+
+Each production build emits `version.json` and embeds the same build ID in its JavaScript
+and the `app-build` HTML meta tag. A full page load checks the uncached version file before
+opening the app. If the loaded JavaScript belongs to another release, it reloads once with
+a version query marker, keeping the current route, filters and login data. Loop guards stop
+repeated reloads; unavailable metadata times out after three seconds and lets the app open.
+The check runs only on document startup, so it does not interrupt an open form.
+
+`frontend/vercel.json` disables browser/CDN caching for HTML routes and `version.json`.
+Content-hashed files under `/assets/` remain cacheable. Deploy the rebuilt frontend and its
+Vercel configuration together; these settings do not update browsers until deployment.
+
+Run the focused checks from `frontend` with `node --test tests/app-version.test.mjs`.
+
 ### Enquiry Executive
 
 Admin can add users from **Users → Add User**. This uses the same account form as public
