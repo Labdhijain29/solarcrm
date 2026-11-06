@@ -9,6 +9,8 @@ import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
+const DEFAULT_CONVERSION_FILTER = 'not-converted'
+const isConverted = (enquiry) => Boolean(enquiry.convertedTo) || enquiry.status === 'converted'
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
@@ -34,6 +36,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   const [editForm, setEditForm] = useState(emptyEditForm)
   const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
+  const [conversionFilter, setConversionFilter] = useState(DEFAULT_CONVERSION_FILTER)
   const [sortBy, setSortBy] = useState('latest')
   const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const [convertingId, setConvertingId] = useState('')
@@ -140,6 +143,8 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
 
   const filteredEnquiries = enquiries
     .filter((enquiry) => {
+      if (conversionFilter === 'not-converted' && isConverted(enquiry)) return false
+      if (conversionFilter === 'converted' && !isConverted(enquiry)) return false
       const q = search.toLowerCase()
       if (!q) return true
       return enquiry.name?.toLowerCase().includes(q) || String(enquiry.contact || enquiry.phone || '').includes(q)
@@ -153,10 +158,11 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     })
 
-  const hasActiveFilters = search.trim() !== '' || sortBy !== 'latest'
+  const hasActiveFilters = search.trim() !== '' || sortBy !== 'latest' || conversionFilter !== DEFAULT_CONVERSION_FILTER
 
   const resetFilters = () => {
     setSearch('')
+    setConversionFilter(DEFAULT_CONVERSION_FILTER)
     setSortBy('latest')
   }
 
@@ -164,13 +170,18 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
 
   return (
     <div className={embedded ? undefined : 'dashboard-page'}>
-      <PageHeader icon={<FaBell />} title={isExecutive ? 'Enquiries' : 'Website Enquiries'} subtitle={`${enquiries.length} enquiries visible for ${user?.role || 'your role'}`}
+      <PageHeader icon={<FaBell />} title={isExecutive ? 'Enquiries' : 'Website Enquiries'} subtitle={`${filteredEnquiries.length} enquiries visible for ${user?.role || 'your role'}`}
         action={isExecutive ? <button type="button" className="btn btn-primary" onClick={() => setShowEnquiryForm(true)}>Enquiry Form</button> : undefined} />
 
       <div className="dashboard-table-filters" style={{ marginBottom:16 }}>
         <div className="dashboard-search">
           <input className="crm-input" placeholder="Search by name or number..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <select className="crm-input" aria-label="Conversion status" style={{ width:'auto' }} value={conversionFilter} onChange={(e) => setConversionFilter(e.target.value)}>
+          <option value="not-converted">Not Converted</option>
+          <option value="converted">Converted</option>
+          <option value="all">All</option>
+        </select>
         <select className="crm-input" style={{ width:'auto' }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
           <option value="latest">Latest</option>
           <option value="oldest">Oldest</option>
@@ -282,8 +293,8 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         {!error && filteredEnquiries.length === 0 && (
           <EmptyState
             icon={<FaBell />}
-            title={enquiries.length === 0 ? 'No enquiries yet' : 'No enquiries match these filters'}
-            subtitle={hasActiveFilters ? 'Change or reset the filters to see enquiries again' : 'Website enquiries will appear here as soon as customers submit the form.'}
+            title={enquiries.length === 0 ? 'No enquiries yet' : conversionFilter === DEFAULT_CONVERSION_FILTER && !search.trim() ? 'No not converted enquiries' : 'No enquiries match these filters'}
+            subtitle={enquiries.length === 0 ? 'Website enquiries will appear here as soon as customers submit the form.' : 'Change the conversion filter or search to see other enquiries.'}
           />
         )}
       </div>
