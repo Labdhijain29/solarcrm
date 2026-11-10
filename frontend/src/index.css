@@ -2962,6 +2962,109 @@ textarea.crm-input { resize: vertical; }
   }
 }
 
+.enquiry-due-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.enquiry-due-card {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.enquiry-due-card:hover,
+.enquiry-due-card.active { border-color: currentColor; background: var(--card2); }
+.enquiry-due-card strong { font-size: 24px; line-height: 1; }
+.enquiry-due-card span { font-size: 13px; font-weight: 700; }
+.enquiry-due-card small { font-size: 11px; color: var(--muted); }
+.enquiry-due-card.follow-up-overdue { color: var(--red); }
+.enquiry-due-card.follow-up-today { color: var(--orange); }
+.enquiry-due-card.follow-up-upcoming { color: var(--blue); }
+
+.enquiry-due-label {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 5px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--bg3);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: normal;
+}
+.enquiry-due-label.follow-up-overdue { color: var(--red); background: rgba(239,68,68,.12); }
+.enquiry-due-label.follow-up-today { color: var(--orange); background: rgba(249,115,22,.12); }
+.enquiry-due-label.follow-up-upcoming { color: var(--blue); background: rgba(59,130,246,.12); }
+
+.enquiry-follow-up-modal { max-width: 760px; }
+.enquiry-follow-up-header,
+.enquiry-follow-up-entry-head,
+.enquiry-follow-up-submit {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.enquiry-follow-up-header h2 { font-size: 21px; overflow-wrap: anywhere; }
+.enquiry-follow-up-contact { color: var(--muted); font-size: 12px; margin-top: 5px; }
+.enquiry-follow-up-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  font-size: 13px;
+}
+.enquiry-follow-up-current.follow-up-overdue { color: var(--red); }
+.enquiry-follow-up-current.follow-up-today { color: var(--orange); }
+.enquiry-follow-up-current.follow-up-upcoming { color: var(--blue); }
+.enquiry-follow-up-form { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.enquiry-follow-up-form h3,
+.enquiry-follow-up-history h3 { font-size: 16px; }
+.enquiry-follow-up-form .form-label { margin-bottom: 5px; }
+.enquiry-follow-up-choice { display: flex; flex-wrap: wrap; gap: 12px 20px; font-size: 12px; }
+.enquiry-follow-up-choice label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.enquiry-follow-up-submit { align-items: center; }
+.enquiry-follow-up-submit span { color: var(--muted); font-size: 11px; }
+.enquiry-follow-up-history { margin-top: 20px; }
+.enquiry-follow-up-history h3 span,
+.enquiry-follow-up-history > p { color: var(--muted); font-size: 12px; }
+.enquiry-follow-up-history > p { margin-top: 10px; }
+.enquiry-follow-up-timeline { list-style: none; display: grid; gap: 10px; margin-top: 12px; }
+.enquiry-follow-up-timeline li { border-left: 3px solid var(--sun); background: var(--bg2); border-radius: 0 9px 9px 0; padding: 11px 13px; }
+.enquiry-follow-up-entry-head { font-size: 12px; }
+.enquiry-follow-up-entry-head span,
+.enquiry-follow-up-timeline small { color: var(--muted); font-size: 11px; }
+.enquiry-follow-up-timeline p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 7px 0; font-size: 13px; }
+
+@media (max-width: 600px) {
+  .enquiry-due-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .enquiry-due-card { padding: 10px; }
+  .enquiry-due-card strong { font-size: 20px; }
+  .enquiry-due-card span { font-size: 11px; }
+  .enquiry-due-card small { display: none; }
+  .enquiry-follow-up-header,
+  .enquiry-follow-up-entry-head,
+  .enquiry-follow-up-submit { flex-direction: column; }
+  .enquiry-follow-up-submit .btn { width: 100%; justify-content: center; }
+}
+
 @media print {
   .app-sidebar,
   .app-topbar,

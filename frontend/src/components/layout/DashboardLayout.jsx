@@ -3,7 +3,8 @@ import { Outlet, useNavigate, NavLink } from 'react-router-dom'
 import { FaBan, FaBell, FaBoxOpen, FaBriefcase, FaClipboardList, FaCog, FaExchangeAlt, FaFileInvoice, FaHome, FaMoneyBillWave, FaMoon, FaRegBuilding, FaShippingFast, FaSolarPanel, FaSun, FaTachometerAlt, FaUser, FaUsers, FaUserTie, FaWarehouse, FaWrench } from 'react-icons/fa'
 import { useAuthStore, useAppStore } from '../../store'
 import { ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
-import { usersAPI } from '../../services/api'
+import { enquiriesAPI, usersAPI } from '../../services/api'
+import { formatFollowUpDate } from '../../utils/enquiryFollowUp'
 import mahaveerSolarLogo from '../../assets/mahaveer-solar-logo.svg'
 
 const ADMIN_DASHBOARD_ITEMS = [
@@ -20,13 +21,15 @@ const ADMIN_DASHBOARD_ITEMS = [
   { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard' }
 ]
 
+const ENQUIRY_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager', 'Enquiry Executive']
+
 const COMMON_NAV_ITEMS = [
   { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard', roles: ['Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/stock-manager', icon: FaWarehouse, label: 'Stock Manager Dashboard' },
   { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
   { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/rejected-leads', icon: FaBan, label: 'Rejected Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
-  { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager', 'Enquiry Executive'] },
+  { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ENQUIRY_ROLES },
   { to: '/dashboard/inventory', icon: FaBoxOpen, label: 'Inventory', roles: ['Admin', 'Stock Manager', 'Dispatch Manager'] },
   { to: '/dashboard/users', icon: FaUsers, label: 'Users', roles: ['Admin'] },
   { to: '/dashboard/profile', icon: FaUser, label: 'Profile', roles: null },
@@ -79,6 +82,7 @@ export default function DashboardLayout() {
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme, sidebarOpen, toggleSidebar, closeSidebar, notifications, unreadCount, setNotifications } = useAppStore()
   const [showNotifications, setShowNotifications] = useState(false)
+  const [dueFollowUps, setDueFollowUps] = useState({ total: 0, items: [], today: '' })
   const [showUserMenu, setShowUserMenu] = useState(false)
   const navigate = useNavigate()
   const notificationsRef = useRef(null)
@@ -87,6 +91,7 @@ export default function DashboardLayout() {
   const visibleNav = COMMON_NAV_ITEMS.filter(item => user?.role === 'Enquiry Executive'
     ? ['/dashboard/enquiries', '/dashboard/profile'].includes(item.to)
     : !item.roles || item.roles.includes(user?.role))
+  const canViewEnquiries = ENQUIRY_ROLES.includes(user?.role)
   const showAdminDashboards = user?.role === 'Admin'
   const ThemeIcon = theme === 'dark' ? FaSun : FaMoon
 
@@ -107,6 +112,24 @@ export default function DashboardLayout() {
     const timer = setInterval(loadNotifications, 30000)
     return () => clearInterval(timer)
   }, [user?._id])
+
+  useEffect(() => {
+    if (!canViewEnquiries) return undefined
+    const loadDueFollowUps = () => {
+      enquiriesAPI.getDueFollowUps()
+        .then((response) => setDueFollowUps(response.data.data || { total: 0, items: [], today: '' }))
+        .catch(() => {})
+    }
+    loadDueFollowUps()
+    const timer = setInterval(loadDueFollowUps, 60000)
+    window.addEventListener('focus', loadDueFollowUps)
+    window.addEventListener('enquiry-follow-ups-changed', loadDueFollowUps)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', loadDueFollowUps)
+      window.removeEventListener('enquiry-follow-ups-changed', loadDueFollowUps)
+    }
+  }, [canViewEnquiries, user?._id])
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -184,6 +207,9 @@ export default function DashboardLayout() {
             <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={closeSidebar}>
               <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700, display:'flex', justifyContent:'center' }}><item.icon /></span>
               <span>{item.label}</span>
+              {item.to === '/dashboard/enquiries' && dueFollowUps.total > 0 && (
+                <span className="badge badge-sun" style={{ marginLeft:'auto' }} title="Follow-ups due today or earlier">{dueFollowUps.total > 99 ? '99+' : dueFollowUps.total}</span>
+              )}
             </NavLink>
           ))}
         </div>
@@ -225,9 +251,9 @@ export default function DashboardLayout() {
             <div ref={notificationsRef} style={{ position:'relative' }}>
               <button className="btn btn-ghost btn-icon" onClick={toggleNotifications} title="Notifications" style={{ position:'relative' }}>
                 <FaBell />
-                {unreadCount > 0 && (
+                {unreadCount + dueFollowUps.total > 0 && (
                   <span style={{ position:'absolute', top:-4, right:-4, minWidth:16, height:16, borderRadius:999, background:'var(--red)', color:'#fff', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 4px' }}>
-                    {unreadCount}
+                    {unreadCount + dueFollowUps.total > 99 ? '99+' : unreadCount + dueFollowUps.total}
                   </span>
                 )}
               </button>
@@ -235,8 +261,20 @@ export default function DashboardLayout() {
                 <div style={{ position:'absolute', right:0, top:44, width:320, maxWidth:'calc(100vw - 32px)', background:'var(--card)', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 20px 45px rgba(0,0,0,.25)', zIndex:120, overflow:'hidden' }}>
                   <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700 }}>Notifications</div>
                   <div style={{ maxHeight:320, overflowY:'auto' }}>
+                    {canViewEnquiries && dueFollowUps.total > 0 && (
+                      <button type="button" className="dashboard-user-menu-item" style={{ display:'block', borderBottom:'1px solid var(--border)' }}
+                        onClick={() => { setShowNotifications(false); navigate('/dashboard/enquiries?followUp=due') }}>
+                        <strong>{dueFollowUps.total} follow-up{dueFollowUps.total === 1 ? '' : 's'} need attention</strong>
+                        <span style={{ display:'block', color:'var(--muted)', fontSize:11, marginTop:4 }}>See follow-ups due today or earlier</span>
+                        {(dueFollowUps.items || []).slice(0, 3).map((item) => (
+                          <span key={item._id} style={{ display:'block', fontSize:11, marginTop:6 }}>
+                            {item.name} · {formatFollowUpDate(item.nextFollowUpDate)}
+                          </span>
+                        ))}
+                      </button>
+                    )}
                     {notifications.length === 0 ? (
-                      <div style={{ padding:16, fontSize:12, color:'var(--muted)' }}>No notifications yet.</div>
+                      <div style={{ padding:16, fontSize:12, color:'var(--muted)' }}>{dueFollowUps.total ? 'No other notifications.' : 'No notifications yet.'}</div>
                     ) : notifications.map((item) => (
                       <div key={item._id || item.createdAt} style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', background:item.read ? 'transparent' : 'rgba(245,158,11,.08)' }}>
                         <div style={{ fontSize:12, fontWeight:item.read ? 500 : 700 }}>{item.message}</div>

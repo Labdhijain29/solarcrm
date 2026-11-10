@@ -107,6 +107,8 @@ export const usersAPI = {
 // ─── ENQUIRIES ─────────────────────────────────────────────
 export const enquiriesAPI = {
   getAll: (params) => api.get('/enquiries', { params }),
+  getDueFollowUps: () => api.get('/enquiries/follow-ups/due'),
+  addFollowUp: (id, data) => api.post(`/enquiries/${id}/follow-ups`, data),
   create: (data) => api.post('/enquiries', data),
   convertToLead: (id) => api.post(`/enquiries/${id}/convert`),
   update: (id, data) => api.put(`/enquiries/${id}`, data),

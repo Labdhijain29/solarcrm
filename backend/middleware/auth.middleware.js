@@ -35,9 +35,9 @@ const isEnquiryExecutiveRequestAllowed = (req) => {
   const route = `${req.method} ${path}`;
   if (['GET /api/auth/me', 'PUT /api/auth/change-password', 'POST /api/auth/logout',
     'PUT /api/users/me', 'GET /api/users/notifications', 'PUT /api/users/notifications/read',
-    'GET /api/enquiries', 'POST /api/enquiries'].includes(route)) return true;
+    'GET /api/enquiries', 'POST /api/enquiries', 'GET /api/enquiries/follow-ups/due'].includes(route)) return true;
   return /^(PUT|DELETE) \/api\/enquiries\/[a-f\d]{24}$/i.test(route)
-    || /^POST \/api\/enquiries\/[a-f\d]{24}\/(convert|delete)$/i.test(route);
+    || /^POST \/api\/enquiries\/[a-f\d]{24}\/(convert|delete|follow-ups)$/i.test(route);
 };
 
 const optionalProtect = (req, res, next) => req.headers.authorization !== undefined

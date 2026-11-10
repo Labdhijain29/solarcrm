@@ -3,6 +3,7 @@ const Lead = require('../models/Lead');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { getNextLeadId } = require('../services/leadNumber');
+const { indiaToday, isValidFollowUpDate } = require('../services/enquiryFollowUp');
 
 const isServiceEnquiryType = (value = '') => value.trim().toLowerCase() === 'service enquiry';
 
@@ -23,6 +24,49 @@ exports.getEnquiries = async (req, res) => {
     if (req.query.status) q.status = req.query.status;
     const enquiries = await Enquiry.find(q).populate('assignedTo', 'name').sort({ createdAt: -1 });
     res.json({ success: true, data: enquiries });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};
+
+exports.getDueFollowUps = async (req, res) => {
+  try {
+    const today = indiaToday();
+    const visible = buildEnquiryQueryForRole(req.user);
+    const base = { ...visible, convertedTo: null, status: { $nin: ['converted', 'closed'] } };
+    const [dueToday, overdue, items] = await Promise.all([
+      Enquiry.countDocuments({ ...base, nextFollowUpDate: today }),
+      Enquiry.countDocuments({ ...base, nextFollowUpDate: { $lt: today, $ne: null } }),
+      Enquiry.find({ ...base, nextFollowUpDate: { $lte: today, $ne: null } })
+        .select('name contact phone nextFollowUpDate enquiryType').sort({ nextFollowUpDate: 1, _id: 1 }).limit(8),
+    ]);
+    res.json({ success: true, data: { today, dueToday, overdue, total: dueToday + overdue, items } });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};
+
+exports.addFollowUp = async (req, res) => {
+  try {
+    const note = String(req.body.note || '').trim();
+    const completed = req.body.completed === true;
+    const dueDate = completed ? null : req.body.dueDate;
+    if (!note || note.length > 2000) {
+      return res.status(400).json({ success: false, message: 'Write a note of up to 2,000 characters.' });
+    }
+    if (!completed && (!isValidFollowUpDate(dueDate) || dueDate < indiaToday())) {
+      return res.status(400).json({ success: false, message: 'Choose today or a later date for the reminder.' });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid enquiry ID.' });
+    }
+    const followUp = {
+      _id: new mongoose.Types.ObjectId(), note, dueDate, completed,
+      createdBy: req.user._id, createdByName: req.user.name, createdAt: new Date(),
+    };
+    const enquiry = await Enquiry.findOneAndUpdate({
+      ...buildEnquiryQueryForRole(req.user), _id: req.params.id,
+      convertedTo: null, status: { $nin: ['converted', 'closed'] }, pendingConversion: null,
+    }, { $push: { followUps: followUp }, $set: { nextFollowUpDate: dueDate }, $inc: { __v: 1 } },
+    { new: true, runValidators: true });
+    if (!enquiry) return res.status(404).json({ success: false, message: 'Enquiry is unavailable, closed, or already converted.' });
+    res.status(201).json({ success: true, message: completed ? 'Follow-up saved. Reminder removed.' : 'Follow-up and date saved.', data: enquiry });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
@@ -105,7 +149,7 @@ exports.convertToLead = async (req, res) => {
     }
     const finalized = await Enquiry.findOneAndUpdate({
       _id: enquiry._id, 'pendingConversion.leadData._id': leadData._id,
-    }, { $set: { status: 'converted', convertedTo: lead._id }, $unset: { pendingConversion: 1 } }, { new: true });
+    }, { $set: { status: 'converted', convertedTo: lead._id, nextFollowUpDate: null }, $unset: { pendingConversion: 1 } }, { new: true });
     if (finalized && notifyManager) {
       await User.findByIdAndUpdate(lead.assignedTo, {
         $push: { notifications: { message: `Enquiry converted: ${lead.name} is ready in your Leads queue` } },
@@ -135,6 +179,7 @@ exports.updateEnquiry = async (req, res) => {
       updates.contact = normalizedContact;
       updates.phone = normalizedContact;
     }
+    if (['converted', 'closed'].includes(updates.status)) updates.nextFollowUpDate = null;
 
     const enquiry = await Enquiry.findOneAndUpdate(mutationQuery(req), { $set: updates, $inc: { __v: 1 } }, { new: true, runValidators: true });
     if (!enquiry) return mutationDenied(res);

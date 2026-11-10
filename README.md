@@ -180,6 +180,34 @@ cd backend
 node --test tests/enquiry-executive.test.js
 ```
 
+### Enquiry follow-ups
+
+All roles with the Enquiries tab can submit an enquiry and record a follow-up on any
+enquiry visible to that role. Sales roles continue to see non-service enquiries;
+Service Manager sees service enquiries. Follow-ups are a shared, append-only
+conversation history, including the note, next date, recording user and time.
+The last saved follow-up sets the current due date, even when its date is earlier
+than a previously entered date. Marking a follow-up complete clears that date;
+conversion or closing the enquiry also stops outstanding reminders while retaining
+the history. Follow-up access does not change enquiry edit/delete or lead permissions.
+
+The Enquiries screen shows Overdue, Due Today and Upcoming counts and filters.
+The navigation and notification bell show outstanding follow-ups when the app is
+open. Dates use the India calendar day. The due summary is read from the database
+on load, focus and periodically; it does not send email, WhatsApp or browser push.
+The shared view is at `/dashboard/enquiries` and Admin's embedded view is at
+`/dashboard/admin?tab=enquiries`.
+
+The API adds `POST /api/enquiries/:id/follow-ups` and
+`GET /api/enquiries/follow-ups/due`. Follow-up entry fields are `note`, `dueDate`
+(`YYYY-MM-DD`), and `completed`; actor identity is taken from authentication.
+
+Run the isolated follow-up and permission checks from `backend`:
+
+```bash
+node --test tests/enquiry-follow-up.test.js tests/enquiry-executive.test.js
+```
+
 ### Auth
 
 ```

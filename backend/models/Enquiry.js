@@ -18,6 +18,17 @@ const enquirySchema = new mongoose.Schema({
   convertedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', default: null },
   assignedTo:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   notes:       { type: String, default: '' },
+  nextFollowUpDate: { type: String, default: null }, // YYYY-MM-DD in India; the latest saved entry wins.
+  followUps: [{
+    note: { type: String, required: true, trim: true, maxlength: 2000 },
+    dueDate: { type: String, default: null },
+    completed: { type: Boolean, default: false },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdByName: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  }],
 }, { timestamps: true });
+
+enquirySchema.index({ nextFollowUpDate: 1, status: 1, convertedTo: 1 });
 
 module.exports = mongoose.model('Enquiry', enquirySchema);
