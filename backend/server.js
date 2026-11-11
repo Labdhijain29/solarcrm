@@ -156,6 +156,17 @@ app.use((err, req, res, next) => {
 // ─── Start Server ─────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
+const https = require('https');
+
+setInterval(() => {
+  https.get("https://api.mahavirsolar.com/api", (res) => {
+    console.log(`Pinged! Status: ${res.statusCode} at ${new Date().toLocaleString()}`);
+  }).on('error', (e) => {
+    console.error(`Ping failed: ${e.message}`);
+  });
+}, 11 * 60 * 1000);
+
+
 app.listen(PORT, () => {
   console.log(`🚀 SolarCRM Backend running on http://localhost:${PORT}`);
   console.log(`📄 Environment: ${process.env.NODE_ENV}`);
