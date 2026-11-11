@@ -164,7 +164,7 @@ setInterval(() => {
   }).on('error', (e) => {
     console.error(`Ping failed: ${e.message}`);
   });
-}, 11 * 60 * 1000);
+}, 13 * 60 * 1000);
 
 
 app.listen(PORT, () => {
