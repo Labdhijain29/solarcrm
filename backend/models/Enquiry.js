@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { ivrsField, ivrsIndexOptions } = require('../services/ivrsUniqueness');
 
 const enquirySchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -7,6 +8,7 @@ const enquirySchema = new mongoose.Schema({
   name:        { type: String, required: true, trim: true },
   contact:     { type: String, required: true, trim: true },
   phone:       { type: String, trim: true, default: '' },
+  ivrsNo:      { ...ivrsField },
   email:       { type: String, trim: true, lowercase: true, default: '' },
   address:     { type: String, trim: true, default: '' },
   enquiryType: { type: String, required: true, trim: true },
@@ -30,5 +32,6 @@ const enquirySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 enquirySchema.index({ nextFollowUpDate: 1, status: 1, convertedTo: 1 });
+enquirySchema.index({ ivrsNo: 1 }, ivrsIndexOptions);
 
 module.exports = mongoose.model('Enquiry', enquirySchema);

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getPublicFileUrl } from '../utils/files'
+import { validationMessage } from '../utils/contactValidation'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -44,6 +45,11 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const requestUrl = String(error.config?.url || '')
+    if (/\/(leads|enquiries)(\/|$)/.test(requestUrl)) {
+      const message = validationMessage(error.response?.data)
+      if (message) error.response.data.message = message
+    }
     if (shouldRedirectToLogin(error)) {
       localStorage.removeItem('solar_token')
       localStorage.removeItem('solar_user')
@@ -82,6 +88,7 @@ export const leadsAPI = {
   transfer: (id, data) => api.post(`/leads/${id}/transfer`, data),
   reassign: (id, data) => api.post(`/leads/${id}/reassign`, data),
   addNote: (id, note) => api.post(`/leads/${id}/note`, { note }),
+  setStatus: (id, data) => api.post(`/leads/${id}/status`, data),
   delete: (id) => api.delete(`/leads/${id}`),
 }
 

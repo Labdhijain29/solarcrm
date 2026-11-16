@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { FaBoxOpen, FaChartBar, FaCheck, FaDownload, FaEdit, FaExclamationTriangle, FaFilePdf, FaMinus, FaPlus, FaSearch, FaShippingFast, FaTrash, FaWarehouse } from 'react-icons/fa'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -6,6 +6,7 @@ import { dispatchAPI, leadsAPI, productAPI } from '../../services/api'
 import { EmptyState, MetricCard, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import DispatchBillView from '../../components/dashboard/DispatchBillView'
 import LeadModal from '../../components/dashboard/LeadModal'
+import DispatchLeadQueue from '../../components/dashboard/DispatchLeadQueue'
 import { useAuthStore } from '../../store'
 
 const MODULE_CATEGORY = 'MODULE'
@@ -531,6 +532,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
   const [products, setProducts] = useState([])
   const [dispatches, setDispatches] = useState([])
   const [dispatchLeads, setDispatchLeads] = useState([])
+  const [leadStatusFilter, setLeadStatusFilter] = useState('active')
+  const loadRequestId = useRef(0)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [productFormOpen, setProductFormOpen] = useState(false)
@@ -567,22 +570,24 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
   }, [tab, visibleTabs])
 
   const loadData = () => {
+    const requestId = ++loadRequestId.current
     setLoading(true)
     const productFilters = tab === 'stock' ? filters : {}
     Promise.all([
       productAPI.getAll(productFilters),
       dispatchAPI.getAll(),
       productAPI.getStats(),
-      leadsAPI.getAll({ stage: 'Dispatch' }),
+      leadsAPI.getAll({ stage: 'Dispatch', status: 'active,on-hold' }),
     ])
       .then(([productRes, dispatchRes, statsRes, leadRes]) => {
+        if (requestId !== loadRequestId.current) return
         setProducts(productRes.data.data || [])
         setDispatches(dispatchRes.data.data || [])
         setStats(statsRes.data.data || null)
         setDispatchLeads(leadRes.data.data || [])
       })
-      .catch((err) => toast.error(err.response?.data?.message || 'Inventory load failed'))
-      .finally(() => setLoading(false))
+      .catch((err) => { if (requestId === loadRequestId.current) toast.error(err.response?.data?.message || 'Inventory load failed') })
+      .finally(() => { if (requestId === loadRequestId.current) setLoading(false) })
   }
 
   useEffect(() => {
@@ -640,8 +645,8 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
   }, [dispatches, leadSearch])
 
   const activeDispatchLeads = useMemo(
-    () => dispatchLeads.filter(lead => lead.status === 'active' && lead.currentStage === 'Dispatch'),
-    [dispatchLeads]
+    () => dispatchLeads.filter(lead => ['active', 'on-hold'].includes(lead.status) && lead.currentStage === 'Dispatch' && (leadStatusFilter === 'All' || lead.status === leadStatusFilter)),
+    [dispatchLeads, leadStatusFilter]
   )
 
   const pendingDispatches = useMemo(
@@ -1317,6 +1322,11 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
         ))}
       </div>
 
+      {canDispatch && (tab === 'dashboard' || (isDispatchDashboard && tab === 'dispatch')) && (
+        <DispatchLeadQueue leads={activeDispatchLeads} status={leadStatusFilter} onStatusChange={setLeadStatusFilter}
+          onUpdated={loadData} onView={setSelectedLead} onBill={openDispatchBill} />
+      )}
+
       {tab === 'dashboard' && (
         <>
           <div className="dashboard-grid-metrics">
@@ -1325,62 +1335,6 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
             <MetricCard icon={<FaExclamationTriangle />} label="Low Stock" value={summary.lowStockCount} change="< 10 threshold" changeColor="var(--red)" />
             <MetricCard icon={<FaShippingFast />} label="Material Dispatched" value={summary.totalDispatched} change="All dispatches" changeColor="var(--green)" />
           </div>
-
-          {canDispatch && (
-            <div className="crm-card" style={{ marginBottom:16 }}>
-              <div className="dashboard-split-row" style={{ marginBottom:16 }}>
-                <h3 style={{ fontSize:15, fontWeight:700 }}>Leads at Dispatch ({activeDispatchLeads.length})</h3>
-                <button className="btn btn-primary btn-sm" onClick={() => openDispatchBill()}><FaShippingFast /> New Bill</button>
-              </div>
-              {activeDispatchLeads.length === 0 ? (
-                <EmptyState title="No leads pending at Dispatch" />
-              ) : (
-                <div className="crm-table-wrap">
-                  <table className="crm-table">
-                    <thead><tr><th>Customer</th><th>Phone / IVRS</th><th>City</th><th>Capacity</th><th>Action</th></tr></thead>
-                    <tbody>
-                      {activeDispatchLeads.map(lead => (
-                        <tr key={lead._id}>
-                          <td><strong>{lead.name}</strong><div style={{ fontSize:11, color:'var(--muted)' }}>{lead._id.slice(-6)}</div></td>
-                          <td>{lead.phone}<div style={{ fontSize:11, color:'var(--muted)' }}>{lead.ivrsNo || '-'}</div></td>
-                          <td>{lead.city || '-'}</td>
-                          <td>{lead.capacity || '-'}</td>
-                          <td>
-                            <div className="dashboard-inline-actions">
-                              <button className="btn btn-ghost btn-sm" onClick={() => setSelectedLead(lead)}>View / Approve</button>
-                              <button className="btn btn-secondary btn-sm" onClick={() => openDispatchBill(lead)}>
-                                Create Bill
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="crm-mobile-cards">
-                    {activeDispatchLeads.map(lead => (
-                      <div key={lead._id} className="crm-mobile-card">
-                        <div className="dashboard-split-row" style={{ marginBottom:10 }}>
-                          <div style={{ minWidth:0 }}>
-                            <strong>{lead.name}</strong>
-                            <div style={{ fontSize:11, color:'var(--muted)' }}>{lead._id.slice(-6)}</div>
-                          </div>
-                          <span className="badge badge-blue">{lead.capacity || 'No capacity'}</span>
-                        </div>
-                        <div className="crm-mobile-row"><span className="crm-mobile-label">Phone</span><span>{lead.phone || '-'}</span></div>
-                        <div className="crm-mobile-row"><span className="crm-mobile-label">IVRS</span><span>{lead.ivrsNo || '-'}</span></div>
-                        <div className="crm-mobile-row"><span className="crm-mobile-label">City</span><span>{lead.city || '-'}</span></div>
-                        <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => setSelectedLead(lead)}>View / Approve</button>
-                          <button className="btn btn-secondary btn-sm" onClick={() => openDispatchBill(lead)}>Create Bill</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="dashboard-grid-two">
             <div className="crm-card">
@@ -1423,7 +1377,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
       )}
 
       {tab === 'stock' && (
-        <div className="crm-card">
+        <div className="crm-card compact-list-region">
           {stockReceipt && (
             <div className="crm-card-sm" style={{ marginBottom:16, borderColor:'rgba(16,185,129,.35)', background:'rgba(16,185,129,.06)' }}>
               <div className="dashboard-split-row" style={{ marginBottom:10 }}>
@@ -1460,17 +1414,13 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
             <button className="btn btn-ghost btn-sm" onClick={exportCsv}><FaDownload /> Excel CSV</button>
           </div>
 
-          <div className="crm-table-wrap">
-            <table className="crm-table">
-              <thead><tr><th>Item Name</th><th>Category</th><th>Brand</th><th>Type</th><th>Capacity</th><th>Quantity</th><th>Status</th><th>Action</th></tr></thead>
+          <div className="crm-table-wrap compact-table-wrap">
+            <table className="crm-table compact-dashboard-table">
+              <thead><tr><th>Product</th><th>Quantity</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {stockSectionProducts.map(product => (
                   <tr key={product._id} style={recentlyAddedProductIds.has(String(product._id)) ? { background:'rgba(16,185,129,.06)' } : undefined}>
-                    <td>{product.name}</td>
-                    <td>{product.category}</td>
-                    <td>{product.brand || '-'}</td>
-                    <td>{product.type || '-'}</td>
-                    <td>{product.capacity || '-'}</td>
+                    <td><strong>{product.name}</strong><div className="compact-secondary">{[product.category, product.brand, product.type, product.capacity].filter(Boolean).join(' · ')}</div></td>
                     <td>{product.quantity} {product.unit}</td>
                     <td><span className={`badge ${statusClass(product)}`}>{product.status}</span></td>
                     <td>
@@ -1483,6 +1433,18 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                 ))}
               </tbody>
             </table>
+            <div className="crm-mobile-cards">
+              {stockSectionProducts.map(product => <div key={product._id} className="crm-mobile-card">
+                <strong>{product.name}</strong>
+                <div className="compact-secondary">{[product.category, product.brand, product.type, product.capacity].filter(Boolean).join(' · ')}</div>
+                <div className="crm-mobile-row"><span className="crm-mobile-label">Quantity</span><span>{product.quantity} {product.unit}</span></div>
+                <div className="crm-mobile-row"><span className="crm-mobile-label">Status</span><span className={`badge ${statusClass(product)}`}>{product.status}</span></div>
+                {canManageStock && <div className="dashboard-inline-actions" style={{ marginTop: 12 }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => openEditProduct(product)}>Update</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => deleteProduct(product)} aria-label={`Delete ${product.name}`}><FaTrash /></button>
+                </div>}
+              </div>)}
+            </div>
           </div>
         </div>
       )}
@@ -1677,7 +1639,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
             </div>
           )}
 
-          <div className="crm-card">
+          <div className="crm-card compact-list-region">
             <div className="dashboard-split-row" style={{ marginBottom:16 }}>
               <div>
                 <h3 style={{ fontSize:15, fontWeight:700 }}>Dispatch Bills</h3>
@@ -1688,20 +1650,19 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
             {!dispatches.length ? (
               <EmptyState title="No dispatch bills yet" subtitle="Create a bill to reserve stock and start approval." />
             ) : (
-              <div className="crm-table-wrap">
-                <table className="crm-table">
-                  <thead><tr><th>Bill / Customer</th><th>Status</th><th>Engineer</th><th>Items List</th><th>Qty</th><th>Total</th><th>Date</th><th>Action</th></tr></thead>
+              <div className="crm-table-wrap compact-table-wrap">
+                <table className="crm-table compact-dashboard-table">
+                  <thead><tr><th>Bill / Customer</th><th>Status</th><th>Materials</th><th>Total</th><th>Date</th><th>Actions</th></tr></thead>
                   <tbody>
                     {dispatches.map(dispatch => (
                       <tr key={dispatch._id}>
                         <td>
                           <strong>{dispatch.billNo || '-'}</strong>
                           <div style={{ fontSize:11, color:'var(--muted)' }}>{dispatch.customerName} | {dispatch.leadId || dispatch.mobile}</div>
+                          <div className="compact-secondary">Engineer: {dispatch.engineerName || '-'}</div>
                         </td>
                         <td><span className={`badge ${getApprovalBadgeClass(dispatch.approvalStatus)}`}>{dispatch.approvalStatus}</span></td>
-                        <td>{dispatch.engineerName}</td>
-                        <td>{dispatch.items.map(item => `${item.productName} (${item.quantity} ${item.unit}, left ${item.remainingQuantity ?? '-'})`).join(', ')}</td>
-                        <td>{getDispatchTotalQuantity(dispatch)}</td>
+                        <td><div>{dispatch.items.length} items</div><div className="compact-secondary">Total qty: {getDispatchTotalQuantity(dispatch)}</div></td>
                         <td>Rs. {Number(dispatch.grandTotal || 0).toLocaleString('en-IN')}</td>
                         <td>{formatDate(dispatch.dispatchDate)}</td>
                         <td>
@@ -1739,7 +1700,7 @@ export default function InventoryDispatchPage({ defaultTab = 'dashboard', dashbo
                       <div className="crm-mobile-row"><span className="crm-mobile-label">Qty</span><span>{getDispatchTotalQuantity(dispatch)}</span></div>
                       <div className="crm-mobile-row"><span className="crm-mobile-label">Total</span><span>Rs. {Number(dispatch.grandTotal || 0).toLocaleString('en-IN')}</span></div>
                       <div className="crm-mobile-row"><span className="crm-mobile-label">Date</span><span>{formatDate(dispatch.dispatchDate)}</span></div>
-                      <div className="crm-mobile-row"><span className="crm-mobile-label">Items</span><span>{dispatch.items.map(item => `${item.productName} (${item.quantity} ${item.unit})`).join(', ')}</span></div>
+                      <div className="crm-mobile-row"><span className="crm-mobile-label">Items</span><span>{dispatch.items.length} items · Full list in View</span></div>
                       <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => setViewingDispatchBill(dispatch)}>
                           <FaSearch /> View

@@ -1,0 +1,14 @@
+16-11-2026 ke updates
+
+1. Note save karte hi ab Activity History mein dikhai deta hai.
+2. History ko stage ke hisaab se group kiya hai. Date, time aur details padhna aasaan hai. Zaroorat par poori history bhi dekh sakte hain.
+3. IVRS number dena optional hai. Diya hua number kisi doosri Lead ya Enquiry mein dobara use nahi ho sakta. Enquiry se Lead banane par number saath rahega.
+4. Form mein koi galti ho toh ab uski sahi wajah dikhai deti hai. 4 se shuru hone wala 10-digit phone number bhi accept hota hai.
+5. Lead aur Enquiry forms ko behtar tarah se arrange kiya hai. Badi screen par ek row mein 3 details dikhai deti hain.
+6. Edit karte waqt Save aur Cancel buttons aasani se dikhte hain. Save kiye bina form band karne par confirmation milta hai.
+7. View Details ko padhna aasaan banaya hai. Screen ke size ke hisaab se details 1, 2 ya 3 columns mein dikhai deti hain.
+8. Registration, Bank, Loan, Dispatch aur Installation dashboards par lead ko Active ya On Hold kiya ja sakta hai. Reason dena zaroori nahi hai.
+9. In dashboards par shuru mein sirf Active leads dikhengi. Filter se On Hold ya sabhi leads bhi dekh sakte hain.
+10. Lead, Stock aur Dispatch lists ko saaf aur chhota kiya hai, jisse side mein scroll kam karna pade. Chhoti screen par details aasaan cards mein dikhengi.
+
+Note: Ye updates abhi website par lagu nahi hue hain.

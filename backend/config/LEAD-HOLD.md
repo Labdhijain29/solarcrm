@@ -1,0 +1,7 @@
+Lead Hold applies to Registration, Bank Approval, Loan Disbursement, Dispatch and Installation. Only the assigned stage user or Admin can change Active to On Hold and back. Reasons are optional, limited to 2,000 characters, and recorded with actor/time in history. The endpoint does not change stage or assignment.
+
+The five dashboard lists default to Active. All means Active + On Hold, excluding Completed and Rejected. Dispatch uses its own lead queue, separate from invoice approval statuses such as Draft/Hold/Pending. Holding a lead does not rewrite invoice statuses or stock history.
+
+Stage/status transition endpoints and dispatch bill approval share a MongoDB lock in `lead_workflow_locks`, preventing concurrent hold/approve/reassign requests from crossing. Locks are released after success and errors; no TTL is used because an unfinished write must not be unlocked automatically. After a process crash, an abandoned lock may need recovery: stop all API workers, confirm no writer remains, inspect the lead and any linked dispatch bill, then remove only that abandoned lock. Do not clear locks while writes may still be running.
+
+No production migration or data rewrite is required. All application workers must run the new code together before enabling this UI; older workers do not participate in transition locking. Browser tests use intercepted APIs, and backend tests use disposable localhost databases.

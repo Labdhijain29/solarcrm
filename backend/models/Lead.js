@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { ivrsField, ivrsIndexOptions } = require('../services/ivrsUniqueness');
 
 const STAGES = [
   'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
@@ -18,7 +19,7 @@ const fileAssetSchema = new mongoose.Schema({
 
 const historySchema = new mongoose.Schema({
   stage: { type: String, enum: STAGES },
-  action: { type: String, enum: ['Created', 'In Progress', 'Approved', 'Rejected', 'Updated', 'Note Added', 'Completed', 'Transferred', 'Reassigned'] },
+  action: { type: String, enum: ['Created', 'In Progress', 'Approved', 'Rejected', 'Updated', 'Note Added', 'Completed', 'Transferred', 'Reassigned', 'On Hold', 'Resumed'] },
   performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   performedByName: String,
   previousStage: { type: String, enum: STAGES },
@@ -42,7 +43,7 @@ const leadSchema = new mongoose.Schema({
   state: { type: String, trim: true, default: '' },
   pincode: { type: String, trim: true, default: '' },
   branch: { type: String, trim: true, default: '' },
-  ivrsNo: { type: String, trim: true, default: '' },
+  ivrsNo: { ...ivrsField },
 
   // ─── Lead Info ───────────────────────────────────────────────
   source: {
@@ -188,13 +189,7 @@ const leadSchema = new mongoose.Schema({
 leadSchema.index({ currentStage: 1, status: 1 });
 leadSchema.index({ assignedTo: 1 });
 leadSchema.index({ createdAt: -1 });
-leadSchema.index(
-  { ivrsNo: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { ivrsNo: { $type: 'string', $ne: '' } }
-  }
-);
+leadSchema.index({ ivrsNo: 1 }, ivrsIndexOptions);
 leadSchema.index(
   { 'loanData.applicationId': 1 },
   {
@@ -231,6 +226,9 @@ leadSchema.methods.approveStage = function (userId, userName, note) {
   }
 
   // Update current stage history entry
+  if (['On Hold', 'Resumed'].includes(this.history[this.history.length - 1]?.action)) {
+    this.history.push({ stage: this.currentStage, action: 'In Progress', timestamp: new Date() });
+  }
   const lastHistory = this.history[this.history.length - 1];
   if (lastHistory && lastHistory.stage === this.currentStage) {
     lastHistory.action = 'Approved';
@@ -263,6 +261,9 @@ leadSchema.methods.approveStage = function (userId, userName, note) {
 // Method: reject stage
 leadSchema.methods.rejectStage = function (userId, userName, note) {
   this.status = 'rejected';
+  if (['On Hold', 'Resumed'].includes(this.history[this.history.length - 1]?.action)) {
+    this.history.push({ stage: this.currentStage, action: 'In Progress', timestamp: new Date() });
+  }
   const lastHistory = this.history[this.history.length - 1];
   if (lastHistory) {
     lastHistory.action = 'Rejected';

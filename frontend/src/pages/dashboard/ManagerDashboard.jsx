@@ -4,15 +4,18 @@ import { dispatchAPI, leadsAPI } from '../../services/api'
 import { FilePreview, MetricCard, PageHeader, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
+import { HOLD_STAGES } from '../../components/dashboard/LeadStatusToggle'
+import { FormActions, FormFields } from '../../components/common/FormLayout'
+import { hasFormChanges, useFormExit, useFormFeedback } from '../../hooks/useFormEditing'
 import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import EnquiriesPage from './EnquiriesPage'
 import { useAuthStore } from '../../store'
 import { CITIES, STAGES, ROLE_STAGE_MAP, stageColor } from '../../utils/constants'
 import toast from 'react-hot-toast'
 import { ALL_BRAND_OPTIONS } from './inventoryStructure'
+import { CONTACT_PHONE_REGEX as PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone as normalizePhone } from '../../utils/contactValidation'
 
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
-const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
 const IVRS_REGEX = /^[A-Za-z0-9]{1,15}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
@@ -53,7 +56,6 @@ const INITIAL_MANAGER_LEAD = {
   panCard: null,
   bankStatement: null,
 }
-const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const MANAGER_LEAD_QUERY = { stage: 'Lead', sort: 'latest' }
 const PIPELINE_QUERY = { sort: 'latest' }
@@ -115,6 +117,10 @@ export function ManagerDashboard() {
   const [showCreate, setShowCreate] = useState(false)
   const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const [newLead, setNewLead] = useState(INITIAL_MANAGER_LEAD)
+  const [creating, setCreating] = useState(false)
+  const createFeedback = useFormFeedback()
+  const requestCreateExit = useFormExit(showCreate && hasFormChanges(newLead, INITIAL_MANAGER_LEAD), creating)
+  const closeCreate = () => requestCreateExit(() => { setShowCreate(false); setNewLead(INITIAL_MANAGER_LEAD); createFeedback.resetErrors() })
   const leadRequestId = useRef(0)
   const { user } = useAuthStore()
 
@@ -174,13 +180,18 @@ export function ManagerDashboard() {
   }
 
   const createLead = async () => {
+    if (creating) return
     const phone = normalizePhone(newLead.phone)
-    if (!newLead.name.trim() || !phone) return toast.error('Name and phone are required')
-    if (!PHONE_REGEX.test(phone)) return toast.error('Enter a valid 10-digit mobile number')
-    if (!newLead.state.trim() || !newLead.city.trim()) return toast.error('State and city are required')
-    if (!newLead.branch.trim()) return toast.error('Branch is required.')
-    if (newLead.pincode && !PINCODE_REGEX.test(newLead.pincode)) return toast.error('Pincode must be 6 digits.')
-    if (newLead.ivrsNo && !IVRS_REGEX.test(newLead.ivrsNo)) return toast.error('IVRS number must be up to 15 letters or digits.')
+    const errors = {}
+    if (!newLead.name.trim()) errors.name = 'Customer name is required.'
+    if (!PHONE_REGEX.test(phone)) errors.phone = CONTACT_PHONE_MESSAGE
+    if (!newLead.state.trim()) errors.state = 'State is required.'
+    if (!newLead.city.trim()) errors.city = 'City is required.'
+    if (!newLead.branch.trim()) errors.branch = 'Branch is required.'
+    if (newLead.pincode && !PINCODE_REGEX.test(newLead.pincode)) errors.pincode = 'Pincode must be 6 digits.'
+    if (newLead.ivrsNo && !IVRS_REGEX.test(newLead.ivrsNo)) errors.ivrsNo = 'IVRS number must be up to 15 letters or digits.'
+    if (Object.keys(errors).length) return createFeedback.report(errors)
+    createFeedback.resetErrors()
 
     const salesExecutiveData = {
       contact: phone,
@@ -229,14 +240,16 @@ export function ManagerDashboard() {
     if (newLead.bankStatement) payload.append('bankStatement', newLead.bankStatement)
 
     try {
+      setCreating(true)
       await leadsAPI.create(payload)
       toast.success('Lead created!')
       setShowCreate(false)
       setNewLead(INITIAL_MANAGER_LEAD)
       refreshData()
     } catch (e) {
-      const validationMessage = e.response?.data?.errors?.[0]?.message
-      toast.error(validationMessage || e.response?.data?.message || 'Failed to create lead')
+      createFeedback.reportApi(e, 'Failed to create lead')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -327,18 +340,20 @@ export function ManagerDashboard() {
       {tab === 'pipeline' && <KanbanPipeline leads={pipelineLeads} onView={viewLead} />}
 
       {showCreate && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setShowCreate(false)}>
-          <div className="modal-box sales-exec-modal">
-            <div className="sales-exec-hero">
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeCreate()}>
+          <div className="modal-box form-dialog" role="dialog" aria-modal="true" aria-label="Create new lead">
+            <div className="sales-exec-hero form-dialog-header">
               <div>
                 <div className="sales-exec-kicker">Customer Registration</div>
                 <h2>Create New Lead</h2>
                 <p>Add customer details, IVRS, project data and uploaded documents.</p>
               </div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowCreate(false)}>Close</button>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={creating} onClick={closeCreate}>Close</button>
             </div>
 
-            <form className="sales-exec-form" onSubmit={(event) => { event.preventDefault(); createLead() }}>
+            <form id="manager-create-lead" ref={createFeedback.formRef} className="form-dialog-body" noValidate onSubmit={(event) => { event.preventDefault(); createLead() }}>
+              <fieldset className="form-fieldset" disabled={creating}>
+              <FormFields kind="lead" errors={createFeedback.errors} clearError={createFeedback.clearError}>
               <p className="sales-exec-section full">Customer Details</p>
 
               <label>
@@ -519,8 +534,10 @@ export function ManagerDashboard() {
                 <FilePreview file={newLead.bankStatement} label="Bank Statement" compact />
               </div>
 
-              <button type="submit" className="btn btn-primary sales-exec-submit">Create Lead</button>
+              </FormFields>
+              </fieldset>
             </form>
+            <FormActions busy={creating} onCancel={closeCreate} form="manager-create-lead" label="Create Lead" />
           </div>
         </div>
       )}
@@ -674,6 +691,7 @@ export function StageDashboard({ roleOverride }) {
   const { user } = useAuthStore()
   const dashboardRole = roleOverride || user?.role
   const myStage = ROLE_STAGE_MAP[dashboardRole]
+  const enableHold = HOLD_STAGES.includes(myStage)
   const showPanelNumberRows = dashboardRole === 'Installation Manager'
 
   const fetchLeads = (query = leadQuery) => {
@@ -681,7 +699,8 @@ export function StageDashboard({ roleOverride }) {
     leadRequestId.current = requestId
     setLoading(true)
     const requests = [
-      leadsAPI.getAll({ stage: myStage, status: 'active', limit: LEADS_PAGE_SIZE, ...query }),
+      leadsAPI.getAll({ limit: LEADS_PAGE_SIZE, ...query, stage: myStage,
+        status: enableHold && ['active', 'on-hold', 'active,on-hold'].includes(query.status) ? query.status : 'active' }),
       leadsAPI.getAll({ completedStage: myStage, limit: 1, sort: 'latest' }),
     ]
     if (showPanelNumberRows) requests.push(dispatchAPI.getAll())
@@ -712,7 +731,14 @@ export function StageDashboard({ roleOverride }) {
   }, [myStage, leadQuery])
 
   const handleLeadQueryChange = (query) => {
-    setLeadQuery({ page: 1, sort: 'latest', ...query, stage: myStage, status: 'active' })
+    setLeadQuery({ page: 1, sort: 'latest', ...query, stage: myStage,
+      status: enableHold && ['active', 'on-hold', 'active,on-hold'].includes(query.status) ? query.status : 'active' })
+  }
+
+  const refreshAfterStatusChange = () => {
+    if ((leadQuery.page || 1) > 1 && leads.length === 1 && leadQuery.status !== 'active,on-hold') {
+      setLeadQuery(previous => ({ ...previous, page: previous.page - 1 }))
+    } else fetchLeads()
   }
 
   const activeLeads = leads
@@ -832,7 +858,7 @@ export function StageDashboard({ roleOverride }) {
       />
 
       <div className="dashboard-grid-metrics">
-        <MetricCard icon={<FaTasks />} label="Pending Action" value={leadPagination.total || activeLeads.length} changeColor="var(--sun)" />
+        <MetricCard icon={<FaTasks />} label={enableHold && leadQuery.status && leadQuery.status !== 'active' ? 'Matching Leads' : 'Pending Action'} value={leadPagination.total || activeLeads.length} changeColor="var(--sun)" />
         <MetricCard icon={<FaCheckCircle />} label="Completed Leads" value={completedCount} changeColor="var(--green)" />
         <MetricCard icon={<FaWrench />} label="My Stage" value={myStage?.split(' ')[0]} />
         <MetricCard icon={<FaUserCheck />} label="Visible To" value={dashboardRole?.split(' ')[0]} />
@@ -848,9 +874,12 @@ export function StageDashboard({ roleOverride }) {
           extraActions={stageRowActions}
           pagination={leadPagination}
           onQueryChange={handleLeadQueryChange}
-          onLeadUpdated={fetchLeads}
+          onLeadUpdated={refreshAfterStatusChange}
           showStageFilter={false}
-          showStatusFilter={false}
+          showStageColumn={false}
+          showStatusFilter={enableHold}
+          enableHold={enableHold}
+          defaultStatus={enableHold ? 'active' : 'All'}
         />
       </div>
 

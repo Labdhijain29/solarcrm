@@ -1,18 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import toast from 'react-hot-toast'
 import { enquiriesAPI } from '../../services/api'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 import { SearchableSelect } from '../common'
+import { CONTACT_PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone } from '../../utils/contactValidation'
+import { FormFields } from '../common/FormLayout'
+import { hasFormChanges, useFormFeedback } from '../../hooks/useFormEditing'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
-export default function EnquiryForm({ compact = false, onSubmitted }) {
+export default function EnquiryForm({ compact = false, onSubmitted, onStateChange, formId }) {
   const emptyForm = {
     name: '',
     contact: '',
+    ivrsNo: '',
     email: '',
     address: '',
     enquiryType: '',
@@ -24,21 +28,30 @@ export default function EnquiryForm({ compact = false, onSubmitted }) {
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  const generatedId = useId()
+  const feedback = useFormFeedback()
+  const dirty = !sent && hasFormChanges(form, emptyForm)
+  useEffect(() => { onStateChange?.({ dirty, busy: loading, sent }) }, [dirty, loading, sent, onStateChange])
 
   const setField = (key, value) => setForm(prev => {
     const nextValue = CAPITALIZED_FIELDS.has(key) ? capitalizeFirstLetter(value) : value
     if (key === 'state') return { ...prev, state: nextValue, city: '' }
-    if (key === 'contact') return { ...prev, contact: String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10) }
+    if (key === 'contact') return { ...prev, contact: normalizeContactPhone(value) }
     if (key === 'pincode') return { ...prev, pincode: String(value || '').replace(/\D/g, '').slice(0, 6) }
+    if (key === 'ivrsNo') return { ...prev, ivrsNo: value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15) }
     return { ...prev, [key]: nextValue }
   })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!/^[6-9]\d{9}$/.test(form.contact)) {
-      toast.error('Contact number must be a valid 10-digit mobile number.')
-      return
-    }
+    if (loading) return
+    const errors = {}
+    if (!form.name.trim()) errors.name = 'Name is required.'
+    if (!CONTACT_PHONE_REGEX.test(form.contact)) errors.contact = CONTACT_PHONE_MESSAGE
+    if (!form.enquiryType) errors.enquiryType = 'Please select an enquiry type.'
+    if (form.pincode && !/^\d{6}$/.test(form.pincode)) errors.pincode = 'Pincode must contain exactly 6 digits.'
+    if (Object.keys(errors).length) return feedback.report(errors)
+    feedback.resetErrors()
     setLoading(true)
     try {
       await enquiriesAPI.create(form)
@@ -50,7 +63,7 @@ export default function EnquiryForm({ compact = false, onSubmitted }) {
         setForm(emptyForm)
       }, 4000)
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to submit enquiry. Please try again.')
+      feedback.reportApi(error, 'Failed to submit enquiry. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -67,7 +80,7 @@ export default function EnquiryForm({ compact = false, onSubmitted }) {
   }
 
   return (
-    <div style={{ background:'linear-gradient(135deg,var(--card),var(--card2))', border:'1px solid rgba(245,158,11,.2)', borderRadius:20, padding: compact ? 20 : 32, maxWidth: compact ? '100%' : 560 }}>
+    <div className={compact ? 'form-dialog-body' : ''} style={compact ? undefined : { background:'linear-gradient(135deg,var(--card),var(--card2))', border:'1px solid rgba(245,158,11,.2)', borderRadius:20, padding:32, maxWidth:560 }}>
       {!compact && (
         <>
           <h3 style={{ fontFamily:'Syne,sans-serif', fontSize:22, fontWeight:800, marginBottom:6 }}>Send Us Your Enquiry</h3>
@@ -75,19 +88,24 @@ export default function EnquiryForm({ compact = false, onSubmitted }) {
         </>
       )}
 
-      <form onSubmit={handleSubmit}>
-        <div className="site-grid-auto-sm" style={{ gap:12 }}>
+      <form id={formId || generatedId} ref={feedback.formRef} noValidate onSubmit={handleSubmit}>
+        <fieldset disabled={loading} className="form-fieldset">
+        <FormFields kind="enquiry" errors={feedback.errors} clearError={feedback.clearError}>
           <div>
             <label className="form-label">Name *</label>
-            <input className="crm-input" placeholder="Your name" value={form.name} onChange={e => setField('name', e.target.value)} required />
+            <input className="crm-input" placeholder="Your name" name="name" value={form.name} onChange={e => setField('name', e.target.value)} required />
           </div>
           <div>
             <label className="form-label">Contact *</label>
-            <input className="crm-input" placeholder="10-digit contact number" value={form.contact} onChange={e => setField('contact', e.target.value)} maxLength={10} required />
+            <input className="crm-input" placeholder="10-digit contact number" name="contact" value={form.contact} onChange={e => setField('contact', e.target.value)} maxLength={10} required />
           </div>
           <div>
             <label className="form-label">Email</label>
-            <input className="crm-input" type="email" placeholder="you@example.com" value={form.email} onChange={e => setField('email', e.target.value)} />
+            <input className="crm-input" type="email" placeholder="you@example.com" name="email" value={form.email} onChange={e => setField('email', e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">IVRS No. (optional)</label>
+            <input className="crm-input" name="ivrsNo" value={form.ivrsNo} onChange={e => setField('ivrsNo', e.target.value)} maxLength={15} placeholder="Up to 15 letters or digits" />
           </div>
           <div>
             <label className="form-label">Enquiry Type *</label>
@@ -125,24 +143,25 @@ export default function EnquiryForm({ compact = false, onSubmitted }) {
               disabled={!form.state}
             />
           </div>
-          <div style={{ gridColumn: compact ? 'auto' : '1 / -1' }}>
+          <div className="full">
             <label className="form-label">Address</label>
-            <textarea className="crm-input" rows={compact ? 2 : 3} placeholder="Full address" value={form.address} onChange={e => setField('address', e.target.value)} />
+            <textarea className="crm-input" rows={compact ? 2 : 3} placeholder="Full address" name="address" value={form.address} onChange={e => setField('address', e.target.value)} />
           </div>
           <div>
             <label className="form-label">Pincode</label>
-            <input className="crm-input" placeholder="6-digit pincode" value={form.pincode} onChange={e => setField('pincode', e.target.value)} maxLength={6} />
+            <input className="crm-input" placeholder="6-digit pincode" name="pincode" value={form.pincode} onChange={e => setField('pincode', e.target.value)} maxLength={6} />
           </div>
-        </div>
+        </FormFields>
+        </fieldset>
 
-        <button
+        {!compact && <button
           type="submit"
           className="btn btn-primary"
           style={{ width:'100%', justifyContent:'center', padding:'12px', marginTop:16, fontSize:14 }}
           disabled={loading}
         >
           {loading ? 'Submitting...' : 'Submit Enquiry'}
-        </button>
+        </button>}
       </form>
     </div>
   )

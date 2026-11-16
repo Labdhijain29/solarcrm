@@ -1,0 +1,7 @@
+IVRS is optional. Nonempty numbers are trimmed, uppercased, and limited to 15 letters or digits. Creating or editing an enquiry or lead checks both collections. A converted enquiry and its linked lead may share their number. Blank values are excluded from the unique indexes.
+
+The API uses the unique `_id` in `ivrs_write_locks` to serialize writes of the same number across workers and collections. This also works with standalone MongoDB. All IVRS writes must use `withUniqueIvrs`; collection indexes alone cannot enforce uniqueness between two collections.
+
+Run `node config/setup-ivrs-uniqueness.js` from backend to preview the existing local data. Add `--apply` to back up enquiry/lead documents and indexes in ignored `backend/backups/`, normalize existing values, and create the two unique indexes. The script refuses remote databases and stops on existing conflicts without merging or deleting records. Production requires a separate authorized audit and deployment; this script never targets production.
+
+Locks have no TTL so a crashed process cannot release a number while an old write might still finish. If a process crashes during a save, that number can remain blocked with “being saved”. For recovery, stop every API worker, confirm no writer remains, inspect the lock and matching enquiry/lead records, then remove only the abandoned lock. Never clear locks while a worker may still be writing. Successful and failed requests release their own locks automatically.

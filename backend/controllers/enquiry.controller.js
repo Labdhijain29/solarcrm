@@ -4,6 +4,8 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 const { getNextLeadId } = require('../services/leadNumber');
 const { indiaToday, isValidFollowUpDate } = require('../services/enquiryFollowUp');
+const { normalizeIvrs, withUniqueIvrs } = require('../services/ivrsUniqueness');
+const { normalizeContactPhone } = require('../services/contactPhone');
 
 const isServiceEnquiryType = (value = '') => value.trim().toLowerCase() === 'service enquiry';
 
@@ -73,8 +75,10 @@ exports.addFollowUp = async (req, res) => {
 exports.createEnquiry = async (req, res) => {
   try {
     const { name, contact, email, address, enquiryType, state, city, pincode } = req.body;
-    const normalizedContact = String(contact || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '');
-    const enquiry = await Enquiry.create({
+    const normalizedContact = normalizeContactPhone(contact);
+    const enquiryId = new mongoose.Types.ObjectId();
+    const enquiry = await withUniqueIvrs({ value: req.body.ivrsNo, enquiryId }, ivrsNo => Enquiry.create({
+      _id: enquiryId, ivrsNo,
       createdBy: req.user?._id || null,
       name,
       contact: normalizedContact,
@@ -86,9 +90,9 @@ exports.createEnquiry = async (req, res) => {
       city,
       pincode,
       source: 'Website',
-    });
+    }));
     res.status(201).json({ success: true, message: 'Enquiry submitted! We will contact you shortly.', data: enquiry });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { res.status(err.statusCode || 500).json({ success: false, message: err.message }); }
 };
 
 exports.convertToLead = async (req, res) => {
@@ -113,6 +117,7 @@ exports.convertToLead = async (req, res) => {
       const leadData = {
         _id: new mongoose.Types.ObjectId(),
         leadId: await getNextLeadId(), sourceEnquiry: enquiry._id,
+        ivrsNo: normalizeIvrs(enquiry.ivrsNo),
         name: enquiry.name, phone: enquiry.contact || enquiry.phone, email: enquiry.email,
         address: enquiry.address, city: enquiry.city, state: enquiry.state, pincode: enquiry.pincode,
         source: 'Website',
@@ -139,9 +144,9 @@ exports.convertToLead = async (req, res) => {
     const { leadData, notifyManager } = enquiry.pendingConversion;
     let lead;
     try {
-      lead = await Lead.findOneAndUpdate({ _id: leadData._id }, { $setOnInsert: leadData }, {
+      lead = await withUniqueIvrs({ value: leadData.ivrsNo ?? enquiry.ivrsNo, leadId: leadData._id, enquiryId: enquiry._id }, ivrsNo => Lead.findOneAndUpdate({ _id: leadData._id }, { $setOnInsert: { ...leadData, ivrsNo } }, {
         new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true,
-      });
+      }));
     } catch (error) {
       if (error.code !== 11000) throw error;
       lead = await Lead.findOne({ sourceEnquiry: enquiry._id });
@@ -159,7 +164,7 @@ exports.convertToLead = async (req, res) => {
     res.json({ success: true, message: req.user.role === 'Enquiry Executive'
       ? 'Lead created and sent to the Manager' : 'Lead created from enquiry',
     data: req.user.role === 'Enquiry Executive' ? { leadId: lead.leadId, currentStage: lead.currentStage } : lead });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { res.status(err.statusCode || 500).json({ success: false, message: err.message }); }
 };
 
 exports.updateEnquiry = async (req, res) => {
@@ -168,23 +173,30 @@ exports.updateEnquiry = async (req, res) => {
       || ['createdBy', 'convertedTo', 'pendingConversion'].some(key => req.body[key] !== undefined))) {
       return res.status(403).json({ success: false, message: 'Ownership and conversion fields cannot be edited.' });
     }
-    const allowedUpdates = ['name', 'contact', 'phone', 'email', 'address', 'enquiryType', 'state', 'city', 'pincode', 'status', 'notes'];
+    const allowedUpdates = ['name', 'contact', 'phone', 'email', 'address', 'enquiryType', 'state', 'city', 'pincode', 'status', 'notes', 'ivrsNo'];
     const updates = allowedUpdates.reduce((acc, key) => {
       if (req.body[key] !== undefined) acc[key] = req.body[key];
       return acc;
     }, {});
 
-    if (updates.contact !== undefined) {
-      const normalizedContact = String(updates.contact || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '');
+    if (updates.contact !== undefined || updates.phone !== undefined) {
+      const normalizedContact = normalizeContactPhone(updates.contact ?? updates.phone);
       updates.contact = normalizedContact;
       updates.phone = normalizedContact;
     }
     if (['converted', 'closed'].includes(updates.status)) updates.nextFollowUpDate = null;
 
-    const enquiry = await Enquiry.findOneAndUpdate(mutationQuery(req), { $set: updates, $inc: { __v: 1 } }, { new: true, runValidators: true });
+    const existing = await Enquiry.findById(req.params.id).select('+pendingConversion');
+    if (!existing || existing.pendingConversion || (req.user.role === 'Enquiry Executive' &&
+      (String(existing.createdBy || '') !== String(req.user._id) || existing.convertedTo || existing.status === 'converted'))) {
+      return mutationDenied(res);
+    }
+    const enquiry = await withUniqueIvrs({ value: updates.ivrsNo !== undefined ? updates.ivrsNo : existing.ivrsNo,
+      enquiryId: existing._id, leadId: existing.convertedTo }, ivrsNo => Enquiry.findOneAndUpdate(
+      mutationQuery(req), { $set: { ...updates, ivrsNo }, $inc: { __v: 1 } }, { new: true, runValidators: true }));
     if (!enquiry) return mutationDenied(res);
     res.json({ success: true, data: enquiry });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { res.status(err.statusCode || 500).json({ success: false, message: err.message }); }
 };
 
 exports.deleteEnquiry = async (req, res) => {

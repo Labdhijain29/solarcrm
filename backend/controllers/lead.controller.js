@@ -1,4 +1,6 @@
 const Lead = require('../models/Lead');
+const { withUniqueIvrs } = require('../services/ivrsUniqueness');
+const { HOLD_STAGES, protectLeadTransition } = require('../services/leadWorkflow');
 const { getNextLeadId } = require('../services/leadNumber');
 const Enquiry = require('../models/Enquiry');
 const User = require('../models/User');
@@ -168,21 +170,6 @@ const isSalesExecutiveLead = (payload = {}) => {
 const normalizeModulePanelNumbers = (value) => {
   const items = Array.isArray(value) ? value : [];
   return items.slice(0, 6).map((item) => String(item || '').trim());
-};
-
-const ensureUniqueIvrsNo = async (ivrsNo, excludeId = null) => {
-  const normalizedIvrsNo = String(ivrsNo || '').trim();
-  if (!normalizedIvrsNo) return;
-
-  const query = { ivrsNo: normalizedIvrsNo };
-  if (excludeId) query._id = { $ne: excludeId };
-
-  const existingLead = await Lead.findOne(query).select('_id name ivrsNo');
-  if (existingLead) {
-    const error = new Error(`IVRS number '${normalizedIvrsNo}' is already assigned to lead '${existingLead.name}'.`);
-    error.statusCode = 409;
-    throw error;
-  }
 };
 
 const getSalesExecutiveManager = async () => {
@@ -381,7 +368,7 @@ const buildQuery = (query, user) => {
     };
     if (role !== 'Admin' && !stageAccess) q.assignedTo = user._id;
   }
-  if (query.status) q.status = query.status;
+  if (query.status) q.status = query.status === 'active,on-hold' ? { $in: ['active', 'on-hold'] } : query.status;
   if (query.source) q.source = query.source;
   if (query.generatedThrough) q.generatedThrough = new RegExp(query.generatedThrough, 'i');
   if (query.city) q.city = new RegExp(query.city, 'i');
@@ -480,8 +467,6 @@ exports.createLead = async (req, res) => {
   try {
     const { name, phone, email, address, city, state, pincode, branch, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, salesExecutiveAssignee, salesExecutiveAssigneeName, priority, tags, salesExecutiveData } = req.body;
 
-    await ensureUniqueIvrsNo(ivrsNo);
-
     let resolvedAssignedTo = assignedTo || req.user._id;
     let assignedManager = null;
     let resolvedSalesExecutiveAssignee = salesExecutiveAssignee || null;
@@ -514,7 +499,7 @@ exports.createLead = async (req, res) => {
       }
     }
 
-    const lead = await Lead.create({
+    const lead = new Lead({
       leadId: await getNextLeadId(),
       name, phone, email, address, city, state, pincode, branch, ivrsNo,
       source,
@@ -542,6 +527,11 @@ exports.createLead = async (req, res) => {
         note: 'Lead created',
         timestamp: new Date()
       }]
+    });
+
+    await withUniqueIvrs({ value: ivrsNo, leadId: lead._id }, normalized => {
+      lead.ivrsNo = normalized;
+      return lead.save();
     });
 
     const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
@@ -606,10 +596,6 @@ exports.updateLead = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You can only update leads assigned to you.' });
     }
 
-    if (req.body.ivrsNo !== undefined && req.body.ivrsNo !== lead.ivrsNo) {
-      await ensureUniqueIvrsNo(req.body.ivrsNo, lead._id);
-    }
-
     if (req.body.installationData?.panelNumber !== undefined) {
       const panelNumber = String(req.body.installationData.panelNumber || '').trim();
       req.body.installationData.panelNumber = panelNumber;
@@ -635,34 +621,38 @@ exports.updateLead = async (req, res) => {
       }
     }
 
-    const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
-    mergeUploadedPatchesIntoBody(req.body, uploadedFilePatches);
+    await withUniqueIvrs({ value: req.body.ivrsNo !== undefined ? req.body.ivrsNo : lead.ivrsNo,
+      leadId: lead._id, enquiryId: lead.sourceEnquiry }, async normalized => {
+      // Reject IVRS conflicts before uploading files or changing the document.
+      const uploadedFilePatches = await collectUploadedLeadFilePatches(req, lead._id);
+      mergeUploadedPatchesIntoBody(req.body, uploadedFilePatches);
 
-    const allowed = ['name','phone','email','address','city','state','pincode','branch','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','priority','tags'];
-    allowed.forEach(field => { if (req.body[field] !== undefined) lead[field] = req.body[field]; });
+      const allowed = ['name','phone','email','address','city','state','pincode','branch','ivrsNo','source','generatedThrough','capacity','roofType','monthlyBill','notes','priority','tags'];
+      allowed.forEach(field => { if (req.body[field] !== undefined) lead[field] = req.body[field]; });
+      lead.ivrsNo = normalized;
 
-    [
-      'salesExecutiveData',
-      'registrationData',
-      'bankData',
-      'loanData',
-      'dispatchData',
-      'installationData',
-      'netMeteringData',
-      'subsidyData',
-      'subsidyReadingData',
-    ].forEach((key) => mergePatch(lead, key, req.body[key]));
+      [
+        'salesExecutiveData',
+        'registrationData',
+        'bankData',
+        'loanData',
+        'dispatchData',
+        'installationData',
+        'netMeteringData',
+        'subsidyData',
+        'subsidyReadingData',
+      ].forEach((key) => mergePatch(lead, key, req.body[key]));
 
-    lead.history.push({
-      stage: lead.currentStage,
-      action: 'Updated',
-      performedBy: req.user._id,
-      performedByName: req.user.name,
-      note: req.body.updateNote || 'Lead details updated',
-      timestamp: new Date()
+      lead.history.push({
+        stage: lead.currentStage,
+        action: 'Updated',
+        performedBy: req.user._id,
+        performedByName: req.user.name,
+        note: req.body.updateNote || 'Lead details updated',
+        timestamp: new Date()
+      });
+      return lead.save();
     });
-
-    await lead.save();
 
     if (lead.currentStage === 'Completed' && lead.status === 'completed') {
       await Enquiry.findOneAndUpdate(
@@ -975,6 +965,10 @@ exports.reassignLead = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You are not authorized to reassign this lead.' });
     }
 
+    if (lead.status === 'on-hold') {
+      return res.status(409).json({ success: false, message: 'Resume this lead before moving it to another stage or user.' });
+    }
+
     const targetStage = String(req.body.stage || req.body.currentStage || '').trim();
     const note = String(req.body.note || '').trim();
     const stages = Lead.STAGES || [];
@@ -1092,3 +1086,32 @@ exports.deleteLead = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// Change only Active <-> On Hold. Stage and assignee remain unchanged.
+exports.setHoldStatus = async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' });
+    if (req.body.stage !== lead.currentStage) return res.status(409).json({ success: false, message: 'The lead stage has changed. Refresh the list and try again.' });
+    if (!HOLD_STAGES.includes(lead.currentStage)) return res.status(400).json({ success: false, message: 'Hold is available only at Registration, Bank, Loan, Dispatch and Installation.' });
+    if (req.user.role !== 'Admin' && (ROLE_STAGE_MAP[req.user.role] !== lead.currentStage || String(lead.assignedTo || '') !== String(req.user._id))) {
+      return res.status(403).json({ success: false, message: 'Only the assigned stage user or Admin can hold or resume this lead.' });
+    }
+    const status = req.body.status;
+    if (!['active', 'on-hold'].includes(status)) return res.status(400).json({ success: false, message: 'Select Active or On Hold.' });
+    if (!['active', 'on-hold'].includes(lead.status) || lead.status === status) return res.status(409).json({ success: false, message: 'The lead status has changed. Refresh the list and try again.' });
+    const note = req.body.note ?? '';
+    if (typeof note !== 'string' || note.trim().length > 2000) return res.status(400).json({ success: false, message: 'Reason must be text of up to 2,000 characters.' });
+    const updated = await Lead.findOneAndUpdate({ _id: lead._id, currentStage: lead.currentStage, assignedTo: lead.assignedTo, status: lead.status }, {
+      $set: { status }, $inc: { __v: 1 },
+      $push: { history: { stage: lead.currentStage, action: status === 'on-hold' ? 'On Hold' : 'Resumed', performedBy: req.user._id,
+        performedByName: req.user.name, note: note.trim(), timestamp: new Date() } },
+    }, { new: true, runValidators: true });
+    if (!updated) return res.status(409).json({ success: false, message: 'The lead changed. Refresh the list and try again.' });
+    res.json({ success: true, message: status === 'on-hold' ? 'Lead put on hold.' : 'Lead resumed.', data: updated });
+  } catch (error) { res.status(error.statusCode || 500).json({ success: false, message: error.message }); }
+};
+
+for (const action of ['approveLead', 'rejectLead', 'transferLead', 'reassignLead', 'setHoldStatus']) {
+  exports[action] = protectLeadTransition(exports[action]);
+}

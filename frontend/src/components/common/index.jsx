@@ -121,6 +121,9 @@ export function SearchableSelect({
   disabled = false,
   required = false,
   name,
+  id,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }) {
   const rootRef = useRef(null)
   const triggerRef = useRef(null)
@@ -263,6 +266,9 @@ export function SearchableSelect({
       <button
         type="button"
         ref={triggerRef}
+        id={id}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         className={`crm-input searchable-select-trigger ${open ? 'is-open' : ''}`}
         onClick={() => (open ? setOpen(false) : openDropdown())}
         disabled={disabled}

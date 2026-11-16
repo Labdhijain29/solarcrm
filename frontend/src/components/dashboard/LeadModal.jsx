@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { leadsAPI, usersAPI } from '../../services/api'
 import { canActOnStage, formatDate, getCitiesForState, ROLE_STAGE_MAP, SOURCES, STAGES, STATE_OPTIONS, stageIndex } from '../../utils/constants'
@@ -6,16 +6,19 @@ import { getLeadViewSections } from '../../utils/leadDetails'
 import { hasFileValue } from '../../utils/files'
 import { ALL_BRAND_OPTIONS } from '../../pages/dashboard/inventoryStructure'
 import { FilePreview, SearchableSelect, StageBadge, StageProgress, StatusBadge } from '../common'
+import LeadActivityHistory from './LeadActivityHistory'
+import LeadDetailFields from './LeadDetailFields'
+import { FormActions, FormFields } from '../common/FormLayout'
+import { hasFormChanges, useFormExit, useFormFeedback } from '../../hooks/useFormEditing'
+import { CONTACT_PHONE_REGEX as PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone as normalizePhone } from '../../utils/contactValidation'
 
 const IVRS_REGEX = /^[A-Za-z0-9]{1,15}$/
-const PHONE_REGEX = /^[6-9]\d{9}$/
 const PINCODE_REGEX = /^\d{6}$/
 const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}kW`)
 const MODULE_PANEL_COUNT = 6
 const EDITABLE_LEAD_STAGE_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager']
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'other', 'generatedThrough'])
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
-const normalizePhone = (value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10)
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const roleMatches = (userRole, targetRole) => {
   if (userRole === targetRole) return true
@@ -28,42 +31,7 @@ const isAssignableUser = (user, role) => (
   user.approvalStatus !== 'rejected'
 )
 
-export default function LeadModal({
-  lead,
-  onClose,
-  onUpdated,
-  currentUser,
-  showRegistrationPhotoUpload = false,
-  showBankRemarkInput = false,
-  showLoanApplicationInput = false,
-  showInstallationInput = false,
-  showNetMeteringInput = false,
-  showSubsidyInput = false,
-  showSubsidyReadingInput = false,
-  startEditing = false,
-}) {
-  const [loading, setLoading] = useState(false)
-  const [nextStageUsers, setNextStageUsers] = useState([])
-  const [nextAssigneeId, setNextAssigneeId] = useState('')
-  const [note, setNote] = useState('')
-  const [showNote, setShowNote] = useState(false)
-  const [sameStageUsers, setSameStageUsers] = useState([])
-  const [reassignUserId, setReassignUserId] = useState('')
-  const [showReassign, setShowReassign] = useState(false)
-  const [registrationPhotos, setRegistrationPhotos] = useState({
-    photoOne: null,
-    photoTwo: null,
-  })
-  const [isEditing, setIsEditing] = useState(startEditing)
-  const [editFiles, setEditFiles] = useState({
-    photoOne: null,
-    photoTwo: null,
-    documentPdf: null,
-    aadharCard: null,
-    panCard: null,
-    bankStatement: null,
-  })
-  const [editForm, setEditForm] = useState({
+const leadEditValues = lead => ({
     name: lead.name || '',
     phone: lead.phone || '',
     email: lead.email || '',
@@ -86,7 +54,66 @@ export default function LeadModal({
     accountNo: lead.salesExecutiveData?.accountNo || '',
     ifscCode: lead.salesExecutiveData?.ifscCode || '',
     other: lead.salesExecutiveData?.other || '',
+})
+
+export default function LeadModal({
+  lead,
+  onClose,
+  onUpdated,
+  currentUser,
+  showRegistrationPhotoUpload = false,
+  showBankRemarkInput = false,
+  showLoanApplicationInput = false,
+  showInstallationInput = false,
+  showNetMeteringInput = false,
+  showSubsidyInput = false,
+  showSubsidyReadingInput = false,
+  startEditing = false,
+}) {
+  const [loading, setLoading] = useState(false)
+  const [nextStageUsers, setNextStageUsers] = useState([])
+  const [nextAssigneeId, setNextAssigneeId] = useState('')
+  const [note, setNote] = useState('')
+  const [showNote, setShowNote] = useState(false)
+  const [history, setHistory] = useState(lead.history || [])
+
+  useEffect(() => {
+    setHistory(lead.history || [])
+  }, [lead])
+  const [sameStageUsers, setSameStageUsers] = useState([])
+  const [reassignUserId, setReassignUserId] = useState('')
+  const [showReassign, setShowReassign] = useState(false)
+  const [registrationPhotos, setRegistrationPhotos] = useState({
+    photoOne: null,
+    photoTwo: null,
   })
+  const [isEditing, setIsEditing] = useState(startEditing)
+  const [editFiles, setEditFiles] = useState({
+    photoOne: null,
+    photoTwo: null,
+    documentPdf: null,
+    aadharCard: null,
+    panCard: null,
+    bankStatement: null,
+  })
+  const [editForm, setEditForm] = useState(() => leadEditValues(lead))
+  const editBaseline = useRef(editForm)
+  const feedback = useFormFeedback()
+  const dirty = isEditing && (hasFormChanges(editForm, editBaseline.current) || Object.values(editFiles).some(Boolean))
+  const requestExit = useFormExit(dirty, loading)
+  const cancelEdit = () => requestExit(() => {
+    setIsEditing(false)
+    setEditForm(editBaseline.current)
+    setEditFiles({ photoOne: null, photoTwo: null, documentPdf: null, aadharCard: null, panCard: null, bankStatement: null })
+    feedback.resetErrors()
+  })
+  const beginEdit = () => {
+    const values = leadEditValues(lead)
+    editBaseline.current = values
+    setEditForm(values)
+    feedback.resetErrors()
+    setIsEditing(true)
+  }
   const [stageForm, setStageForm] = useState({
     remark: lead.bankData?.remark || '',
     applicationId: lead.loanData?.applicationId || '',
@@ -340,7 +367,8 @@ export default function LeadModal({
     if (!note.trim()) return
     setLoading(true)
     try {
-      await leadsAPI.addNote(lead._id, note)
+      const response = await leadsAPI.addNote(lead._id, note)
+      setHistory(response.data.data.history || [])
       toast.success('Note added')
       setNote('')
       setShowNote(false)
@@ -433,11 +461,14 @@ export default function LeadModal({
   }
 
   const doSaveLeadDetailsEdit = async () => {
-    if (!editForm.name.trim()) return toast.error('Customer name is required.')
-    if (!PHONE_REGEX.test(editForm.phone)) return toast.error('Contact number must be a valid 10-digit mobile number.')
-    if (!editForm.branch.trim()) return toast.error('Branch is required.')
-    if (editForm.pincode && !PINCODE_REGEX.test(editForm.pincode)) return toast.error('Pincode must be 6 digits.')
-    if (editForm.ivrsNo && !IVRS_REGEX.test(editForm.ivrsNo)) return toast.error('IVRS number must be up to 15 letters or digits.')
+    const errors = {}
+    if (!editForm.name.trim()) errors.name = 'Customer name is required.'
+    if (!PHONE_REGEX.test(editForm.phone)) errors.phone = CONTACT_PHONE_MESSAGE
+    if (!editForm.branch.trim()) errors.branch = 'Branch is required.'
+    if (editForm.pincode && !PINCODE_REGEX.test(editForm.pincode)) errors.pincode = 'Pincode must be 6 digits.'
+    if (editForm.ivrsNo && !IVRS_REGEX.test(editForm.ivrsNo)) errors.ivrsNo = 'IVRS number must be up to 15 letters or digits.'
+    if (Object.keys(errors).length) return feedback.report(errors)
+    feedback.resetErrors()
 
     const nextSalesExecutiveData = {
       ...salesExecutiveData,
@@ -496,7 +527,7 @@ export default function LeadModal({
       onUpdated?.()
       onClose()
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update lead')
+      feedback.reportApi(error, 'Failed to update lead')
     } finally {
       setLoading(false)
     }
@@ -509,9 +540,9 @@ export default function LeadModal({
   ]
 
   return (
-    <div className="modal-backdrop lead-view-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box lead-view-modal">
-        <div className="dashboard-split-row lead-view-header" style={{ marginBottom:20 }}>
+    <div className="modal-backdrop lead-view-backdrop" onClick={(e) => e.target === e.currentTarget && requestExit(onClose)}>
+      <div className={`modal-box lead-view-modal ${isEditing && canEditLeadDetails ? 'form-dialog' : ''}`} role="dialog" aria-modal="true" aria-label={isEditing ? 'Edit lead' : 'Lead details'}>
+        <div className={`dashboard-split-row lead-view-header ${isEditing ? 'form-dialog-header' : ''}`} style={{ marginBottom:20 }}>
           <div style={{ flex:1 }}>
             <h2 style={{ fontFamily:'Syne,sans-serif', fontSize:20, fontWeight:700 }}>{lead.name}</h2>
             <div className="dashboard-inline-actions" style={{ marginTop:6 }}>
@@ -519,22 +550,22 @@ export default function LeadModal({
               <StatusBadge status={lead.status} />
             </div>
           </div>
-          {canEditLeadDetails && (
+          {canEditLeadDetails && !isEditing && (
             <button
               className="btn btn-secondary btn-sm"
               disabled={loading}
-              onClick={() => setIsEditing((prev) => !prev)}
+              onClick={isEditing ? cancelEdit : beginEdit}
             >
               {isEditing ? 'Cancel Edit' : 'Edit'}
             </button>
           )}
-          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:22, color:'var(--dim)', cursor:'pointer' }}>x</button>
+          <button type="button" disabled={loading} aria-label="Close lead" onClick={() => requestExit(onClose)} style={{ background:'none', border:'none', fontSize:22, color:'var(--dim)', cursor:'pointer' }}>x</button>
         </div>
 
         {isEditing && canEditLeadDetails && (
-          <div className="crm-card-sm" style={{ marginBottom:14 }}>
-            <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Edit Registration Details</div>
-            <div className="dashboard-form-grid">
+          <form id="lead-details-edit" ref={feedback.formRef} className="form-dialog-body" noValidate onSubmit={event => { event.preventDefault(); if (!loading) doSaveLeadDetailsEdit() }}>
+            <fieldset disabled={loading} className="form-fieldset">
+            <FormFields kind="lead" errors={feedback.errors} clearError={feedback.clearError}>
               <div>
                 <label className="form-label">Customer Name</label>
                 <input className="crm-input" name="name" value={editForm.name} onChange={updateEditField} />
@@ -686,48 +717,26 @@ export default function LeadModal({
                 <label className="form-label">Bank Statement</label>
                 <input className="crm-input" type="file" name="bankStatement" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateEditField} />
               </div>
-            </div>
-            <div className="dashboard-inline-actions" style={{ marginTop:12 }}>
-              <button className="btn btn-primary" disabled={loading} onClick={doSaveLeadDetailsEdit}>Save Changes</button>
-              <button className="btn btn-ghost btn-sm" disabled={loading} onClick={() => setIsEditing(false)}>Cancel</button>
-            </div>
-          </div>
+            </FormFields>
+            </fieldset>
+          </form>
         )}
 
-        <div className="dashboard-mini-grid-2" style={{ marginBottom:16 }}>
-          {fields.map(([label, value]) => (
-            <div key={label} className="crm-card-sm" style={{ padding:'8px 12px' }}>
-              <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>{label}</div>
-              <div style={{ fontSize:13, fontWeight:500, wordBreak:'break-word' }}>{value}</div>
-            </div>
-          ))}
-        </div>
+        {isEditing && canEditLeadDetails && <FormActions busy={loading} onCancel={cancelEdit} form="lead-details-edit" />}
+        {!isEditing && <>
+        <LeadDetailFields fields={fields} style={{ marginBottom:16 }} />
 
         {displayedSalesExecutiveFields.length > 0 && (
           <div className="crm-card-sm" style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Sales Executive Form Details</div>
-            <div className="dashboard-mini-grid-2">
-              {displayedSalesExecutiveFields.map(([label, value]) => (
-                <div key={label} className="crm-card-sm" style={{ padding:'8px 12px' }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>{label}</div>
-                  <div style={{ fontSize:13, fontWeight:500, wordBreak:'break-word' }}>{value}</div>
-                </div>
-              ))}
-            </div>
+            <LeadDetailFields fields={displayedSalesExecutiveFields} />
           </div>
         )}
 
         {displayedStageSpecificFields.some(([, value]) => value !== '-') && (
           <div className="crm-card-sm" style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>Stage Details</div>
-            <div className="dashboard-mini-grid-2">
-              {displayedStageSpecificFields.filter(([, value]) => value !== '-').map(([label, value]) => (
-                <div key={label} className="crm-card-sm" style={{ padding:'8px 12px' }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:.5, marginBottom:2 }}>{label}</div>
-                  <div style={{ fontSize:13, fontWeight:500, wordBreak:'break-word' }}>{value}</div>
-                </div>
-              ))}
-            </div>
+            <LeadDetailFields fields={displayedStageSpecificFields.filter(([, value]) => value !== '-')} />
           </div>
         )}
 
@@ -806,22 +815,7 @@ export default function LeadModal({
           <StageProgress lead={lead} />
         </div>
 
-        <div className="crm-card-sm lead-activity-panel" style={{ marginBottom:14 }}>
-          <div className="lead-section-title">Activity History</div>
-          {(lead.history || []).map((item, index) => (
-            <div key={index} className="history-item lead-history-row">
-              <div className={`lead-history-icon ${item.action === 'Approved' || item.action === 'Completed' ? 'ok' : item.action === 'Rejected' ? 'no' : ''}`}>
-                {item.action === 'Approved' || item.action === 'Completed' ? 'OK' : item.action === 'Rejected' ? 'NO' : '...'}
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:500 }}>{item.stage} | {item.action}</div>
-                {item.performedByName && <div style={{ fontSize:12, color:'var(--muted)' }}>By: {item.performedByName}</div>}
-                {item.note && <div style={{ fontSize:11, color:'var(--dim)' }}>{item.note}</div>}
-              </div>
-              <div style={{ fontSize:11, color:'var(--dim)', whiteSpace:'nowrap' }}>{formatDate(item.timestamp)}</div>
-            </div>
-          ))}
-        </div>
+        <LeadActivityHistory key={`${lead._id}-${lead.currentStage}`} history={history} currentStage={lead.currentStage} />
 
         {showNote && (
           <div style={{ marginBottom:12 }}>
@@ -1045,6 +1039,7 @@ export default function LeadModal({
             Ye sales executive lead pehle manager approve karega, uske baad hi registration stage me jayegi.
           </div>
         )}
+        </>}
       </div>
     </div>
   )

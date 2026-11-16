@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FaBell } from 'react-icons/fa'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -7,8 +7,11 @@ import { enquiriesAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
+import { FormActions, FormFields } from '../../components/common/FormLayout'
+import { hasFormChanges, useFormExit, useFormFeedback } from '../../hooks/useFormEditing'
 import EnquiryFollowUpModal from '../../components/dashboard/EnquiryFollowUpModal'
 import { formatFollowUpDate, followUpState, indiaToday, isConvertedEnquiry } from '../../utils/enquiryFollowUp'
+import { CONTACT_PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone } from '../../utils/contactValidation'
 
 const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
@@ -18,6 +21,7 @@ const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes']
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const emptyEditForm = {
   name: '',
+  ivrsNo: '',
   contact: '',
   email: '',
   address: '',
@@ -39,6 +43,9 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   const [editing, setEditing] = useState(null)
   const [editForm, setEditForm] = useState(emptyEditForm)
   const [saving, setSaving] = useState(false)
+  const editBaseline = useRef(emptyEditForm)
+  const feedback = useFormFeedback()
+  const requestExit = useFormExit(Boolean(editing) && hasFormChanges(editForm, editBaseline.current), saving)
   const [search, setSearch] = useState('')
   const [conversionFilter, setConversionFilter] = useState(DEFAULT_CONVERSION_FILTER)
   const [followUpFilter, setFollowUpFilter] = useState(searchParams.get('followUp') === 'due' ? 'due' : 'all')
@@ -106,8 +113,9 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
 
   const openEdit = (enquiry) => {
     setEditing(enquiry)
-    setEditForm({
+    const values = {
       name: enquiry.name || '',
+      ivrsNo: enquiry.ivrsNo || '',
       contact: enquiry.contact || enquiry.phone || '',
       email: enquiry.email || '',
       address: enquiry.address || '',
@@ -117,7 +125,10 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
       pincode: enquiry.pincode || '',
       status: enquiry.status || 'new',
       notes: enquiry.notes || '',
-    })
+    }
+    editBaseline.current = values
+    setEditForm(values)
+    feedback.resetErrors()
   }
 
   const closeEdit = () => {
@@ -127,14 +138,22 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
 
   const updateField = (key, value) => setEditForm(prev => {
     if (key === 'state') return { ...prev, state: value, city: '' }
-    if (key === 'contact') return { ...prev, contact: String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '').slice(0, 10) }
+    if (key === 'contact') return { ...prev, contact: normalizeContactPhone(value) }
     if (key === 'pincode') return { ...prev, pincode: String(value || '').replace(/\D/g, '').slice(0, 6) }
+    if (key === 'ivrsNo') return { ...prev, ivrsNo: value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 15) }
     if (CAPITALIZED_FIELDS.has(key)) return { ...prev, [key]: capitalizeFirstLetter(value) }
     return { ...prev, [key]: value }
   })
 
   const saveEdit = async () => {
     if (!editing) return
+    const errors = {}
+    if (!editForm.name.trim()) errors.name = 'Name is required.'
+    if (!CONTACT_PHONE_REGEX.test(editForm.contact)) errors.contact = CONTACT_PHONE_MESSAGE
+    if (!editForm.enquiryType) errors.enquiryType = 'Please select an enquiry type.'
+    if (editForm.pincode && !/^\d{6}$/.test(editForm.pincode)) errors.pincode = 'Pincode must contain exactly 6 digits.'
+    if (Object.keys(errors).length) return feedback.report(errors)
+    feedback.resetErrors()
     setSaving(true)
     try {
       await enquiriesAPI.update(editing._id, editForm)
@@ -142,7 +161,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
       closeEdit()
       fetchData()
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update enquiry')
+      feedback.reportApi(err, 'Failed to update enquiry')
     } finally {
       setSaving(false)
     }
@@ -204,7 +223,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
       if (followUpFilter !== 'all' && followUpFilter !== 'due' && dueState !== followUpFilter) return false
       const q = search.toLowerCase()
       if (!q) return true
-      return enquiry.name?.toLowerCase().includes(q) || String(enquiry.contact || enquiry.phone || '').includes(q)
+      return enquiry.name?.toLowerCase().includes(q) || String(enquiry.contact || enquiry.phone || '').includes(q) || enquiry.ivrsNo?.toLowerCase().includes(q)
     })
     .sort((a, b) => {
       if (sortBy === 'due') return (a.nextFollowUpDate || '9999-12-31').localeCompare(b.nextFollowUpDate || '9999-12-31')
@@ -289,13 +308,14 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         <table className="crm-table">
           <thead>
             <tr>
-              {['Name', 'Contact', 'Email', 'Address', 'Enquiry Type', 'State', 'City', 'Pincode', 'Status', 'Received', 'Action'].map(label => <th key={label}>{label}</th>)}
+              {['Name', 'IVRS No.', 'Contact', 'Email', 'Address', 'Enquiry Type', 'State', 'City', 'Pincode', 'Status', 'Received', 'Action'].map(label => <th key={label}>{label}</th>)}
             </tr>
           </thead>
           <tbody>
             {filteredEnquiries.map(enquiry => (
               <tr key={enquiry._id}>
                 <td style={{ fontWeight:500 }}>{enquiry.name}{dueLabel(enquiry)}</td>
+                <td style={{ fontSize:12 }}>{enquiry.ivrsNo || '-'}</td>
                 <td style={{ fontSize:12 }}>{enquiry.contact || enquiry.phone || '-'}</td>
                 <td style={{ fontSize:12 }}>{enquiry.email || '-'}</td>
                 <td style={{ fontSize:12, maxWidth:200, whiteSpace:'normal' }}>{enquiry.address || '-'}</td>
@@ -349,6 +369,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
               </div>
 
               {[
+                ['IVRS No.', enquiry.ivrsNo || '-'],
                 ['Email', enquiry.email || '-'],
                 ['Type', enquiry.enquiryType || '-'],
                 ['State', enquiry.state || '-'],
@@ -395,25 +416,31 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         saving={savingFollowUp} onClose={() => setFollowUpEnquiryId('')} onSave={saveFollowUp} />}
 
       {editing && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeEdit()}>
-          <div className="modal-box" style={{ maxWidth:720 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-              <h2 style={{ fontFamily:'Syne,sans-serif', fontSize:20, fontWeight:700 }}>Edit Enquiry</h2>
-              <button onClick={closeEdit} style={{ background:'none', border:'none', fontSize:22, color:'var(--dim)', cursor:'pointer' }}>x</button>
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && requestExit(closeEdit)}>
+          <div className="modal-box form-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-enquiry-title">
+            <div className="form-dialog-header">
+              <h2 id="edit-enquiry-title" style={{ fontFamily:'Syne,sans-serif', fontSize:20, fontWeight:700 }}>Edit Enquiry</h2>
+              <button type="button" disabled={saving} aria-label="Close enquiry" onClick={() => requestExit(closeEdit)} style={{ background:'none', border:'none', fontSize:22, color:'var(--dim)', cursor:'pointer' }}>x</button>
             </div>
 
-            <div className="dashboard-form-grid">
+            <form id="enquiry-details-edit" ref={feedback.formRef} className="form-dialog-body" noValidate onSubmit={event => { event.preventDefault(); if (!saving) saveEdit() }}>
+            <fieldset className="form-fieldset" disabled={saving}>
+            <FormFields kind="enquiry" errors={feedback.errors} clearError={feedback.clearError}>
               <div>
                 <label className="form-label">Name</label>
-                <input className="crm-input" value={editForm.name} onChange={e => updateField('name', e.target.value)} />
+                <input className="crm-input" name="name" value={editForm.name} onChange={e => updateField('name', e.target.value)} />
               </div>
               <div>
                 <label className="form-label">Contact</label>
-                <input className="crm-input" value={editForm.contact} onChange={e => updateField('contact', e.target.value)} maxLength={10} />
+                <input className="crm-input" name="contact" value={editForm.contact} onChange={e => updateField('contact', e.target.value)} maxLength={10} />
+              </div>
+              <div>
+                <label className="form-label">IVRS No. (optional)</label>
+                <input className="crm-input" name="ivrsNo" value={editForm.ivrsNo} onChange={e => updateField('ivrsNo', e.target.value)} maxLength={15} placeholder="Up to 15 letters or digits" />
               </div>
               <div>
                 <label className="form-label">Email</label>
-                <input className="crm-input" type="email" value={editForm.email} onChange={e => updateField('email', e.target.value)} />
+                <input className="crm-input" type="email" name="email" value={editForm.email} onChange={e => updateField('email', e.target.value)} />
               </div>
               <div>
                 <label className="form-label">Enquiry Type</label>
@@ -452,29 +479,28 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
               </div>
               <div>
                 <label className="form-label">Pincode</label>
-                <input className="crm-input" value={editForm.pincode} onChange={e => updateField('pincode', e.target.value)} maxLength={6} />
+                <input className="crm-input" name="pincode" value={editForm.pincode} onChange={e => updateField('pincode', e.target.value)} maxLength={6} />
               </div>
               <div>
                 <label className="form-label">Status</label>
-                <select className="crm-input" value={editForm.status} onChange={e => updateField('status', e.target.value)}>
+                <select className="crm-input" name="status" value={editForm.status} onChange={e => updateField('status', e.target.value)}>
                   {ENQUIRY_STATUSES.filter(status => !isExecutive || status !== 'converted').map(status => <option key={status} value={status}>{status}</option>)}
                 </select>
               </div>
-            </div>
-
             <div style={{ marginTop:14 }}>
               <label className="form-label">Address</label>
-              <textarea className="crm-input" rows={3} value={editForm.address} onChange={e => updateField('address', e.target.value)} />
+              <textarea className="crm-input" rows={3} name="address" value={editForm.address} onChange={e => updateField('address', e.target.value)} />
             </div>
 
             <div style={{ marginTop:14 }}>
               <label className="form-label">Notes</label>
-              <textarea className="crm-input" rows={3} value={editForm.notes} onChange={e => updateField('notes', e.target.value)} />
+              <textarea className="crm-input" rows={3} name="notes" value={editForm.notes} onChange={e => updateField('notes', e.target.value)} />
             </div>
 
-            <button className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginTop:18 }} onClick={saveEdit} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            </FormFields>
+            </fieldset>
+            </form>
+            <FormActions busy={saving} onCancel={() => requestExit(closeEdit)} form="enquiry-details-edit" />
           </div>
         </div>
       )}

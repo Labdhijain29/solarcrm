@@ -3,6 +3,7 @@ const Dispatch = require('../models/Dispatch');
 const InventoryActivity = require('../models/InventoryActivity');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
+const { acquireLeadWorkflowLock } = require('../services/leadWorkflow');
 
 const normalizeDigits = (value) => String(value || '').replace(/\D/g, '');
 const normalizeMobile = (value) => normalizeDigits(value).replace(/^91(?=[6-9]\d{9}$)/, '');
@@ -425,6 +426,7 @@ exports.updateDispatch = async (req, res) => {
 };
 
 exports.approveDispatch = async (req, res) => {
+  let release;
   try {
     const dispatch = await Dispatch.findById(req.params.id);
     if (!dispatch) return res.status(404).json({ success: false, message: 'Dispatch not found' });
@@ -433,6 +435,18 @@ exports.approveDispatch = async (req, res) => {
     }
     if (dispatch.approvalStatus !== 'Pending' || !dispatch.stockReserved) {
       return res.status(400).json({ success: false, message: 'Only saved pending bills can be approved. Convert draft or hold bills to pending first.' });
+    }
+
+    let lead = await findDispatchLead(dispatch.leadId, dispatch.mobile);
+    if (lead) {
+      release = await acquireLeadWorkflowLock(lead._id);
+      lead = await Lead.findById(lead._id);
+      if (!lead || lead.status === 'on-hold') {
+        return res.status(409).json({ success: false, message: 'Resume the lead before approving its dispatch bill.' });
+      }
+      if (lead.currentStage === 'Dispatch' && lead.status !== 'active') {
+        return res.status(409).json({ success: false, message: `Lead is already ${lead.status}.` });
+      }
     }
 
     dispatch.approvalStatus = 'Approved';
@@ -451,7 +465,6 @@ exports.approveDispatch = async (req, res) => {
       performedByName: req.user.name,
     }).catch(console.error);
 
-    const lead = await findDispatchLead(dispatch.leadId, dispatch.mobile);
     if (lead && lead.currentStage === 'Dispatch') {
       lead.dispatchData = {
         ...lead.dispatchData,
@@ -485,8 +498,8 @@ exports.approveDispatch = async (req, res) => {
 
     res.json({ success: true, message: 'Dispatch approved and sent to Installation Manager', data: dispatch });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+    res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  } finally { if (release) await release().catch(error => console.error('Lead workflow lock cleanup failed:', error.message)); }
 };
 
 exports.updateInstallationStatus = async (req, res) => {

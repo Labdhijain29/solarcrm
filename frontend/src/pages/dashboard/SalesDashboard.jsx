@@ -5,9 +5,12 @@ import { leadsAPI, usersAPI } from '../../services/api'
 import { FilePreview, MetricCard, PageHeader, SearchableSelect } from '../../components/common'
 import LeadsTable from '../../components/dashboard/LeadsTable'
 import LeadModal from '../../components/dashboard/LeadModal'
+import { FormActions, FormFields } from '../../components/common/FormLayout'
+import { hasFormChanges, useFormExit, useFormFeedback } from '../../hooks/useFormEditing'
 import { useAuthStore } from '../../store'
 import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 import { ALL_BRAND_OPTIONS } from './inventoryStructure'
+import { CONTACT_PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone } from '../../utils/contactValidation'
 
 const PINCODE_REGEX = /^\d{6}$/
 const PHONE_REGEX = /^[6-9]\d{9}$/
@@ -301,6 +304,10 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
   const [salesExecutiveOptions, setSalesExecutiveOptions] = useState([])
   const [loadingSalesExecutives, setLoadingSalesExecutives] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const baseline = useRef(INITIAL_LEAD_FORM)
+  const feedback = useFormFeedback()
+  const requestExit = useFormExit(hasFormChanges(formData, baseline.current), submitting)
+  const close = () => requestExit(onClose)
 
   const isSubmitDisabled = useMemo(() => (
     submitting ||
@@ -326,13 +333,16 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
         setFormData((prev) => {
           if (prev.salesExecutiveAssignee) return prev
           const ownOption = options.find((option) => option.value === user?._id)
-          return { ...prev, salesExecutiveAssignee: ownOption?.value || options[0]?.value || '' }
+          const assignee = ownOption?.value || options[0]?.value || ''
+          baseline.current = { ...INITIAL_LEAD_FORM, salesExecutiveAssignee: assignee }
+          return { ...prev, salesExecutiveAssignee: assignee }
         })
       })
       .catch(() => {
         if (!active) return
         if (user?.role === 'Sales Executive') {
           setSalesExecutiveOptions([{ value: user._id, label: `${user.name || 'Me'}${user.phone ? ` | ${user.phone}` : ''}` }])
+          baseline.current = { ...INITIAL_LEAD_FORM, salesExecutiveAssignee: user._id }
           setFormData((prev) => ({ ...prev, salesExecutiveAssignee: prev.salesExecutiveAssignee || user._id }))
         } else {
           toast.error('Could not load sales executives.')
@@ -351,7 +361,7 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
     const { name } = event.target
     let { value } = event.target
 
-    if (name === 'phone') value = normalizePhone(value)
+    if (name === 'phone') value = normalizeContactPhone(value)
     if (name === 'pincode') value = String(value || '').replace(/\D/g, '').slice(0, 6)
     if (name === 'ivrsNo') value = String(value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 15)
     if (name === 'aadharNo') value = String(value || '').replace(/\D/g, '').slice(0, 12)
@@ -376,25 +386,21 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
 
   const submit = async (event) => {
     event.preventDefault()
+    if (submitting) return
     const selectedExecutive = salesExecutiveOptions.find((option) => option.value === formData.salesExecutiveAssignee)
     const selectedExecutiveName = String(selectedExecutive?.label || '').split('|')[0].trim()
 
-    if (!PHONE_REGEX.test(formData.phone)) {
-      toast.error('Contact number must be a valid 10-digit mobile number.')
-      return
-    }
-    if (formData.pincode && !PINCODE_REGEX.test(formData.pincode)) {
-      toast.error('Pincode must be 6 digits.')
-      return
-    }
-    if (formData.ivrsNo && !IVRS_REGEX.test(formData.ivrsNo)) {
-      toast.error('IVRS number must be up to 15 letters or digits.')
-      return
-    }
-    if (!formData.branch.trim()) {
-      toast.error('Branch is required.')
-      return
-    }
+    const errors = {}
+    if (!formData.name.trim()) errors.name = 'Customer name is required.'
+    if (!CONTACT_PHONE_REGEX.test(formData.phone)) errors.phone = CONTACT_PHONE_MESSAGE
+    if (!formData.salesExecutiveAssignee) errors.salesExecutiveAssignee = 'Please select a sales executive.'
+    if (!formData.state.trim()) errors.state = 'State is required.'
+    if (!formData.city.trim()) errors.city = 'City is required.'
+    if (formData.pincode && !PINCODE_REGEX.test(formData.pincode)) errors.pincode = 'Pincode must be 6 digits.'
+    if (formData.ivrsNo && !IVRS_REGEX.test(formData.ivrsNo)) errors.ivrsNo = 'IVRS number must be up to 15 letters or digits.'
+    if (!formData.branch.trim()) errors.branch = 'Branch is required.'
+    if (Object.keys(errors).length) return feedback.report(errors)
+    feedback.resetErrors()
 
     const salesExecutiveData = {
       executiveId: formData.salesExecutiveAssignee,
@@ -456,25 +462,27 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
       setFormData(INITIAL_LEAD_FORM)
       onClose()
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Registration save failed')
+      feedback.reportApi(error, 'Registration save failed')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal-box sales-exec-modal">
-        <div className="sales-exec-hero">
+    <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && close()}>
+      <div className="modal-box form-dialog" role="dialog" aria-modal="true" aria-label="Create sales executive lead">
+        <div className="sales-exec-hero form-dialog-header">
           <div>
             <div className="sales-exec-kicker">Customer Registration</div>
             <h2>Sales Executive Form</h2>
             <p>Add customer details, IVRS and uploaded documents. This goes to Manager approval first.</p>
           </div>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={submitting} onClick={close}>Close</button>
         </div>
 
-        <form className="sales-exec-form" onSubmit={submit}>
+        <form id="sales-create-lead" ref={feedback.formRef} className="form-dialog-body" noValidate onSubmit={submit}>
+          <fieldset className="form-fieldset" disabled={submitting}>
+          <FormFields kind="lead" errors={feedback.errors} clearError={feedback.clearError}>
           <p className="sales-exec-section full">Customer Details</p>
 
           <label className="full">
@@ -669,10 +677,10 @@ function SalesExecutiveLeadForm({ onClose, onCreated }) {
             <FilePreview file={formData.bankStatement} label="Bank Statement" compact />
           </div>
 
-          <button type="submit" className="btn btn-primary sales-exec-submit" disabled={isSubmitDisabled}>
-            {submitting ? 'Submitting...' : 'Submit Registration'}
-          </button>
+          </FormFields>
+          </fieldset>
         </form>
+        <FormActions busy={submitting} onCancel={close} form="sales-create-lead" label="Submit Registration" disabled={isSubmitDisabled} />
       </div>
     </div>
   )

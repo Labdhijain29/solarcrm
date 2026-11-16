@@ -1,12 +1,14 @@
 const { body, validationResult } = require('express-validator');
+const { normalizeContactPhone } = require('../services/contactPhone');
 
 const handleValidation = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const details = errors.array().map(e => ({ field: e.path, message: e.msg }));
     return res.status(422).json({
       success: false,
-      message: 'Validation failed',
-      errors: errors.array().map(e => ({ field: e.path, message: e.msg }))
+      message: [...new Set(details.map(error => error.message))].join('\n'),
+      errors: details
     });
   }
   next();
@@ -55,45 +57,55 @@ const validateRegister = accountValidation();
 const validateCreateUser = accountValidation(true);
 
 const validateLead = [
-  body('name').trim().notEmpty().withMessage('Customer name required'),
+  body('name').trim().notEmpty().withMessage('Customer name is required.'),
   body('phone')
     .trim()
-    .notEmpty().withMessage('Phone number required')
+    .notEmpty().withMessage('Contact number is required.')
     .bail()
-    .customSanitizer((value) => {
-      const digits = String(value || '').replace(/\D/g, '');
-      return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
-    })
-    .matches(/^[6-9]\d{9}$/).withMessage('Valid 10-digit Indian mobile number required'),
+    .customSanitizer(normalizeContactPhone)
+    .matches(/^\d{10}$/).withMessage('Contact number must contain exactly 10 digits.'),
   body('ivrsNo')
     .optional({ checkFalsy: true })
     .trim()
     .matches(/^[A-Za-z0-9]{1,15}$/).withMessage('Valid IVRS number up to 15 letters or digits required'),
   body('branch').trim().notEmpty().withMessage('Branch is required'),
-  body('source').optional().isIn(['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads','Other']),
+  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Enter a valid email address.'),
+  body('pincode').optional({ checkFalsy: true }).trim().matches(/^\d{6}$/).withMessage('Pincode must contain exactly 6 digits.'),
+  body('source').optional().isIn(['Website','Social Media','Referral','Cold Call','Exhibition','Google Ads','Other']).withMessage('Please select a valid lead source.'),
   body('generatedThrough').optional().trim(),
   body('salesExecutiveAssignee').optional({ checkFalsy: true }).isMongoId().withMessage('Valid sales executive assignee required'),
   handleValidation
 ];
 
 const validateEnquiry = [
-  body('name').notEmpty().trim().withMessage('Name required'),
+  body('name').trim().notEmpty().withMessage('Name is required.'),
   body('contact')
-    .notEmpty().withMessage('Contact required')
-    .bail()
     .trim()
-    .customSanitizer((value) => String(value || '').replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, ''))
-    .matches(/^[6-9]\d{9}$/).withMessage('Valid 10-digit contact number required'),
-  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Valid email required'),
+    .notEmpty().withMessage('Contact number is required.')
+    .bail()
+    .customSanitizer(normalizeContactPhone)
+    .matches(/^\d{10}$/).withMessage('Contact number must contain exactly 10 digits.'),
+  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Enter a valid email address.'),
   body('address').optional({ checkFalsy: true }).trim(),
-  body('enquiryType').notEmpty().trim().withMessage('Enquiry type required'),
+  body('enquiryType').trim().notEmpty().withMessage('Please select an enquiry type.'),
   body('state').optional({ checkFalsy: true }).trim(),
   body('city').optional({ checkFalsy: true }).trim(),
   body('pincode')
     .optional({ checkFalsy: true })
     .trim()
-    .matches(/^\d{6}$/).withMessage('Valid 6-digit pincode required'),
+    .matches(/^\d{6}$/).withMessage('Pincode must contain exactly 6 digits.'),
   handleValidation
 ];
 
-module.exports = { validateLogin, validateRegister, validateCreateUser, validateLead, validateEnquiry, handleValidation };
+const optionalContact = field => body(field).optional().customSanitizer(normalizeContactPhone)
+  .matches(/^\d{10}$/).withMessage('Contact number must contain exactly 10 digits.');
+const updateFields = () => [
+  body('name').optional().trim().notEmpty().withMessage('Customer name is required.'),
+  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Enter a valid email address.'),
+  body('pincode').optional({ checkFalsy: true }).trim().matches(/^\d{6}$/).withMessage('Pincode must contain exactly 6 digits.'),
+];
+const validateLeadUpdate = [optionalContact('phone'), ...updateFields(), handleValidation];
+const validateEnquiryUpdate = [optionalContact('contact'), optionalContact('phone'), ...updateFields(),
+  body('enquiryType').optional().trim().notEmpty().withMessage('Please select an enquiry type.'), handleValidation];
+
+module.exports = { validateLogin, validateRegister, validateCreateUser, validateLead, validateEnquiry, validateLeadUpdate, validateEnquiryUpdate, handleValidation };

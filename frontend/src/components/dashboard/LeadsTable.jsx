@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { EmptyState, LeadAvatar, PipelineBar, StageBadge, StatusBadge } from '../common'
+import { EmptyState, LeadAvatar, StageBadge, StatusBadge } from '../common'
 import { SOURCES, STAGES } from '../../utils/constants'
+import LeadStatusToggle, { HOLD_STATUS_OPTIONS } from './LeadStatusToggle'
 
 const compareIvrs = (a, b, direction = 'asc') => {
   const left = String(a.ivrsNo || '')
@@ -14,10 +15,6 @@ const compareIvrs = (a, b, direction = 'asc') => {
 }
 
 const getLeadDisplayId = (lead) => lead.leadId || lead._id?.slice(-6) || lead.id || '-'
-const formatLeadDate = (date) => {
-  if (!date) return '-'
-  return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-}
 
 const getPaginationItems = (page = 1, pages = 1) => {
   const currentPage = Number(page) || 1
@@ -54,11 +51,14 @@ export default function LeadsTable({
   onLeadUpdated,
   showStatusFilter = true,
   showStageFilter = true,
+  showStageColumn = true,
+  enableHold = false,
+  defaultStatus = 'All',
 }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [srcFilter, setSrc] = useState('All')
-  const [statusFilter, setStatus] = useState('All')
+  const [statusFilter, setStatus] = useState(defaultStatus)
   const [stageFilter, setStage] = useState('All')
   const [sortBy, setSortBy] = useState(defaultSort)
   const [hiddenLeadIds, setHiddenLeadIds] = useState([])
@@ -82,7 +82,7 @@ export default function LeadsTable({
       sort: next.sort,
       ...(String(next.search || '').trim() ? { search: String(next.search).trim() } : {}),
       ...(next.source && next.source !== 'All' ? { source: next.source } : {}),
-      ...(next.status && next.status !== 'All' ? { status: next.status } : {}),
+      ...(next.status && next.status !== 'All' ? { status: next.status } : enableHold ? { status: 'active,on-hold' } : {}),
       ...(next.stage && next.stage !== 'All' ? { stage: next.stage } : {}),
     }
   }
@@ -112,7 +112,7 @@ export default function LeadsTable({
   const hasActiveFilters =
     search.trim() !== '' ||
     srcFilter !== 'All' ||
-    (showStatusFilter && statusFilter !== 'All') ||
+    (showStatusFilter && statusFilter !== defaultStatus) ||
     (showStageFilter && stageFilter !== 'All') ||
     sortBy !== defaultSort
 
@@ -134,6 +134,7 @@ export default function LeadsTable({
       ) return false
       if (srcFilter !== 'All' && lead.source !== srcFilter) return false
       if (statusFilter !== 'All' && lead.status !== statusFilter) return false
+      if (enableHold && !['active', 'on-hold'].includes(lead.status)) return false
       if (stageFilter !== 'All' && lead.currentStage !== stageFilter) return false
       return true
     })
@@ -160,10 +161,10 @@ export default function LeadsTable({
     skipNextSearchDebounceRef.current = search !== ''
     setSearch('')
     setSrc('All')
-    setStatus('All')
+    setStatus(defaultStatus)
     setStage('All')
     setSortBy(defaultSort)
-    updateServerQuery({ search: '', source: 'All', status: 'All', stage: 'All', sort: defaultSort, page: 1 })
+    updateServerQuery({ search: '', source: 'All', status: defaultStatus, stage: 'All', sort: defaultSort, page: 1 })
   }
 
   const handleReassigned = (updatedLead) => {
@@ -175,7 +176,7 @@ export default function LeadsTable({
   }
 
   return (
-    <div>
+    <div className="compact-list-region">
       <div className="dashboard-table-filters">
         <div className="dashboard-search">
           <input
@@ -202,11 +203,11 @@ export default function LeadsTable({
           </select>
         )}
         {showStatusFilter && (
-          <select className="crm-input" style={{ width:'auto' }} value={statusFilter} onChange={(e) => {
+          <select className="crm-input" aria-label="Lead status filter" style={{ width:'auto' }} value={statusFilter} onChange={(e) => {
             setStatus(e.target.value)
             updateServerQuery({ status: e.target.value, page: 1 })
           }}>
-            {['All', 'active', 'completed', 'rejected', 'on-hold'].map((item) => <option key={item}>{item}</option>)}
+            {enableHold ? HOLD_STATUS_OPTIONS.map(item => <option key={item.value} value={item.value}>{item.label}</option>) : ['All', 'active', 'completed', 'rejected', 'on-hold'].map((item) => <option key={item}>{item}</option>)}
           </select>
         )}
         <select className="crm-input" style={{ width:'auto' }} value={sortBy} onChange={(e) => {
@@ -232,7 +233,7 @@ export default function LeadsTable({
         )}
       </div>
 
-      <div className="crm-table-wrap">
+      <div className="crm-table-wrap compact-table-wrap">
         {loading ? (
           <div style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>Loading leads...</div>
         ) : filtered.length === 0 ? (
@@ -242,38 +243,35 @@ export default function LeadsTable({
           />
         ) : (
           <>
-            <table className="crm-table">
+            <table className="crm-table compact-dashboard-table">
               <thead>
                 <tr>
-                  {['ID', 'Date', 'Customer', 'City', 'Source', 'IVRS No.', 'Branch', 'Generated By / Through', 'kW', 'Stage', 'Status', 'Progress', 'Action'].map((heading) => <th key={heading}>{heading}</th>)}
+                  {['Customer', 'Location', 'Project', ...(showStageColumn ? ['Stage'] : []), 'Status', 'Actions'].map((heading) => <th key={heading}>{heading}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((lead) => (
                   <tr key={lead._id || lead.id}>
-                    <td><span style={{ fontFamily:'monospace', fontSize:11, color:'var(--muted)' }}>{getLeadDisplayId(lead)}</span></td>
-                    <td style={{ fontSize:12, whiteSpace:'nowrap' }}>{formatLeadDate(lead.createdAt)}</td>
                     <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div className="compact-customer">
                         <LeadAvatar name={lead.name} size={32} />
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:500 }}>{lead.name}</div>
-                          <div style={{ fontSize:11, color:'var(--dim)' }}>{lead.phone}</div>
+                        <div className="compact-cell-text">
+                          <strong>{lead.name}</strong>
+                          <div className="compact-secondary">{lead.phone || '-'}</div>
+                          <div className="compact-secondary">ID: {getLeadDisplayId(lead)}</div>
                         </div>
                       </div>
                     </td>
-                    <td><span className="badge badge-gray">{lead.city || '-'}</span></td>
-                    <td><span className="badge badge-blue">{lead.source}</span></td>
-                    <td style={{ fontSize:12 }}>{lead.ivrsNo || '-'}</td>
-                    <td style={{ fontSize:12 }}>{lead.branch || lead.salesExecutiveData?.branch || '-'}</td>
-                    <td style={{ fontSize:12 }}>
-                      <div style={{ fontWeight:600 }}>{getGeneratedByName(lead) || '-'}</div>
-                      <div style={{ color:'var(--muted)', fontSize:11 }}>{lead.generatedThrough || '-'}</div>
+                    <td>
+                      <div>{lead.city || '-'}</div>
+                      <div className="compact-secondary">Branch: {lead.branch || lead.salesExecutiveData?.branch || '-'}</div>
                     </td>
-                    <td><span style={{ fontWeight:600, color:'var(--sun)' }}>{lead.capacity}</span></td>
-                    <td><StageBadge stage={lead.currentStage} /></td>
-                    <td><StatusBadge status={lead.status} /></td>
-                    <td style={{ minWidth:120 }}><PipelineBar lead={lead} /></td>
+                    <td>
+                      <div>IVRS: {lead.ivrsNo || '-'}</div>
+                      <div className="compact-secondary">{lead.capacity || '-'}</div>
+                    </td>
+                    {showStageColumn && <td><StageBadge stage={lead.currentStage} /></td>}
+                    <td>{enableHold ? <LeadStatusToggle lead={lead} onUpdated={onLeadUpdated} /> : <StatusBadge status={lead.status} />}</td>
                     <td>
                       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => handleView(lead)}>View</button>
@@ -297,19 +295,13 @@ export default function LeadsTable({
                         <div style={{ fontSize:12, color:'var(--muted)' }}>{lead.phone}</div>
                       </div>
                     </div>
-                    <StatusBadge status={lead.status} />
+                    {enableHold ? <LeadStatusToggle lead={lead} onUpdated={onLeadUpdated} /> : <StatusBadge status={lead.status} />}
                   </div>
 
                   {[
-                    ['City', lead.city || '-'],
                     ['ID', getLeadDisplayId(lead)],
-                    ['Date', formatLeadDate(lead.createdAt)],
-                    ['Source', lead.source || '-'],
-                    ['IVRS No.', lead.ivrsNo || '-'],
-                    ['Branch', lead.branch || lead.salesExecutiveData?.branch || '-'],
-                    ['Generated By', getGeneratedByName(lead) || '-'],
-                    ['By / Through', lead.generatedThrough || '-'],
-                    ['Capacity', lead.capacity || '-'],
+                    ['Location', `${lead.city || '-'} / ${lead.branch || lead.salesExecutiveData?.branch || '-'}`],
+                    ['IVRS / kW', `${lead.ivrsNo || '-'} / ${lead.capacity || '-'}`],
                   ].map(([label, value]) => (
                     <div key={label} className="crm-mobile-row">
                       <span className="crm-mobile-label">{label}</span>
@@ -317,15 +309,10 @@ export default function LeadsTable({
                     </div>
                   ))}
 
-                  <div style={{ padding:'8px 0' }}>
+                  {showStageColumn && <div style={{ padding:'8px 0' }}>
                     <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6 }}>Stage</div>
                     <StageBadge stage={lead.currentStage} />
-                  </div>
-
-                  <div style={{ padding:'8px 0' }}>
-                    <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6 }}>Progress</div>
-                    <PipelineBar lead={lead} />
-                  </div>
+                  </div>}
 
                   <div className="dashboard-inline-actions" style={{ marginTop:10 }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => handleView(lead)}>View</button>

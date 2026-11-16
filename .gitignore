@@ -5,8 +5,10 @@ dist/
 .DS_Store
 .vscode/
 coverage/
+test-results/
 backend/node_modules/
 frontend/node_modules/
 backend/uploads/
+backend/backups/
 frontend/package-lock.json
 backend/package-lock.json
