@@ -10,6 +10,8 @@ const { uploadLeadFiles, normalizeMultipartBody } = require('../middleware/uploa
 
 router.use(protect);
 
+router.get('/pipeline', authorize('Admin', 'Manager', 'Sales Manager'), require('../controllers/pipeline.controller').getPipeline);
+
 router.route('/')
   .get(getLeads)
   .post(authorize('Admin', 'Manager', 'Sales Executive', 'Sales Manager'), uploadLeadFiles, normalizeMultipartBody, validateLead, createLead);

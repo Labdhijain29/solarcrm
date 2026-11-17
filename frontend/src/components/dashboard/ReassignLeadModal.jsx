@@ -1,3 +1,4 @@
+import useLeadEditorFocus from '../../hooks/useLeadEditorFocus'
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { FaExchangeAlt, FaHistory, FaSave, FaTimes } from 'react-icons/fa'
@@ -24,6 +25,7 @@ const formatDateTime = (date) => {
 export { canReassignLead }
 
 export default function ReassignLeadModal({ lead, currentUser, onClose, onReassigned }) {
+  const editorRef = useLeadEditorFocus(true)
   const [targetStage, setTargetStage] = useState(lead?.currentStage || 'Lead')
   const [targetUserId, setTargetUserId] = useState('')
   const [targetUsers, setTargetUsers] = useState([])
@@ -98,7 +100,7 @@ export default function ReassignLeadModal({ lead, currentUser, onClose, onReassi
 
   return (
     <div className="modal-backdrop reassign-modal-backdrop" onClick={(event) => event.target === event.currentTarget && onClose?.()}>
-      <div className="modal-box reassign-modal">
+      <div className="modal-box reassign-modal" ref={editorRef}>
         <div className="reassign-hero">
           <div>
             <div className="reassign-kicker"><FaExchangeAlt /> Lead Reassignment</div>

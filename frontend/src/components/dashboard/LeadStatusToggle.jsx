@@ -7,7 +7,7 @@ import { useAuthStore } from '../../store'
 import { ROLE_STAGE_MAP } from '../../utils/constants'
 import { StatusBadge } from '../common'
 
-export const HOLD_STAGES = ['Registration', 'Bank Approval', 'Loan Disbursement', 'Dispatch', 'Installation']
+export const HOLD_STAGES = ['Name Change', 'Registration', 'Bank Approval', 'Loan Disbursement', 'Dispatch', 'Installation']
 export const HOLD_STATUS_OPTIONS = [{ value: 'active', label: 'Active' }, { value: 'on-hold', label: 'On Hold' }, { value: 'All', label: 'All' }]
 export const canToggleLeadHold = (user, lead) => HOLD_STAGES.includes(lead.currentStage) && ['active', 'on-hold'].includes(lead.status) && (
   user?.role === 'Admin' || (ROLE_STAGE_MAP[user?.role] === lead.currentStage && String(lead.assignedTo?._id || lead.assignedTo || '') === String(user?._id))

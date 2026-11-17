@@ -79,6 +79,7 @@ export const authAPI = {
 
 // ─── LEADS ─────────────────────────────────────────────────
 export const leadsAPI = {
+  getPipeline: (params = {}) => api.get('/leads/pipeline', { params }),
   getAll: (params = {}) => api.get('/leads', { params: { limit: 1000, ...params } }),
   getOne: (id) => api.get(`/leads/${id}`),
   create: (data) => api.post('/leads', data, formDataConfig(data)),

@@ -38,6 +38,7 @@ import InventoryDispatchPage from './pages/dashboard/InventoryDispatchPage'
 import TechUploadSettingsPage from './pages/dashboard/TechUploadSettingsPage'
 
 const ADMIN_STAGE_DASHBOARD_ROUTES = [
+  { path: 'stage/name-change-executive', element: <StageDashboard roleOverride="Name Change Executive" /> },
   { path: 'stage/registration-executive', element: <RegistrationDashboard /> },
   { path: 'stage/bank-finance-executive', element: <BankFinanceDashboard /> },
   { path: 'stage/loan-officer', element: <LoanOfficerDashboard /> },

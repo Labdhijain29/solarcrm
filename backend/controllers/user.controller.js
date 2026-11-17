@@ -3,7 +3,7 @@ const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
 
 const WORKFLOW_STAGES = [
-  'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
+  'Lead', 'Name Change', 'Registration', 'Bank Approval', 'Loan Disbursement',
   'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed',
 ];
 const { withFreshFileUrl } = require('../services/storage/fileAsset');
@@ -96,7 +96,8 @@ exports.getAssignableUsers = async (req, res) => {
       || req.user.role === role
       || (stage && userStage === stage && roleStage === stage)
       || isPreviousStageLookup
-      || isNextStageLookup;
+      || isNextStageLookup
+      || (userStage === 'Lead' && stage === 'Registration' && roleStage === stage);
 
     if (!canViewRole) {
       return res.status(403).json({ success: false, message: 'You cannot view users for this role.' });

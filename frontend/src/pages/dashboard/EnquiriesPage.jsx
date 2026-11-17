@@ -1,3 +1,6 @@
+import { createPortal } from 'react-dom'
+import EnquiryListActions from '../../components/dashboard/EnquiryListActions'
+import EnquiryDetailsModal from '../../components/dashboard/EnquiryDetailsModal'
 import { useEffect, useRef, useState } from 'react'
 import { FaBell } from 'react-icons/fa'
 import { useLocation, useSearchParams } from 'react-router-dom'
@@ -41,6 +44,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null)
+  const [detailsId, setDetailsId] = useState('')
   const [editForm, setEditForm] = useState(emptyEditForm)
   const [saving, setSaving] = useState(false)
   const editBaseline = useRef(emptyEditForm)
@@ -214,6 +218,19 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
     </span>
   }
 
+  const enquiryStatus = enquiry => {
+    const status = isConvertedEnquiry(enquiry) ? 'converted' : enquiry.status
+    const badge = status === 'new' ? 'badge-sun' : status === 'contacted' ? 'badge-blue' : status === 'converted' ? 'badge-green' : 'badge-gray'
+    return <span className={`badge ${badge}`}>{status}</span>
+  }
+  const receivedDate = enquiry => enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleDateString('en-IN') : '-'
+  const renderActions = enquiry => (
+    <EnquiryListActions enquiry={enquiry} canChange={canChangeEnquiry(enquiry)} canConvert={canConvertEnquiry(enquiry)}
+      convertingId={convertingId} onFollowUp={setFollowUpEnquiryId} onConvert={convert}
+      onView={item => setDetailsId(item._id)} onEdit={openEdit} onDelete={deleteEnquiry} />
+  )
+  const detailEnquiry = enquiries.find(enquiry => enquiry._id === detailsId)
+
   const filteredEnquiries = enquiries
     .filter((enquiry) => {
       if (conversionFilter === 'not-converted' && isConvertedEnquiry(enquiry)) return false
@@ -247,7 +264,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   if (loading) return <Spinner />
 
   return (
-    <div className={embedded ? undefined : 'dashboard-page'}>
+    <div className={embedded ? 'compact-list-region enquiries-list-region' : 'dashboard-page compact-list-region enquiries-list-region'}>
       <PageHeader icon={<FaBell />} title={isExecutive ? 'Enquiries' : 'Website Enquiries'} subtitle={`${filteredEnquiries.length} enquiries visible for ${user?.role || 'your role'}`}
         action={!embedded ? <button type="button" className="btn btn-primary" onClick={() => setShowEnquiryForm(true)}>Enquiry Form</button> : undefined} />
 
@@ -268,7 +285,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
 
       <div className="dashboard-table-filters" style={{ marginBottom:16 }}>
         <div className="dashboard-search">
-          <input className="crm-input" placeholder="Search by name or number..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="crm-input" placeholder="Search name, phone or IVRS..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="crm-input" aria-label="Conversion status" style={{ width:'auto' }} value={conversionFilter} onChange={(e) => setConversionFilter(e.target.value)}>
           <option value="not-converted">Not Converted</option>
@@ -304,51 +321,29 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         </div>
       )}
 
-      <div className="crm-table-wrap">
-        <table className="crm-table">
-          <thead>
-            <tr>
-              {['Name', 'IVRS No.', 'Contact', 'Email', 'Address', 'Enquiry Type', 'State', 'City', 'Pincode', 'Status', 'Received', 'Action'].map(label => <th key={label}>{label}</th>)}
-            </tr>
-          </thead>
+      <div className="crm-table-wrap compact-table-wrap">
+        <table className="crm-table compact-dashboard-table compact-enquiries-table">
+          <thead><tr>{['Customer', 'Location', 'Enquiry', 'Status', 'Received', 'Actions'].map(label => <th key={label}>{label}</th>)}</tr></thead>
           <tbody>
             {filteredEnquiries.map(enquiry => (
               <tr key={enquiry._id}>
-                <td style={{ fontWeight:500 }}>{enquiry.name}{dueLabel(enquiry)}</td>
-                <td style={{ fontSize:12 }}>{enquiry.ivrsNo || '-'}</td>
-                <td style={{ fontSize:12 }}>{enquiry.contact || enquiry.phone || '-'}</td>
-                <td style={{ fontSize:12 }}>{enquiry.email || '-'}</td>
-                <td style={{ fontSize:12, maxWidth:200, whiteSpace:'normal' }}>{enquiry.address || '-'}</td>
                 <td>
-                  <span className={`badge ${enquiry.enquiryType === 'Service Enquiry' ? 'badge-green' : 'badge-indigo'}`}>
-                    {enquiry.enquiryType || '-'}
-                  </span>
-                </td>
-                <td><span className="badge badge-gray">{enquiry.state || '-'}</span></td>
-                <td><span className="badge badge-gray">{enquiry.city || '-'}</span></td>
-                <td style={{ fontSize:12 }}>{enquiry.pincode || '-'}</td>
-                <td>
-                  <span className={`badge ${enquiry.status === 'new' ? 'badge-sun' : enquiry.status === 'contacted' ? 'badge-blue' : enquiry.status === 'converted' ? 'badge-green' : 'badge-gray'}`}>
-                    {enquiry.status}
-                  </span>
-                </td>
-                <td style={{ fontSize:12, color:'var(--muted)' }}>
-                  {enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleDateString('en-IN') : '-'}
-                </td>
-                <td>
-                  <div className="dashboard-inline-actions">
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFollowUpEnquiryId(enquiry._id)}>
-                      {isConvertedEnquiry(enquiry) || enquiry.status === 'closed' ? 'View follow-ups' : 'Follow up'}
-                    </button>
-                    {canConvertEnquiry(enquiry) && (
-                      <button className="btn btn-success btn-sm" disabled={Boolean(convertingId)} onClick={() => convert(enquiry._id)}>{convertingId === enquiry._id ? 'Converting...' : 'Create Lead'}</button>
-                    )}
-                    {enquiry.convertedTo && <span className="badge badge-green">Converted</span>}
-                    {enquiry.enquiryType === 'Service Enquiry' && <span className="badge badge-blue">Service Queue</span>}
-                    {canChangeEnquiry(enquiry) && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
-                    {canChangeEnquiry(enquiry) && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
+                  <div className="compact-cell-text"><strong>{enquiry.name}</strong>
+                    <div className="compact-secondary">{enquiry.contact || enquiry.phone || '-'}</div>
+                    {enquiry.email && <div className="compact-secondary">{enquiry.email}</div>}
                   </div>
                 </td>
+                <td><div>{enquiry.city || '-'}</div><div className="compact-secondary">{[enquiry.state, enquiry.pincode].filter(Boolean).join(' / ') || '-'}</div></td>
+                <td>
+                  <span className={`badge ${enquiry.enquiryType === 'Service Enquiry' ? 'badge-green' : 'badge-indigo'}`}>{enquiry.enquiryType || '-'}</span>
+                  <div className="compact-secondary">IVRS: {enquiry.ivrsNo || '-'}</div>
+                </td>
+                <td>
+                  {enquiryStatus(enquiry)}{dueLabel(enquiry)}
+                  {enquiry.enquiryType === 'Service Enquiry' && <div className="compact-secondary">Service Queue</div>}
+                </td>
+                <td className="compact-secondary">{receivedDate(enquiry)}</td>
+                <td>{renderActions(enquiry)}</td>
               </tr>
             ))}
           </tbody>
@@ -357,46 +352,19 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         <div className="crm-mobile-cards">
           {filteredEnquiries.map(enquiry => (
             <div key={enquiry._id} className="crm-mobile-card">
-              <div className="dashboard-split-row" style={{ marginBottom:10 }}>
-                <div>
-                  <div style={{ fontSize:14, fontWeight:600 }}>{enquiry.name}</div>
-                  <div style={{ fontSize:12, color:'var(--muted)' }}>{enquiry.contact || enquiry.phone || '-'}</div>
-                  {dueLabel(enquiry)}
-                </div>
-                <span className={`badge ${enquiry.status === 'new' ? 'badge-sun' : enquiry.status === 'contacted' ? 'badge-blue' : enquiry.status === 'converted' ? 'badge-green' : 'badge-gray'}`}>
-                  {enquiry.status}
-                </span>
+              <div className="dashboard-split-row" style={{ marginBottom: 10 }}>
+                <div><strong>{enquiry.name}</strong><div className="compact-secondary">{enquiry.contact || enquiry.phone || '-'}</div>{enquiry.email && <div className="compact-secondary">{enquiry.email}</div>}</div>
+                {enquiryStatus(enquiry)}
               </div>
-
+              {dueLabel(enquiry)}
               {[
+                ['Location', [enquiry.city, enquiry.state, enquiry.pincode].filter(Boolean).join(' / ') || '-'],
+                ['Enquiry', enquiry.enquiryType || '-'],
                 ['IVRS No.', enquiry.ivrsNo || '-'],
-                ['Email', enquiry.email || '-'],
-                ['Type', enquiry.enquiryType || '-'],
-                ['State', enquiry.state || '-'],
-                ['City', enquiry.city || '-'],
-                ['Pincode', enquiry.pincode || '-'],
-                ['Received', enquiry.createdAt ? new Date(enquiry.createdAt).toLocaleDateString('en-IN') : '-'],
-              ].map(([label, value]) => (
-                <div key={label} className="crm-mobile-row">
-                  <span className="crm-mobile-label">{label}</span>
-                  <span>{value}</span>
-                </div>
-              ))}
-
-              <div style={{ paddingTop:8, fontSize:12, color:'var(--muted)' }}>{enquiry.address || '-'}</div>
-
-              <div className="dashboard-inline-actions" style={{ marginTop:10 }}>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFollowUpEnquiryId(enquiry._id)}>
-                  {isConvertedEnquiry(enquiry) || enquiry.status === 'closed' ? 'View follow-ups' : 'Follow up'}
-                </button>
-                {canConvertEnquiry(enquiry) && (
-                  <button className="btn btn-success btn-sm" disabled={Boolean(convertingId)} onClick={() => convert(enquiry._id)}>{convertingId === enquiry._id ? 'Converting...' : 'Create Lead'}</button>
-                )}
-                {enquiry.convertedTo && <span className="badge badge-green">Converted</span>}
-                {enquiry.enquiryType === 'Service Enquiry' && <span className="badge badge-blue">Service Queue</span>}
-                {canChangeEnquiry(enquiry) && <button className="btn btn-ghost btn-sm" onClick={() => openEdit(enquiry)}>Edit</button>}
-                {canChangeEnquiry(enquiry) && <button className="btn btn-danger btn-sm" onClick={() => deleteEnquiry(enquiry)}>Delete</button>}
-              </div>
+                ['Received', receivedDate(enquiry)],
+              ].map(([label, value]) => <div key={label} className="crm-mobile-row"><span className="crm-mobile-label">{label}</span><span>{value}</span></div>)}
+              {enquiry.enquiryType === 'Service Enquiry' && <div className="compact-secondary">Service Queue</div>}
+              <div className="enquiry-mobile-actions">{renderActions(enquiry)}</div>
             </div>
           ))}
         </div>
@@ -410,6 +378,9 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         )}
       </div>
 
+      {detailEnquiry && <EnquiryDetailsModal enquiry={detailEnquiry} onClose={() => setDetailsId('')} />}
+
+      {createPortal(<>
       {showEnquiryForm && <EnquiryFormModal onClose={() => setShowEnquiryForm(false)} onSubmitted={() => { setShowEnquiryForm(false); fetchData() }} />}
 
       {followUpEnquiry && <EnquiryFollowUpModal key={followUpEnquiryId} enquiry={followUpEnquiry} today={today}
@@ -504,6 +475,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
           </div>
         </div>
       )}
+      </>, document.body)}
     </div>
   )
 }

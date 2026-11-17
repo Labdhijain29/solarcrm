@@ -61,6 +61,7 @@ const ROLE_STAGE_MAP = {
   'Manager': 'Lead',
   'Sales Executive': 'Lead',
   'Sales Manager': 'Lead',
+  'Name Change Executive': 'Name Change',
   'Registration Executive': 'Registration',
   'Bank/Finance Executive': 'Bank Approval',
   'Loan Officer': 'Loan Disbursement',

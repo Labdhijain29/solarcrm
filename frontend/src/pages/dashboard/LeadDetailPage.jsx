@@ -1,3 +1,6 @@
+import LeadActivityHistory from '../../components/dashboard/LeadActivityHistory'
+import useLeadEditorFocus from '../../hooks/useLeadEditorFocus'
+import LeadMoveControls, { confirmLeadMove, confirmLeadReject } from '../../components/dashboard/LeadMoveControls'
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -25,10 +28,14 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [note, setNote] = useState('')
+  const [showNote, setShowNote] = useState(false)
+  const noteEditorRef = useLeadEditorFocus(showNote)
   const [acting, setActing] = useState(false)
   const [showReassign, setShowReassign] = useState(false)
   const [nextStageUsers, setNextStageUsers] = useState([])
+  const [loadingAssignees, setLoadingAssignees] = useState(false)
   const [nextAssigneeId, setNextAssigneeId] = useState('')
+  const [targetStage, setTargetStage] = useState('Registration')
   const [stageForm, setStageForm] = useState({
     remark: '',
     applicationId: '',
@@ -88,7 +95,7 @@ export default function LeadDetailPage() {
   const isSalesExecutiveLeadForAccess = Array.isArray(lead?.tags) && lead.tags.includes('sales-executive')
   const blockedSalesExecutiveApproval = isSalesExecutiveLeadForAccess && currentLeadStage === 'Lead' && user?.role === 'Sales Executive'
   const canAct = Boolean(lead) && canActOnStage(user?.role, currentLeadStage) && !blockedSalesExecutiveApproval
-  const nextStage = STAGES[stageIndex(currentLeadStage) + 1] || ''
+  const nextStage = currentLeadStage === 'Lead' ? targetStage : STAGES[stageIndex(currentLeadStage) + 1] || ''
   const isSalesManagerHandoff = currentLeadStage === 'Lead'
     && (user?.role === 'Sales Manager' || lead?.assignedTo?.role === 'Sales Manager')
   const nextStageRole = isSalesManagerHandoff
@@ -100,11 +107,14 @@ export default function LeadDetailPage() {
   useEffect(() => {
     if (!canApprove || !nextStageRole) {
       setNextStageUsers([])
+      setLoadingAssignees(false)
       setNextAssigneeId('')
       return
     }
 
     let alive = true
+    setLoadingAssignees(true)
+    setNextStageUsers([])
     const loadUsersFallback = () => {
       if (!['Admin', 'Manager'].includes(user?.role)) return Promise.resolve([])
       return usersAPI.getAll()
@@ -117,6 +127,7 @@ export default function LeadDetailPage() {
         if (!alive) return
         const users = (response.data.data || []).filter((item) => isAssignableUser(item, nextStageRole))
         const resolvedUsers = users.length ? users : await loadUsersFallback()
+        if (!alive) return
         setNextStageUsers(resolvedUsers)
         setNextAssigneeId((prev) => (
           resolvedUsers.some((item) => item._id === prev) ? prev : resolvedUsers[0]?._id || ''
@@ -125,11 +136,13 @@ export default function LeadDetailPage() {
       .catch(async () => {
         if (!alive) return
         const resolvedUsers = await loadUsersFallback()
+        if (!alive) return
         setNextStageUsers(resolvedUsers)
         setNextAssigneeId((prev) => (
           resolvedUsers.some((item) => item._id === prev) ? prev : resolvedUsers[0]?._id || ''
         ))
       })
+      .finally(() => { if (alive) setLoadingAssignees(false) })
 
     return () => { alive = false }
   }, [assignmentStage, canApprove, nextStageRole, user?.role])
@@ -190,6 +203,7 @@ export default function LeadDetailPage() {
     if (!selectedFiles.length) {
       return {
         note: note || 'Approved',
+        targetStage,
         ...(nextAssigneeId ? { nextAssigneeId } : {}),
         ...(Object.keys(stageData).length ? { stageData } : {}),
       }
@@ -197,6 +211,7 @@ export default function LeadDetailPage() {
 
     const payload = new FormData()
     payload.append('note', note || 'Approved')
+    payload.append('targetStage', targetStage)
     if (nextAssigneeId) payload.append('nextAssigneeId', nextAssigneeId)
     if (Object.keys(stageData).length) payload.append('stageData', JSON.stringify(stageData))
     selectedFiles.forEach(([field, file]) => payload.append(field, file))
@@ -218,11 +233,12 @@ export default function LeadDetailPage() {
       toast.error('Meter number is required.')
       return
     }
-    if (nextStageRole && nextStageUsers.length > 0 && !nextAssigneeId) {
+    if (nextStageRole && !nextAssigneeId) {
       toast.error(`Please select ${nextStageRole}.`)
       return
     }
 
+    if (!await confirmLeadMove(isSalesManagerHandoff ? 'Manager' : nextStage, nextStageUsers.find(item => item._id === nextAssigneeId))) return
     setActing(true)
     try {
       const stageData = {}
@@ -252,7 +268,7 @@ export default function LeadDetailPage() {
       }
 
       await leadsAPI.approve(id, buildApprovePayload(stageData))
-      toast.success(isSalesManagerHandoff ? 'Sent to Manager' : `Moved to ${STAGES[ci + 1]}`)
+      toast.success(isSalesManagerHandoff ? 'Sent to Manager' : `Moved to ${nextStage}`)
       fetch()
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed')
@@ -262,7 +278,7 @@ export default function LeadDetailPage() {
   }
 
   const doReject = async () => {
-    if (!window.confirm('Reject this lead?')) return
+    if (!await confirmLeadReject(lead.name)) return
     setActing(true)
     try {
       await leadsAPI.reject(id, { note: note || 'Rejected' })
@@ -276,14 +292,18 @@ export default function LeadDetailPage() {
   }
 
   const doNote = async () => {
-    if (!note.trim()) return
+    if (!note.trim() || acting) return
+    setActing(true)
     try {
       await leadsAPI.addNote(id, note)
       toast.success('Note added')
+      setShowNote(false)
       setNote('')
       fetch()
     } catch {
-      toast.error('Failed')
+      toast.error('Failed to save note')
+    } finally {
+      setActing(false)
     }
   }
 
@@ -311,27 +331,27 @@ export default function LeadDetailPage() {
       </div>
 
       <div className="dashboard-grid-two" style={{ marginBottom: 16 }}>
-        <div className="crm-card">
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Lead Details</div>
+        <details className="crm-card lead-details-fold">
+          <summary>Customer Details</summary>
           {fields.map(([label, value]) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</span>
               <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '60%', wordBreak: 'break-word' }}>{value}</span>
             </div>
           ))}
-        </div>
+        </details>
 
         <div>
           {salesExecutiveFields.length > 0 && (
-            <div className="crm-card" style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Sales Executive Form Details</div>
+            <details className="crm-card lead-details-fold" style={{ marginBottom: 16 }}>
+              <summary>Additional Details</summary>
               {salesExecutiveFields.map(([label, value]) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</span>
                   <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '60%', wordBreak: 'break-word' }}>{value}</span>
                 </div>
               ))}
-            </div>
+            </details>
           )}
 
           {stageSpecificFields.some(([, value]) => value !== '-') && (
@@ -357,8 +377,22 @@ export default function LeadDetailPage() {
             </div>
           )}
 
+
+
+          {blockedSalesExecutiveApproval && (
+            <div className="crm-card" style={{ marginBottom: 16, fontSize: 12, color: 'var(--muted)' }}>
+              Sales executive lead pehle manager approve karega, uske baad hi registration stage me move hogi.
+            </div>
+          )}
+
+
+        </div>
+      </div>
+      <div className="lead-history-last">
+        <LeadActivityHistory key={`${lead._id}-${lead.currentStage}`} history={lead.history || []} currentStage={lead.currentStage} />
+      </div>
           {canAct && lead.status === 'active' && (
-            <div className="crm-card" style={{ marginBottom: 16 }}>
+            <div className="crm-card lead-page-actions">
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Actions</div>
               {showBankRemarkField && (
                 <input
@@ -492,61 +526,28 @@ export default function LeadDetailPage() {
                   </div>
                 </div>
               )}
-              <textarea className="crm-input" rows={2} placeholder="Add a note or reason..." value={note} onChange={(event) => setNote(event.target.value)} style={{ marginBottom: 12 }} />
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {ci < STAGES.length - 1 && (
-                  <button className="btn btn-success" style={{ flex: 1 }} disabled={acting} onClick={doApprove}>
-                    Approve {'->'} {isSalesManagerHandoff ? 'Manager' : STAGES[ci + 1]}
-                  </button>
-                )}
-                <button className="btn btn-danger" disabled={acting} onClick={doReject}>Reject</button>
-                {nextStageRole && (
-                  <select
-                    className="crm-input"
-                    value={nextAssigneeId}
-                    disabled={acting || nextStageUsers.length === 0}
-                    onChange={(event) => setNextAssigneeId(event.target.value)}
-                    aria-label={`Assign lead to ${nextStageRole}`}
-                    title={`Assign to ${nextStageRole}`}
-                    style={{ width: 210, height: 38, fontSize: 12 }}
-                  >
-                    <option value="">{nextStageUsers.length ? `Assign to ${nextStageRole}` : `No ${nextStageRole} users`}</option>
-                    {nextStageUsers.map((item) => (
-                      <option key={item._id} value={item._id}>{item.name}</option>
-                    ))}
-                  </select>
-                )}
-                <button className="btn btn-ghost btn-sm" disabled={acting || !note.trim()} onClick={doNote}>Save Note</button>
-              </div>
-            </div>
-          )}
-
-          {blockedSalesExecutiveApproval && (
-            <div className="crm-card" style={{ marginBottom: 16, fontSize: 12, color: 'var(--muted)' }}>
-              Sales executive lead pehle manager approve karega, uske baad hi registration stage me move hogi.
-            </div>
-          )}
-
-          <div className="crm-card">
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 }}>Activity History</div>
-            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-              {(lead.history || []).map((item, index) => (
-                <div key={index} className="history-item">
-                  <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, background: item.action === 'Approved' || item.action === 'Completed' ? 'rgba(16,185,129,.1)' : item.action === 'Rejected' ? 'rgba(239,68,68,.1)' : 'rgba(245,158,11,.1)' }}>
-                    {item.action === 'Approved' || item.action === 'Completed' ? 'OK' : item.action === 'Rejected' ? 'NO' : '...'}
+              <LeadMoveControls
+          canApprove={canApprove}
+          canChooseStage={lead.currentStage === 'Lead' && ['Admin', 'Manager'].includes(user?.role) && !isSalesManagerHandoff}
+          targetStage={targetStage} onStageChange={stage => { setTargetStage(stage); setNextAssigneeId('') }}
+          destination={isSalesManagerHandoff ? 'Manager' : nextStage}
+          role={nextStageRole} users={nextStageUsers} loadingUsers={loadingAssignees} assigneeId={nextAssigneeId}
+          onAssigneeChange={setNextAssigneeId} busy={acting} onMove={doApprove}
+        >
+          <button type="button" className="btn btn-ghost btn-sm" disabled={acting} aria-expanded={showNote} onClick={() => setShowNote(!showNote)}>Add Note</button>
+              <button type="button" className="btn btn-danger" disabled={acting} onClick={doReject}>Reject</button></LeadMoveControls>
+              {showNote && (
+                <div className="lead-inline-editor" ref={noteEditorRef}>
+                  <label className="form-label" htmlFor="lead-detail-note">Note</label>
+                  <textarea id="lead-detail-note" className="crm-input" rows={2} placeholder="Type your note..." value={note} onChange={event => setNote(event.target.value)} />
+                  <div className="lead-editor-actions">
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={acting} onClick={() => { setShowNote(false); setNote('') }}>Cancel</button>
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={acting || !note.trim()} onClick={doNote}>Save Note</button>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500 }}>{item.stage} | {item.action}</div>
-                    {item.performedByName && <div style={{ fontSize: 11, color: 'var(--muted)' }}>By {item.performedByName}</div>}
-                    {item.note && <div style={{ fontSize: 11, color: 'var(--dim)', fontStyle: 'italic' }}>{item.note}</div>}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--dim)', whiteSpace: 'nowrap' }}>{formatDate(item.timestamp)}</div>
                 </div>
-              ))}
+              )}
             </div>
-          </div>
-        </div>
-      </div>
+          )}
       {showReassign && (
         <ReassignLeadModal
           lead={lead}

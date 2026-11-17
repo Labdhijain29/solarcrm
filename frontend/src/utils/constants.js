@@ -1,12 +1,12 @@
 import { City, State } from 'country-state-city'
 
 export const STAGES = [
-  'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
+  'Lead', 'Name Change', 'Registration', 'Bank Approval', 'Loan Disbursement',
   'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed',
 ]
 
 export const STAGE_COLORS = [
-  '#94A3B8', '#6366F1', '#3B82F6', '#F59E0B',
+  '#94A3B8', '#A855F7', '#6366F1', '#3B82F6', '#F59E0B',
   '#F97316', '#10B981', '#8B5CF6', '#EC4899', '#14B8A6', '#10B981',
 ]
 
@@ -16,6 +16,7 @@ export const ROLE_STAGE_MAP = {
   'Manager': 'Lead',
   'Sales Executive': 'Lead',
   'Sales Manager': 'Lead',
+  'Name Change Executive': 'Name Change',
   'Registration Executive': 'Registration',
   'Bank/Finance Executive': 'Bank Approval',
   'Loan Officer': 'Loan Disbursement',
@@ -34,6 +35,7 @@ export const ROLE_ICONS = {
   'Manager': 'MN',
   'Sales Executive': 'SE',
   'Sales Manager': 'SL',
+  'Name Change Executive': 'NC',
   'Registration Executive': 'RG',
   'Bank/Finance Executive': 'BK',
   'Loan Officer': 'LN',

@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 
 const ROLES = [
   'Enquiry Executive',
-  'Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Registration Executive',
+  'Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Name Change Executive', 'Registration Executive',
   'Bank/Finance Executive', 'Loan Officer', 'Stock Manager', 'Dispatch Manager',
   'Installation Manager', 'Net Metering Officer', 'Subsidy Officer', 'Subsidy Reading Officer',
   'Service Manager'
@@ -81,6 +81,7 @@ userSchema.virtual('stageAccess').get(function () {
     'Manager': 'Lead',
     'Sales Executive': 'Lead',
     'Sales Manager': 'Lead',
+    'Name Change Executive': 'Name Change',
     'Registration Executive': 'Registration',
     'Bank/Finance Executive': 'Bank Approval',
     'Loan Officer': 'Loan Disbursement',

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const HOLD_STAGES = ['Registration', 'Bank Approval', 'Loan Disbursement', 'Dispatch', 'Installation'];
+const HOLD_STAGES = ['Name Change', 'Registration', 'Bank Approval', 'Loan Disbursement', 'Dispatch', 'Installation'];
 
 // Serialize stage/status transitions across workers, including dispatch approval.
 // Fail closed after a crash: no TTL may unlock an unfinished workflow write.

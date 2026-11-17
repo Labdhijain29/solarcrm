@@ -10,6 +10,7 @@ import mahaveerSolarLogo from '../../assets/mahaveer-solar-logo.svg'
 const ADMIN_DASHBOARD_ITEMS = [
   { to: '/dashboard/admin', icon: FaTachometerAlt, label: 'Admin Dashboard' },
   { to: '/dashboard/manager', icon: FaRegBuilding, label: 'Manager Dashboard' },
+  { to: '/dashboard/stage/name-change-executive', icon: FaClipboardList, label: 'Name Change Dashboard' },
   { to: '/dashboard/stage/registration-executive', icon: FaClipboardList, label: 'Registration Dashboard' },
   { to: '/dashboard/stage/bank-finance-executive', icon: FaBriefcase, label: 'Bank Dashboard' },
   { to: '/dashboard/stage/loan-officer', icon: FaMoneyBillWave, label: 'Loan Dashboard' },

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { ivrsField, ivrsIndexOptions } = require('../services/ivrsUniqueness');
 
 const STAGES = [
-  'Lead', 'Registration', 'Bank Approval', 'Loan Disbursement',
+  'Lead', 'Name Change', 'Registration', 'Bank Approval', 'Loan Disbursement',
   'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed'
 ];
 
@@ -219,7 +219,7 @@ leadSchema.virtual('stageIndex').get(function () {
 });
 
 // Method: move to next stage
-leadSchema.methods.approveStage = function (userId, userName, note) {
+leadSchema.methods.approveStage = function (userId, userName, note, targetStage) {
   const currentIdx = STAGES.indexOf(this.currentStage);
   if (currentIdx === -1 || currentIdx >= STAGES.length - 1) {
     throw new Error('Cannot advance beyond final stage');
@@ -239,7 +239,7 @@ leadSchema.methods.approveStage = function (userId, userName, note) {
   }
 
   // Move to next stage
-  const nextStage = STAGES[currentIdx + 1];
+  const nextStage = this.currentStage === 'Lead' ? (targetStage || 'Registration') : STAGES[currentIdx + 1];
   this.currentStage = nextStage;
 
   if (nextStage === 'Completed') {

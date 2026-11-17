@@ -1,3 +1,4 @@
+import PipelineBoard from '../../components/dashboard/PipelineBoard'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FaBell, FaCheckCircle, FaClipboardList, FaCog, FaTasks, FaUsers, FaWarehouse } from 'react-icons/fa'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -18,53 +19,8 @@ const CAPITALIZED_ENQUIRY_FIELDS = new Set(['name', 'address', 'state', 'city', 
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const VALID_TABS = ['overview', 'leads', 'enquiries', 'pipeline', 'analytics']
 const LEADS_PAGE_SIZE = 25
-const PIPELINE_QUERY = { sort: 'latest', limit: 1000 }
 const normalizeTab = (value) => VALID_TABS.includes(value) ? value : 'overview'
 const getRequestError = (label, error) => `${label}: ${error?.response?.data?.message || error?.message || 'Request failed'}`
-
-function AdminPipeline({ leads, onView }) {
-  const [expandedStages, setExpandedStages] = useState({})
-  const toggleStage = (stage) => {
-    setExpandedStages((prev) => ({ ...prev, [stage]: !prev[stage] }))
-  }
-
-  return (
-    <div className="kanban-wrap" style={{ overflowX: 'auto' }}>
-      {STAGES.map(stage => {
-        const cols = leads.filter(l => l.currentStage === stage)
-        const isExpanded = Boolean(expandedStages[stage])
-        const visibleLeads = isExpanded ? cols : cols.slice(0, 5)
-        return (
-          <div key={stage} className="kanban-col">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: .5, color: stageColor(stage) }}>{stage.split(' ')[0]}</div>
-              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11, padding: '1px 7px' }}>{cols.length}</div>
-            </div>
-            {visibleLeads.map(l => (
-              <div key={l._id} className="kanban-card" onClick={() => onView(l)}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 3 }}>{l.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{l.capacity} | {l.city}</div>
-                <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
-                  {STAGES.map((_, i) => <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= STAGES.indexOf(stage) ? stageColor(stage) : 'var(--bg3)' }} />)}
-                </div>
-              </div>
-            ))}
-            {cols.length > 5 && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => toggleStage(stage)}
-                style={{ width: '100%', justifyContent: 'center', marginTop: 6, fontSize: 11 }}
-              >
-                {isExpanded ? 'Show less' : `+${cols.length - 5} more`}
-              </button>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 export default function AdminDashboard() {
   const { user } = useAuthStore()
@@ -72,17 +28,15 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null)
   const [activity, setActivity] = useState([])
   const [leads, setLeads] = useState([])
-  const [pipelineLeads, setPipelineLeads] = useState([])
+  const [pipelineRevision, setPipelineRevision] = useState(0)
   const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
   const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
   const [tab, setTab] = useState(() => normalizeTab(searchParams.get('tab')))
   const [selectedLead, setSelectedLead] = useState(null)
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [leadsLoading, setLeadsLoading] = useState(false)
-  const [pipelineLoading, setPipelineLoading] = useState(false)
   const [dashboardErrors, setDashboardErrors] = useState([])
   const [leadError, setLeadError] = useState('')
-  const [pipelineError, setPipelineError] = useState('')
   const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const [enquiriesRefreshKey, setEnquiriesRefreshKey] = useState(0)
   const leadRequestId = useRef(0)
@@ -150,17 +104,7 @@ export default function AdminDashboard() {
       })
   }
 
-  const loadPipeline = () => {
-    setPipelineLoading(true)
-    setPipelineError('')
-    leadsAPI.getAll(PIPELINE_QUERY)
-      .then((response) => setPipelineLeads(response.data.data || []))
-      .catch((error) => {
-        setPipelineLeads([])
-        setPipelineError(error?.response?.data?.message || error?.message || 'Failed to load pipeline')
-      })
-      .finally(() => setPipelineLoading(false))
-  }
+  const loadPipeline = () => setPipelineRevision(value => value + 1)
 
   useEffect(() => {
     loadDashboard()
@@ -433,14 +377,7 @@ export default function AdminDashboard() {
 
       {tab === 'enquiries' && <EnquiriesPage embedded refreshKey={enquiriesRefreshKey} />}
 
-      {tab === 'pipeline' && (
-        <div style={{ animation:'fadeIn .3s ease' }}>
-          {pipelineError && (
-            <div className="crm-card" style={{ marginBottom:16, color:'var(--red)', fontSize:13 }}>{pipelineError}</div>
-          )}
-          {pipelineLoading ? <Spinner /> : <AdminPipeline leads={pipelineLeads} onView={viewLead} />}
-        </div>
-      )}
+      {tab === 'pipeline' && <PipelineBoard refreshKey={pipelineRevision} />}
 
       {tab === 'analytics' && (
         <div className="dashboard-grid-two" style={{ animation:'fadeIn .3s ease' }}>

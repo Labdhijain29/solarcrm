@@ -1,3 +1,4 @@
+import PipelineBoard from '../../components/dashboard/PipelineBoard'
 import { useState, useEffect, useRef } from 'react'
 import { FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase, FaShippingFast } from 'react-icons/fa'
 import { dispatchAPI, leadsAPI } from '../../services/api'
@@ -58,55 +59,10 @@ const INITIAL_MANAGER_LEAD = {
 }
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const MANAGER_LEAD_QUERY = { stage: 'Lead', sort: 'latest' }
-const PIPELINE_QUERY = { sort: 'latest' }
-
-function KanbanPipeline({ leads, onView }) {
-  const [expandedStages, setExpandedStages] = useState({})
-  const toggleStage = (stage) => {
-    setExpandedStages((prev) => ({ ...prev, [stage]: !prev[stage] }))
-  }
-
-  return (
-    <div className="kanban-wrap" style={{ overflowX: 'auto' }}>
-      {STAGES.map(stage => {
-        const cols = leads.filter(l => l.currentStage === stage)
-        const isExpanded = Boolean(expandedStages[stage])
-        const visibleLeads = isExpanded ? cols : cols.slice(0, 5)
-        return (
-          <div key={stage} className="kanban-col">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: .5, color: stageColor(stage) }}>{stage.split(' ')[0]}</div>
-              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11, padding: '1px 7px' }}>{cols.length}</div>
-            </div>
-            {visibleLeads.map(l => (
-              <div key={l._id} className="kanban-card" onClick={() => onView(l)}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 3 }}>{l.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{l.capacity} | {l.city}</div>
-                <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
-                  {STAGES.map((_, i) => <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= STAGES.indexOf(stage) ? stageColor(stage) : 'var(--bg3)' }} />)}
-                </div>
-              </div>
-            ))}
-            {cols.length > 5 && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => toggleStage(stage)}
-                style={{ width: '100%', justifyContent: 'center', marginTop: 6, fontSize: 11 }}
-              >
-                {isExpanded ? 'Show less' : `+${cols.length - 5} more`}
-              </button>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 export function ManagerDashboard() {
   const [leads, setLeads] = useState([])
-  const [pipelineLeads, setPipelineLeads] = useState([])
+  const [pipelineRevision, setPipelineRevision] = useState(0)
   const [loading, setLoading] = useState(true)
   const [leadPagination, setLeadPagination] = useState({ page: 1, limit: LEADS_PAGE_SIZE, total: 0, pages: 1 })
   const [leadQuery, setLeadQuery] = useState({ page: 1, sort: 'latest' })
@@ -145,11 +101,7 @@ export function ManagerDashboard() {
       })
   }
 
-  const fetchPipeline = () => {
-    leadsAPI.getAll(PIPELINE_QUERY)
-      .then((response) => setPipelineLeads(response.data.data || []))
-      .catch(console.error)
-  }
+  const fetchPipeline = () => setPipelineRevision(value => value + 1)
 
   const refreshData = () => {
     fetchLeads()
@@ -337,7 +289,7 @@ export function ManagerDashboard() {
         />
       </div>}
       {tab === 'enquiries' && <EnquiriesPage embedded refreshKey={enquiriesRefreshKey} onConverted={refreshData} />}
-      {tab === 'pipeline' && <KanbanPipeline leads={pipelineLeads} onView={viewLead} />}
+      {tab === 'pipeline' && <PipelineBoard refreshKey={pipelineRevision} />}
 
       {showCreate && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeCreate()}>
