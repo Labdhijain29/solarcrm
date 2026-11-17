@@ -189,6 +189,18 @@ export default function DashboardLayout() {
         <SidebarLogo />
         <UserBadge user={user} />
 
+        {visibleNav.some(item => item.to === '/dashboard/enquiries') && (
+          <div style={{ padding:'8px 0' }}>
+            <NavLink to="/dashboard/enquiries" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={closeSidebar}>
+              <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700, display:'flex', justifyContent:'center' }}><FaBell /></span>
+              <span>Enquiries</span>
+              {dueFollowUps.total > 0 && (
+                <span className="badge badge-sun" style={{ marginLeft:'auto' }} title="Follow-ups due today or earlier">{dueFollowUps.total > 99 ? '99+' : dueFollowUps.total}</span>
+              )}
+            </NavLink>
+          </div>
+        )}
+
         {showAdminDashboards && (
           <div style={{ padding:'8px 0' }}>
             <div style={{ fontSize:10, fontWeight:600, color:'var(--dim)', textTransform:'uppercase', letterSpacing:.8, padding:'10px 16px 6px' }}>All Dashboards</div>
