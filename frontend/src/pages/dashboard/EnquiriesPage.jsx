@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 import { EmptyState, PageHeader, SearchableSelect, Spinner } from '../../components/common'
 import { enquiriesAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
-import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
+import { ENQUIRY_TYPES, getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import { FormActions, FormFields } from '../../components/common/FormLayout'
 import { hasFormChanges, useFormExit, useFormFeedback } from '../../hooks/useFormEditing'
@@ -16,7 +16,6 @@ import EnquiryFollowUpModal from '../../components/dashboard/EnquiryFollowUpModa
 import { formatFollowUpDate, followUpState, indiaToday, isConvertedEnquiry } from '../../utils/enquiryFollowUp'
 import { CONTACT_PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone } from '../../utils/contactValidation'
 
-const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
 const DEFAULT_CONVERSION_FILTER = 'not-converted'
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
@@ -28,7 +27,7 @@ const emptyEditForm = {
   contact: '',
   email: '',
   address: '',
-  enquiryType: '',
+  enquiryType: 'Sales Enquiry',
   state: '',
   city: '',
   pincode: '',
@@ -123,7 +122,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
       contact: enquiry.contact || enquiry.phone || '',
       email: enquiry.email || '',
       address: enquiry.address || '',
-      enquiryType: enquiry.enquiryType || '',
+      enquiryType: enquiry.enquiryType || 'Sales Enquiry',
       state: enquiry.state || '',
       city: enquiry.city || '',
       pincode: enquiry.pincode || '',
@@ -420,7 +419,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
                   value={editForm.enquiryType}
                   onChange={(value) => updateField('enquiryType', value)}
                   options={toOptions(ENQUIRY_TYPES)}
-                  placeholder="Select enquiry type..."
+                  placeholder={editForm.enquiryType || 'Sales Enquiry'}
                   searchPlaceholder="Search enquiry type..."
                 />
               </div>

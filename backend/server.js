@@ -102,6 +102,7 @@ app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/leads', require('./routes/lead.routes'));
 app.use('/api/enquiries', require('./routes/enquiry.routes'));
+app.use('/api/service-requests', require('./routes/serviceRequest.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/product', require('./routes/product.routes'));
 app.use('/api/dispatch', require('./routes/dispatch.routes'));

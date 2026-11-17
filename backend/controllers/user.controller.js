@@ -7,8 +7,10 @@ const WORKFLOW_STAGES = [
   'Dispatch', 'Installation', 'Net Metering', 'Subsidy', 'Subsidy Reading', 'Completed',
 ];
 const { withFreshFileUrl } = require('../services/storage/fileAsset');
-const { createUserAccount, uploadUserDocument } = require('../services/userAccount');
+const { createUserAccount } = require('../services/userAccount');
 const storageService = require('../services/storage/storageService');
+const { uploadFileAsset } = require('../services/storage/fileAsset');
+const { isValidFollowUpDate } = require('../services/enquiryFollowUp');
 
 const serializeUser = async (user) => {
   const plainUser = typeof user.toObject === 'function' ? user.toObject() : { ...user };
@@ -137,32 +139,69 @@ exports.createUser = async (req, res) => {
 };
 
 exports.updateUser = async (req, res) => {
+  let asset;
   try {
-    const {
-      name, phone, isActive, role, approvalStatus, alternateContact, permanentAddress,
-      address, state, city, pincode, jobTitle, resume, documents, dateOfJoining
-    } = req.body;
-
-    const updates = {
-      name, phone, isActive, role, approvalStatus, alternateContact, permanentAddress,
-      address, state, city, pincode, jobTitle, resume, documents,
-      dateOfJoining: dateOfJoining || undefined
-    };
-
-    if (req.file) {
-      const uploadedDocument = await uploadUserDocument(req.params.id, req.file);
-      updates.documents = uploadedDocument.fileUrl;
-      updates.documentsFile = uploadedDocument;
-    }
-
-    Object.keys(updates).forEach((key) => {
-      if (updates[key] === undefined) delete updates[key];
-    });
-
-    const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true }).select('-password');
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, data: await serializeUser(user) });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    const fields = ['name', 'email', 'phone', 'role', 'alternateContact', 'permanentAddress', 'address', 'state', 'city', 'pincode', 'jobTitle', 'resume', 'documents', 'franchiseName', 'franchiseState', 'franchiseCity', 'franchiseSubDistrict'];
+    const updates = {};
+    const invalid = message => { throw Object.assign(new Error(message), { statusCode: 400 }); };
+    for (const field of fields) {
+      if (req.body[field] === undefined) continue;
+      if (typeof req.body[field] !== 'string') invalid(`Enter a valid ${field}.`);
+      updates[field] = req.body[field].trim();
+    }
+    if (updates.name !== undefined && !updates.name) invalid('Name is required.');
+    if (updates.email !== undefined) {
+      updates.email = updates.email.toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) invalid('Enter a valid email address.');
+      if (await User.exists({ email: updates.email, _id: { $ne: user._id } })) invalid('Email already in use.');
+    }
+    for (const field of ['phone', 'alternateContact']) {
+      if (updates[field] === undefined) continue;
+      updates[field] = updates[field].replace(/\D/g, '').replace(/^91(?=[6-9]\d{9}$)/, '');
+      if (updates[field] && !/^[6-9]\d{9}$/.test(updates[field])) invalid(field === 'phone' ? 'Contact must be a valid 10-digit mobile number.' : 'Alternate contact must be a valid 10-digit mobile number.');
+    }
+    if (updates.pincode && !/^\d{6}$/.test(updates.pincode)) invalid('Pincode must contain 6 digits.');
+    if (updates.role && !User.schema.path('role').enumValues.includes(updates.role)) invalid('Select a valid role.');
+    if (String(req.user._id) === String(user._id) && updates.role && updates.role !== user.role) invalid('You cannot change your own role from User Management.');
+    for (const field of ['isActive', 'franchiseEnabled']) {
+      if (req.body[field] === undefined) continue;
+      if (![true, false, 'true', 'false'].includes(req.body[field])) invalid(`Enter a valid ${field}.`);
+      updates[field] = req.body[field] === true || req.body[field] === 'true';
+    }
+    if (req.body.approvalStatus !== undefined) updates.approvalStatus = req.body.approvalStatus;
+    if (req.body.dateOfJoining !== undefined) {
+      const date = req.body.dateOfJoining;
+      if (date && (typeof date !== 'string' || !isValidFollowUpDate(date.slice(0, 10)) || Number.isNaN(new Date(date).getTime()))) invalid('Enter a valid date of joining.');
+      updates.dateOfJoining = date || null;
+    }
+    const franchiseFields = ['franchiseName', 'franchiseState', 'franchiseCity', 'franchiseSubDistrict'];
+    if ((updates.franchiseEnabled !== undefined || franchiseFields.some(field => updates[field] !== undefined)) && !(updates.franchiseEnabled ?? user.franchiseEnabled)) {
+      franchiseFields.forEach(field => { updates[field] = ''; });
+    }
+    const query = { _id: user._id };
+    if (req.body.expectedUpdatedAt) {
+      if (String(req.body.expectedUpdatedAt) !== user.updatedAt?.toISOString()) return res.status(409).json({ success: false, message: 'This user changed. Close Edit and reopen it to load the latest details.' });
+      query.updatedAt = new Date(req.body.expectedUpdatedAt);
+    }
+    if (req.file) {
+      asset = await uploadFileAsset(req.file, { folder: 'users/registrations' });
+      updates.documents = asset.fileUrl;
+      updates.documentsFile = asset;
+      updates.documentsUploadStatus = 'completed';
+      updates.documentsUploadError = '';
+    }
+    const updated = await User.findOneAndUpdate(query, updates, { new: true, runValidators: true }).select('-password');
+    if (!updated) throw Object.assign(new Error('This user changed. Close Edit and reopen it to load the latest details.'), { statusCode: 409 });
+    res.json({ success: true, message: 'User updated successfully.', data: await serializeUser(updated) });
+  } catch (err) {
+    if (asset?.fileKey) {
+      try { if (!await User.exists({ 'documentsFile.fileKey': asset.fileKey })) await storageService.delete(asset.fileKey); } catch { /* Preserve assets when saved references cannot be checked. */ }
+    }
+    const status = err.code === 11000 ? 400 : err.statusCode || (['ValidationError', 'CastError'].includes(err.name) ? 400 : 500);
+    res.status(status).json({ success: false, message: err.code === 11000 ? 'Email already in use.' : err.message });
+  }
 };
 
 exports.updateProfile = async (req, res) => {

@@ -1,6 +1,12 @@
 import { Children, cloneElement, isValidElement, useId } from 'react'
 
 const groups = {
+  service: [
+    ['Customer', ['customerName', 'contact', 'email']],
+    ['Location', ['city', 'address']],
+    ['Service Request', ['issue', 'assignedTo', 'visitDate']],
+    ['Issue Details', ['description']],
+  ],
   lead: [
     ['Customer', ['salesExecutiveAssignee', 'name', 'phone', 'email']],
     ['Address', ['state', 'city', 'pincode', 'address']],

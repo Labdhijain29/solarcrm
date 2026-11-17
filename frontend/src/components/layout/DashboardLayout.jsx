@@ -22,12 +22,12 @@ const ADMIN_DASHBOARD_ITEMS = [
   { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard' }
 ]
 
-const ENQUIRY_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Service Manager', 'Enquiry Executive']
+const ENQUIRY_ROLES = ['Admin', 'Manager', 'Sales Executive', 'Sales Manager', 'Enquiry Executive']
 
 const COMMON_NAV_ITEMS = [
   { to: '/dashboard/sales', icon: FaUsers, label: 'Sales Dashboard', roles: ['Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/stock-manager', icon: FaWarehouse, label: 'Stock Manager Dashboard' },
-  { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard' },
+  { to: '/dashboard/service', icon: FaWrench, label: 'Service Dashboard', roles: ['Admin', 'Service Manager'] },
   { to: '/dashboard/leads', icon: FaClipboardList, label: 'All Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/rejected-leads', icon: FaBan, label: 'Rejected Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ENQUIRY_ROLES },
@@ -91,7 +91,7 @@ export default function DashboardLayout() {
   const stageAccess = ROLE_STAGE_MAP[user?.role]
   const visibleNav = COMMON_NAV_ITEMS.filter(item => user?.role === 'Enquiry Executive'
     ? ['/dashboard/enquiries', '/dashboard/profile'].includes(item.to)
-    : !item.roles || item.roles.includes(user?.role))
+    : (!item.roles || item.roles.includes(user?.role)) && !(user?.role === 'Service Manager' && item.to === '/dashboard/stock-manager'))
   const canViewEnquiries = ENQUIRY_ROLES.includes(user?.role)
   const showAdminDashboards = user?.role === 'Admin'
   const ThemeIcon = theme === 'dark' ? FaSun : FaMoon

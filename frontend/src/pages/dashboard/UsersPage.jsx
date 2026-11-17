@@ -1,3 +1,6 @@
+import { buildAccountFormData } from '../../utils/userAccount'
+import { useFormExit } from '../../hooks/useFormEditing'
+import useServiceDialog from '../../hooks/useServiceDialog'
 import { useState, useEffect } from 'react'
 import { FaBell, FaChartLine, FaCheck, FaClipboardList, FaEdit, FaExchangeAlt, FaEye, FaFileInvoice, FaMoneyBillWave, FaPlus, FaRegBuilding, FaSolarPanel, FaTimes, FaTrash, FaUser, FaUserShield, FaUsers, FaWrench } from 'react-icons/fa'
 import toast from 'react-hot-toast'
@@ -193,6 +196,33 @@ function AddUserModal({ onClose, onCreated }) {
   )
 }
 
+function EditUserModal({ user, currentUser, onClose, onSaved }) {
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const requestExit = useFormExit(dirty, saving)
+  const close = () => requestExit(onClose)
+  const ref = useServiceDialog(close, 'input')
+  const submit = async form => {
+    const payload = buildAccountFormData(form, true)
+    payload.delete('password')
+    if (user.updatedAt) payload.append('expectedUpdatedAt', user.updatedAt)
+    const { data } = await usersAPI.update(user._id, payload)
+    toast.success(data.message || 'User updated successfully.')
+    onSaved(data.data)
+  }
+  return (
+    <div className="modal-backdrop" onClick={event => { if (event.target === event.currentTarget) close() }}>
+      <section className="modal-box user-edit-modal" style={{ maxWidth: 820 }} role="dialog" aria-modal="true" aria-labelledby="edit-user-title" ref={ref}>
+        <div className="dashboard-split-row user-edit-header" style={{ marginBottom: 18 }}>
+          <div><h2 id="edit-user-title" style={{ fontSize: 20 }}>Edit User</h2><p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{user.name}</p></div>
+          <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label="Close edit user" disabled={saving} onClick={close}><FaTimes /></button>
+        </div>
+        <UserAccountForm admin initialUser={user} allowRoleChange={String(user._id) !== String(currentUser?._id)} onSubmit={submit} onBusyChange={setSaving} onDirtyChange={setDirty} onCancel={close} />
+      </section>
+    </div>
+  )
+}
+
 export function UsersPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -202,6 +232,8 @@ export function UsersPage() {
   const [search, setSearch] = useState('')
   const [approvedRoleFilter, setApprovedRoleFilter] = useState('all')
   const [showAddUser, setShowAddUser] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [loadingEditId, setLoadingEditId] = useState('')
   const { user: currentUser } = useAuthStore()
 
   const fetchUsers = () => {
@@ -214,6 +246,23 @@ export function UsersPage() {
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  const openUserEdit = async user => {
+    if (loadingEditId) return
+    setLoadingEditId(user._id)
+    try { setEditingUser((await usersAPI.getOne(user._id)).data.data) }
+    catch (error) { toast.error(error.response?.data?.message || 'Could not load user details.') }
+    finally { setLoadingEditId('') }
+  }
+  const editButton = user => currentUser?.role === 'Admin' && (
+    <button type="button" className="btn btn-secondary btn-sm btn-icon" aria-label={`Edit ${user.name}`} title="Edit user" disabled={Boolean(loadingEditId) || actioningId === user._id} onClick={() => openUserEdit(user)}><FaEdit /></button>
+  )
+  const userSaved = updated => {
+    setUsers(previous => previous.map(user => user._id === updated._id ? updated : user))
+    if (selectedUser?._id === updated._id) setSelectedUser(updated)
+    if (currentUser?._id === updated._id) useAuthStore.getState().setUser({ ...currentUser, ...updated })
+    setEditingUser(null)
+  }
 
   const handleApprove = async (id) => {
     setActioningId(id)
@@ -383,6 +432,7 @@ export function UsersPage() {
                           >
                             <FaEye />
                           </button>
+                          {editButton(u)}
                           {!isSelf && isPending && (
                             <button
                               type="button"
@@ -477,6 +527,7 @@ export function UsersPage() {
                         >
                           <FaEye />
                         </button>
+                          {editButton(u)}
                         {isPending && (
                           <button
                             type="button"
@@ -536,6 +587,7 @@ export function UsersPage() {
                         >
                           <FaEye />
                         </button>
+                          {editButton(u)}
                       </div>
                     )}
                   </div>
@@ -545,6 +597,7 @@ export function UsersPage() {
           </>
         )}
       </div>
+      {editingUser && currentUser?.role === 'Admin' && <EditUserModal user={editingUser} currentUser={currentUser} onClose={() => setEditingUser(null)} onSaved={userSaved} />}
       {selectedUser && <UserDetailsModal user={selectedUser} onClose={() => setSelectedUser(null)} />}
     </div>
   )

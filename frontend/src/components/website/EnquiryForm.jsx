@@ -1,13 +1,12 @@
 import { useEffect, useId, useState } from 'react'
 import toast from 'react-hot-toast'
 import { enquiriesAPI } from '../../services/api'
-import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
+import { ENQUIRY_TYPES, getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 import { SearchableSelect } from '../common'
 import { CONTACT_PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone } from '../../utils/contactValidation'
 import { FormFields } from '../common/FormLayout'
 import { hasFormChanges, useFormFeedback } from '../../hooks/useFormEditing'
 
-const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
@@ -19,7 +18,7 @@ export default function EnquiryForm({ compact = false, onSubmitted, onStateChang
     ivrsNo: '',
     email: '',
     address: '',
-    enquiryType: '',
+    enquiryType: 'Sales Enquiry',
     state: '',
     city: '',
     pincode: '',
@@ -84,7 +83,7 @@ export default function EnquiryForm({ compact = false, onSubmitted, onStateChang
       {!compact && (
         <>
           <h3 style={{ fontFamily:'Syne,sans-serif', fontSize:22, fontWeight:800, marginBottom:6 }}>Send Us Your Enquiry</h3>
-          <p style={{ fontSize:14, color:'var(--muted)', marginBottom:24 }}>The right dashboard team will receive it based on your enquiry type.</p>
+          <p style={{ fontSize:14, color:'var(--muted)', marginBottom:24 }}>Our team will contact you about your solar enquiry.</p>
         </>
       )}
 

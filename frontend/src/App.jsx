@@ -193,7 +193,7 @@ export default function App() {
           <Route path="admin" element={<AdminOnlyRoute><AdminDashboard /></AdminOnlyRoute>} />
           <Route path="manager" element={<AdminOnlyRoute><ManagerDashboard /></AdminOnlyRoute>} />
           <Route path="sales" element={<RoleRoute roles={['Admin', 'Sales Manager', 'Sales Executive']}><SalesDashboard /></RoleRoute>} />
-          <Route path="service" element={<AdminOnlyRoute><ServiceManagerDashboard /></AdminOnlyRoute>} />
+          <Route path="service" element={<RoleRoute roles={['Admin', 'Service Manager']}><ServiceManagerDashboard /></RoleRoute>} />
           <Route path="stock-manager" element={<RoleRoute roles={['Admin', 'Stock Manager', 'Dispatch Manager']}><StockManagerDashboard /></RoleRoute>} />
           <Route path="inventory" element={<InventoryDispatchPage defaultTab="dashboard" />} />
           <Route path="dispatch-erp" element={<DispatchManagerDashboard key="dispatch-erp-dashboard" defaultTab="dashboard" />} />

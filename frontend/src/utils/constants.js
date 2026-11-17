@@ -48,6 +48,8 @@ export const ROLE_ICONS = {
   'Service Manager': 'SV',
 }
 
+export const ENQUIRY_TYPES = ['Sales Enquiry']
+
 export const SOURCES = ['Website', 'Social Media', 'Referral', 'Cold Call', 'Exhibition', 'Google Ads', 'Other']
 export const KW_OPTIONS = ['1kW', '2kW', '3kW', '5kW', '7kW', '10kW', '15kW', '20kW+']
 const INDIA_COUNTRY_CODE = 'IN'

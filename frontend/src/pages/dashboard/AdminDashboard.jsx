@@ -10,11 +10,10 @@ import LeadModal from '../../components/dashboard/LeadModal'
 import EnquiryFormModal from '../../components/dashboard/EnquiryFormModal'
 import EnquiriesPage from './EnquiriesPage'
 import { useAuthStore } from '../../store'
-import { getCitiesForState, STAGES, STAGE_COLORS, STATE_OPTIONS, stageColor } from '../../utils/constants'
+import { ENQUIRY_TYPES, getCitiesForState, STAGES, STAGE_COLORS, STATE_OPTIONS, stageColor } from '../../utils/constants'
 
 const TT_STYLE = { background:'var(--card)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, color:'var(--text)' }
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
-const ENQUIRY_TYPES = ['Service Enquiry', 'Sales Enquiry', 'Installation Enquiry', 'Support Enquiry', 'Other']
 const CAPITALIZED_ENQUIRY_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 const VALID_TABS = ['overview', 'leads', 'enquiries', 'pipeline', 'analytics']
@@ -46,7 +45,7 @@ export default function AdminDashboard() {
     contact: '',
     email: '',
     address: '',
-    enquiryType: '',
+    enquiryType: 'Sales Enquiry',
     state: '',
     city: '',
     pincode: '',
@@ -175,7 +174,7 @@ export default function AdminDashboard() {
       contact: enquiry.contact || enquiry.phone || '',
       email: enquiry.email || '',
       address: enquiry.address || '',
-      enquiryType: enquiry.enquiryType || '',
+      enquiryType: enquiry.enquiryType || 'Sales Enquiry',
       state: enquiry.state || '',
       city: enquiry.city || '',
       pincode: enquiry.pincode || '',
@@ -478,7 +477,7 @@ export default function AdminDashboard() {
                   value={editForm.enquiryType}
                   onChange={(value) => updateEnquiryField('enquiryType', value)}
                   options={toOptions(ENQUIRY_TYPES)}
-                  placeholder="Select enquiry type..."
+                  placeholder={editForm.enquiryType || 'Sales Enquiry'}
                   searchPlaceholder="Search enquiry type..."
                 />
               </div>

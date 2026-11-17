@@ -13,6 +13,16 @@ export { getPublicFileUrl }
 const isFormData = (data) => typeof FormData !== 'undefined' && data instanceof FormData
 const formDataConfig = (data) => (isFormData(data) ? { headers: {} } : undefined)
 
+export const serviceRequestsAPI = {
+  getAll: params => api.get('/service-requests', { params }),
+  getOne: id => api.get(`/service-requests/${id}`),
+  getManagers: () => api.get('/service-requests/managers'),
+  update: (id, data) => api.put(`/service-requests/${id}`, data),
+  create: data => api.post('/service-requests', data, { ...formDataConfig(data), timeout: 120000 }),
+  addActivity: (id, data) => api.post(`/service-requests/${id}/activity`, data, { ...formDataConfig(data), timeout: 120000 }),
+  setStatus: (id, data) => api.put(`/service-requests/${id}/status`, data),
+}
+
 const shouldRedirectToLogin = (error) => {
   if (error.response?.status !== 401) return false
 
@@ -104,7 +114,7 @@ export const usersAPI = {
     data,
     formDataConfig(data)
   ),
-  update: (id, data) => api.put(`/users/${id}`, data, formDataConfig(data)),
+  update: (id, data) => api.put(`/users/${id}`, data, { ...formDataConfig(data), timeout: 120000 }),
   delete: (id) => api.delete(`/users/${id}`),
   approve: (id) => api.post(`/users/${id}/approve`),
   reject: (id) => api.post(`/users/${id}/reject`),
