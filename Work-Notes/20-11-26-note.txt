@@ -1,0 +1,15 @@
+20-11-2026 ke updates
+
+Sales Manager
+1. Manager, Name Change, Registration, Bank aur Loan dashboards ka access diya hai.
+2. In dashboards par Admin ki tarah leads dekhna, edit, note, move, reject aur reassign kar sakte hain. Jahan On Hold hai, wahan hold aur resume bhi kar sakte hain.
+3. Lead ko seedha Registration ya Name Change mein bhej sakte hain.
+
+Lead List
+1. Customer ki details ke saath lead banne ki date dobara dikhai hai.
+
+Enquiries
+1. Ek page par 50 enquiries dikhengi. Previous, Next aur page number se aage-peeche ja sakte hain.
+2. Search, filters aur sorting sabhi enquiries par kaam karte hain, sirf khule page par nahi.
+3. List mein IVRS ki jagah aakhri follow-up ka note, date aur time dikhta hai. Poori history details mein rahegi.
+4. Create Lead par Yes/No confirmation aata hai, taaki galti se lead na bane.

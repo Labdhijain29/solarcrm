@@ -1,0 +1,5 @@
+Daily Follow-up Summary
+1. Enquiries kholne par har user ko usi browser mein din mein ek baar Today, Overdue aur Upcoming follow-ups ka summary popup dikhega.
+2. Count ya View All Due Follow-ups par click karne se usi hisaab ki enquiry list khul jaati hai.
+3. Summary button se popup dobara khol sakte hain. Koi follow-up due na ho toh uska saaf message dikhta hai.
+4. Ye suvidha Admin aur Manager ke Enquiries tab mein bhi hai. Mobile par bhi layout sahi rakha hai.
