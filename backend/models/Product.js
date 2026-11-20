@@ -20,9 +20,11 @@ const productSchema = new mongoose.Schema({
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
-productSchema.index({ name: 'text', sku: 'text', productCode: 'text', category: 'text', brand: 'text', type: 'text', capacity: 'text' });
+// Match the existing production text index; SKU/code searches use controller
+// filters. MongoDB cannot build a second text index on this collection.
+productSchema.index({ name: 'text', category: 'text', brand: 'text', type: 'text', capacity: 'text' });
 productSchema.index(
-  { name: 1, category: 1, brand: 1, type: 1, capacity: 1 },
+  { office: 1, name: 1, category: 1, brand: 1, type: 1, capacity: 1 },
   { unique: true, collation: { locale: 'en', strength: 2 } }
 );
 
@@ -32,5 +34,7 @@ productSchema.virtual('status').get(function () {
 
 productSchema.set('toJSON', { virtuals: true });
 productSchema.set('toObject', { virtuals: true });
+
+productSchema.plugin(require('../services/officeScope'));
 
 module.exports = mongoose.model('Product', productSchema);

@@ -122,7 +122,7 @@ exports.convertToLead = async (req, res) => {
         address: enquiry.address, city: enquiry.city, state: enquiry.state, pincode: enquiry.pincode,
         source: 'Website',
         notes: `Enquiry Type: ${enquiry.enquiryType}\nAddress: ${enquiry.address || '-'}\nState: ${enquiry.state || '-'}\nPincode: ${enquiry.pincode || '-'}`,
-        assignedTo: manager?._id || req.user._id, createdBy: req.user._id,
+        assignedTo: manager?._id || (req.user.role === 'Admin' && String(req.user.office) !== String(req.office._id) ? null : req.user._id), createdBy: req.user._id,
         currentStage: 'Lead', status: 'active',
         history: [{ stage: 'Lead', action: 'Created', performedBy: req.user._id, performedByName: req.user.name,
           note: manager ? `Converted from enquiry and assigned to ${manager.name}` : 'Converted from website enquiry' }],

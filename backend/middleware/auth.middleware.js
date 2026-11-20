@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { runGlobal, runOffice } = require('../services/officeContext');
+const { resolveOffice } = require('./office.middleware');
 
 // Verify JWT token
 const protect = async (req, res, next) => {
@@ -12,7 +14,7 @@ const protect = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await runGlobal(() => User.findById(decoded.id).select('-password'));
     if (!user || !user.isActive) {
       return res.status(401).json({ success: false, message: 'Token invalid or user deactivated.' });
     }
@@ -21,12 +23,13 @@ const protect = async (req, res, next) => {
     if (user.role === 'Enquiry Executive' && !isEnquiryExecutiveRequestAllowed(req)) {
       return res.status(403).json({ success: false, message: 'This account has access to enquiries and its own profile only.' });
     }
-    next();
+    const office = await resolveOffice(req);
+    runOffice(office._id, next);
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ success: false, message: 'Token expired. Please log in again.' });
     }
-    return res.status(401).json({ success: false, message: 'Invalid token.' });
+    return res.status(err.statusCode || 401).json({ success: false, message: err.statusCode ? err.message : 'Invalid token.' });
   }
 };
 

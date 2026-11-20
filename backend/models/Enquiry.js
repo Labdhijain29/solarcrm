@@ -34,4 +34,6 @@ const enquirySchema = new mongoose.Schema({
 enquirySchema.index({ nextFollowUpDate: 1, status: 1, convertedTo: 1 });
 enquirySchema.index({ ivrsNo: 1 }, ivrsIndexOptions);
 
+enquirySchema.plugin(require('../services/officeScope'));
+
 module.exports = mongoose.model('Enquiry', enquirySchema);

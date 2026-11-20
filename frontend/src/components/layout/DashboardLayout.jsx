@@ -1,3 +1,4 @@
+import { OfficeSelector, useOfficeContext } from './OfficeBoundary'
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, useNavigate, NavLink } from 'react-router-dom'
 import { FaBan, FaBell, FaBoxOpen, FaBriefcase, FaClipboardList, FaCog, FaExchangeAlt, FaFileInvoice, FaHome, FaMoneyBillWave, FaMoon, FaRegBuilding, FaShippingFast, FaSolarPanel, FaSun, FaTachometerAlt, FaUser, FaUsers, FaUserTie, FaWarehouse, FaWrench } from 'react-icons/fa'
@@ -32,6 +33,7 @@ const COMMON_NAV_ITEMS = [
   { to: '/dashboard/rejected-leads', icon: FaBan, label: 'Rejected Leads', roles: ['Admin', 'Manager', 'Sales Executive', 'Sales Manager'] },
   { to: '/dashboard/enquiries', icon: FaBell, label: 'Enquiries', roles: ENQUIRY_ROLES },
   { to: '/dashboard/inventory', icon: FaBoxOpen, label: 'Inventory', roles: ['Admin', 'Stock Manager', 'Dispatch Manager'] },
+  { to: '/dashboard/offices', icon: FaRegBuilding, label: 'Offices', roles: ['Admin'] },
   { to: '/dashboard/users', icon: FaUsers, label: 'Users', roles: ['Admin'] },
   { to: '/dashboard/profile', icon: FaUser, label: 'Profile', roles: null },
 ]
@@ -81,6 +83,7 @@ function UserBadge({ user }) {
 
 export default function DashboardLayout() {
   const { user, logout } = useAuthStore()
+  const officeContext = useOfficeContext()
   const { theme, toggleTheme, sidebarOpen, toggleSidebar, closeSidebar, notifications, unreadCount, setNotifications } = useAppStore()
   const [showNotifications, setShowNotifications] = useState(false)
   const [dueFollowUps, setDueFollowUps] = useState({ total: 0, items: [], today: '' })
@@ -261,6 +264,7 @@ export default function DashboardLayout() {
           <span style={{ fontFamily:'Syne,sans-serif', fontWeight:400, fontSize:14, flex:1 }}>Mahaveer Multi Engineering</span>
 
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <OfficeSelector />
             <div ref={notificationsRef} style={{ position:'relative' }}>
               <button className="btn btn-ghost btn-icon" onClick={toggleNotifications} title="Notifications" style={{ position:'relative' }}>
                 <FaBell />
@@ -298,12 +302,13 @@ export default function DashboardLayout() {
                 </div>
               )}
             </div>
-            <button className="btn btn-ghost btn-icon" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <button className="btn btn-ghost btn-icon topbar-theme" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
               <ThemeIcon />
             </button>
             <div ref={userMenuRef} style={{ position:'relative' }}>
               <button
-                className="btn btn-ghost btn-sm"
+                className="btn btn-ghost btn-sm topbar-user"
+                aria-label="Account menu"
                 style={{ display:'flex', alignItems:'center', gap:6 }}
                 onClick={toggleUserMenu}
                 aria-haspopup="menu"
@@ -343,6 +348,7 @@ export default function DashboardLayout() {
         </header>
 
         <div style={{ padding:24 }}>
+          {officeContext.offices.find(item => item._id === officeContext.selected)?.isActive === false && <p className="crm-card" role="status" style={{ marginBottom:16 }}>This office is inactive. Records are available to view; new work and changes are disabled.</p>}
           <Outlet />
         </div>
       </div>

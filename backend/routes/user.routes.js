@@ -1,6 +1,7 @@
 // ─── user.routes.js ───────────────────────────────────────────
 const express = require('express');
 const router = express.Router();
+const { globalHandler } = require('../middleware/office.middleware');
 const {
   getUsers, getUser, createUser, updateUser, deleteUser,
   getNotifications, markNotificationsRead, approveUser, rejectUser, updateProfile, getAssignableUsers
@@ -11,9 +12,9 @@ const { validateCreateUser } = require('../middleware/validate.middleware');
 
 router.use(protect);
 
-router.put('/me', updateProfile);
-router.get('/notifications', getNotifications);
-router.put('/notifications/read', markNotificationsRead);
+router.put('/me', globalHandler(updateProfile));
+router.get('/notifications', globalHandler(getNotifications));
+router.put('/notifications/read', globalHandler(markNotificationsRead));
 router.get('/assignable', getAssignableUsers);
 
 router.route('/')

@@ -470,7 +470,7 @@ exports.createLead = async (req, res) => {
   try {
     const { name, phone, email, address, city, state, pincode, branch, ivrsNo, source, generatedThrough, capacity, roofType, monthlyBill, notes, assignedTo, salesExecutiveAssignee, salesExecutiveAssigneeName, priority, tags, salesExecutiveData } = req.body;
 
-    let resolvedAssignedTo = assignedTo || req.user._id;
+    let resolvedAssignedTo = assignedTo || (req.user.role === 'Admin' && String(req.user.office) !== String(req.office._id) ? null : req.user._id);
     let assignedManager = null;
     let resolvedSalesExecutiveAssignee = salesExecutiveAssignee || null;
     let selectedSalesExecutive = null;

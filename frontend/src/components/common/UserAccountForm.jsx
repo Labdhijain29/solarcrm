@@ -1,7 +1,8 @@
+import useOfficeOptions from '../../hooks/useOfficeOptions'
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { FilePreview, SearchableSelect } from '../common'
-import { getCitiesForState, getSubDistrictOptions, STATE_OPTIONS } from '../../utils/constants'
+import { getCitiesForState, STATE_OPTIONS } from '../../utils/constants'
 import { hasFormChanges } from '../../hooks/useFormEditing'
 import { accountRoles, normalizeAccountPhone, normalizeAccountEmail, todayAccountDate, validateAccountForm } from '../../utils/userAccount'
 
@@ -16,11 +17,7 @@ const emptyRegisterForm = {
   state: '',
   city: '',
   pincode: '',
-  franchiseEnabled: false,
-  franchiseName: '',
-  franchiseState: '',
-  franchiseCity: '',
-  franchiseSubDistrict: '',
+  office: '',
   documents: null,
   dateOfJoining: '',
   role: 'Sales Executive',
@@ -32,16 +29,13 @@ const CAPITALIZED_REGISTER_FIELDS = new Set([
   'address',
   'state',
   'city',
-  'franchiseName',
-  'franchiseState',
-  'franchiseCity',
-  'franchiseSubDistrict',
 ])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
 const toOptions = items => items.map(value => ({ value, label: value }))
 
 export default function UserAccountForm({ admin = false, defaultRole = 'Sales Executive', onSubmit, onBusyChange, onCancel, initialUser = null, allowRoleChange = true, onDirtyChange }) {
+  const { offices, loading: officesLoading, error: officeError } = useOfficeOptions()
   const editing = Boolean(initialUser)
   const baseline = useRef(initialUser ? {
     ...emptyRegisterForm,
@@ -49,6 +43,12 @@ export default function UserAccountForm({ admin = false, defaultRole = 'Sales Ex
     password: '', documents: null, dateOfJoining: initialUser.dateOfJoining ? String(initialUser.dateOfJoining).slice(0, 10) : '',
   } : { ...emptyRegisterForm, role: defaultRole, dateOfJoining: todayAccountDate() })
   const [registerForm, setRegisterForm] = useState(baseline.current)
+  useEffect(() => {
+    if (editing || !offices.length) return
+    const office = admin ? localStorage.getItem('solar_office') : offices.find(item => item.code === 'RTM')?._id || offices[0]._id
+    baseline.current = { ...baseline.current, office }
+    setRegisterForm(previous => ({ ...previous, office }))
+  }, [offices, editing, admin])
   const dirty = hasFormChanges(registerForm, baseline.current)
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   const [saving, setSaving] = useState(false)
@@ -58,23 +58,6 @@ export default function UserAccountForm({ admin = false, defaultRole = 'Sales Ex
       if (key === 'state') {
         return { ...prev, state: nextValue, city: '' }
       }
-      if (key === 'franchiseEnabled') {
-        if (nextValue) return { ...prev, franchiseEnabled: true }
-        return {
-          ...prev,
-          franchiseEnabled: false,
-          franchiseName: '',
-          franchiseState: '',
-          franchiseCity: '',
-          franchiseSubDistrict: '',
-        }
-      }
-      if (key === 'franchiseState') {
-        return { ...prev, franchiseState: nextValue, franchiseCity: '', franchiseSubDistrict: '' }
-      }
-      if (key === 'franchiseCity') {
-        return { ...prev, franchiseCity: nextValue, franchiseSubDistrict: '' }
-      }
       return { ...prev, [key]: nextValue }
     })
   }
@@ -83,6 +66,7 @@ export default function UserAccountForm({ admin = false, defaultRole = 'Sales Ex
     event.preventDefault()
     if (saving) return
     const validationError = validateAccountForm(registerForm, admin, editing)
+    if (!registerForm.office) { toast.error('Please select an office.'); return }
     if (validationError) { toast.error(validationError); return }
     setSaving(true)
     onBusyChange?.(true)
@@ -187,63 +171,11 @@ name="city"
             <input aria-label="Date of Joining" className="crm-input" type="date" value={registerForm.dateOfJoining} onChange={(e) => setRegisterField('dateOfJoining', e.target.value)} />
           </div>
 
-          <div style={{ gridColumn:'1 / -1' }}>
-            <label className="form-label">Franchise</label>
-            <select className="crm-input" value={registerForm.franchiseEnabled ? 'yes' : 'no'} onChange={(e) => setRegisterField('franchiseEnabled', e.target.value === 'yes')}>
-              <option value="no">No Franchise</option>
-              <option value="yes">Franchise Required</option>
-            </select>
+          <div>
+            <label className="form-label">Office *</label>
+            <SearchableSelect name="office" value={registerForm.office?._id || registerForm.office} onChange={value => setRegisterField('office', value)} options={offices.map(item => ({ value:item._id, label:item.name }))} disabled={admin || editing || officesLoading} required placeholder="Select office..." searchPlaceholder="Search offices..." />
+            {officeError && <p role="alert">{officeError}</p>}
           </div>
-
-          {registerForm.franchiseEnabled && (
-            <>
-              <div>
-                <label className="form-label">Franchise Name</label>
-                <input aria-label="Franchise Name" className="crm-input" value={registerForm.franchiseName} onChange={(e) => setRegisterField('franchiseName', e.target.value)} />
-              </div>
-
-              <div>
-                <label className="form-label">Franchise State</label>
-                <SearchableSelect
-disabled={saving}
-name="franchiseState"
-                  value={registerForm.franchiseState}
-                  onChange={(value) => setRegisterField('franchiseState', value)}
-                  options={toOptions(STATE_OPTIONS)}
-                  placeholder="Select state..."
-                  searchPlaceholder="Search state..."
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Franchise City</label>
-                <SearchableSelect
-name="franchiseCity"
-                  value={registerForm.franchiseCity}
-                  onChange={(value) => setRegisterField('franchiseCity', value)}
-                  options={toOptions(getCitiesForState(registerForm.franchiseState))}
-                  placeholder={registerForm.franchiseState ? 'Select city...' : 'Select state first'}
-                  searchPlaceholder="Search city..."
-                  noOptionsText={registerForm.franchiseState ? 'No cities found' : 'Select state first'}
-                  disabled={saving || !registerForm.franchiseState}
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Franchise Sub-District</label>
-                <SearchableSelect
-name="franchiseSubDistrict"
-                  value={registerForm.franchiseSubDistrict}
-                  onChange={(value) => setRegisterField('franchiseSubDistrict', value)}
-                  options={toOptions(getSubDistrictOptions(registerForm.franchiseCity))}
-                  placeholder={registerForm.franchiseCity ? 'Select sub-district...' : 'Select city first'}
-                  searchPlaceholder="Search sub-district..."
-                  noOptionsText={registerForm.franchiseCity ? 'No sub-districts found' : 'Select city first'}
-                  disabled={saving || !registerForm.franchiseCity}
-                />
-              </div>
-            </>
-          )}
 
           <div style={{ gridColumn:'1 / -1' }}>
             <label className="form-label">Documents</label>

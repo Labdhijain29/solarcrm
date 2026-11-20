@@ -16,4 +16,6 @@ const inventoryActivitySchema = new mongoose.Schema({
 
 inventoryActivitySchema.index({ createdAt: -1 });
 
+inventoryActivitySchema.plugin(require('../services/officeScope'));
+
 module.exports = mongoose.model('InventoryActivity', inventoryActivitySchema);

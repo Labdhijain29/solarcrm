@@ -1,3 +1,4 @@
+const { runGlobal, officeId } = require('./officeContext');
 const User = require('../models/User');
 const { uploadFileAsset } = require('./storage/fileAsset');
 
@@ -26,8 +27,9 @@ const queueUserDocumentUpload = (userId, file) => {
 };
 
 const createUserAccount = async ({ body, file, approvedBy = null }) => {
+  if (body.office && String(body.office) !== String(officeId())) throw Object.assign(new Error('Create the user in the selected office.'), { statusCode: 400 });
   const email = String(body.email || '').trim().toLowerCase();
-  if (await User.findOne({ email })) {
+  if (await runGlobal(() => User.exists({ email }))) {
     const error = new Error('Email already in use');
     error.statusCode = 400;
     throw error;
@@ -37,7 +39,7 @@ const createUserAccount = async ({ body, file, approvedBy = null }) => {
   const data = Object.fromEntries(fields.filter(key => body[key] !== undefined).map(key => [key, body[key]]));
   const franchiseEnabled = body.franchiseEnabled === true || body.franchiseEnabled === 'true';
   const user = await User.create({
-    ...data, email, franchiseEnabled,
+    ...data, email, office: officeId(), franchiseEnabled,
     ...Object.fromEntries(['franchiseName', 'franchiseState', 'franchiseCity', 'franchiseSubDistrict']
       .map(key => [key, franchiseEnabled ? body[key] || '' : ''])),
     documents: file?.originalname || body.documents,

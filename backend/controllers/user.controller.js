@@ -1,4 +1,5 @@
 // ─── USER CONTROLLER ──────────────────────────────────────────
+const { runGlobal } = require('../services/officeContext');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
 
@@ -39,6 +40,7 @@ const getStageRoles = (stage) => (
 
 const buildSessionUser = async (user) => ({
   _id: user._id,
+  office: user.office,
   name: user.name,
   email: user.email,
   role: user.role,
@@ -141,6 +143,7 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   let asset;
   try {
+    if (req.body.office !== undefined) return res.status(400).json({ success: false, message: 'Moving users between offices is not allowed.' });
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     const fields = ['name', 'email', 'phone', 'role', 'alternateContact', 'permanentAddress', 'address', 'state', 'city', 'pincode', 'jobTitle', 'resume', 'documents', 'franchiseName', 'franchiseState', 'franchiseCity', 'franchiseSubDistrict'];
@@ -155,7 +158,7 @@ exports.updateUser = async (req, res) => {
     if (updates.email !== undefined) {
       updates.email = updates.email.toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) invalid('Enter a valid email address.');
-      if (await User.exists({ email: updates.email, _id: { $ne: user._id } })) invalid('Email already in use.');
+      if (await runGlobal(() => User.exists({ email: updates.email, _id: { $ne: user._id } }))) invalid('Email already in use.');
     }
     for (const field of ['phone', 'alternateContact']) {
       if (updates[field] === undefined) continue;
@@ -292,14 +295,14 @@ exports.rejectUser = async (req, res) => {
 exports.getNotifications = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    const notifs = user.notifications.sort((a, b) => b.createdAt - a.createdAt).slice(0, 20);
+    const notifs = user.notifications.filter(n => String(n.office) === String(req.office._id)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 20);
     res.json({ success: true, data: notifs, unread: notifs.filter(n => !n.read).length });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
 
 exports.markNotificationsRead = async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user._id, { $set: { 'notifications.$[].read': true } });
+    await User.findByIdAndUpdate(req.user._id, { $set: { 'notifications.$[item].read': true } }, { arrayFilters: [{ 'item.office': req.office._id }] });
     res.json({ success: true, message: 'All notifications marked read' });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };

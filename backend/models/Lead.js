@@ -194,21 +194,21 @@ leadSchema.index(
   { 'loanData.applicationId': 1 },
   {
     unique: true,
-    partialFilterExpression: { 'loanData.applicationId': { $type: 'string', $ne: '' } }
+    partialFilterExpression: { 'loanData.applicationId': { $type: 'string', $gt: '' } }
   }
 );
 leadSchema.index(
   { 'installationData.inverterNumber': 1 },
   {
     unique: true,
-    partialFilterExpression: { 'installationData.inverterNumber': { $type: 'string', $ne: '' } }
+    partialFilterExpression: { 'installationData.inverterNumber': { $type: 'string', $gt: '' } }
   }
 );
 leadSchema.index(
   { 'netMeteringData.meterNumber': 1 },
   {
     unique: true,
-    partialFilterExpression: { 'netMeteringData.meterNumber': { $type: 'string', $ne: '' } }
+    partialFilterExpression: { 'netMeteringData.meterNumber': { $type: 'string', $gt: '' } }
   }
 );
 leadSchema.index({ name: 'text', phone: 'text', city: 'text' });
@@ -274,6 +274,8 @@ leadSchema.methods.rejectStage = function (userId, userName, note) {
   }
   return this;
 };
+
+leadSchema.plugin(require('../services/officeScope'));
 
 module.exports = mongoose.model('Lead', leadSchema);
 module.exports.STAGES = STAGES;

@@ -37,4 +37,6 @@ const schema = new mongoose.Schema({
 schema.index({ assignedTo: 1, status: 1, createdAt: -1 });
 schema.index({ status: 1, createdAt: -1 });
 
+schema.plugin(require('../services/officeScope'));
+
 module.exports = mongoose.model('ServiceRequest', schema);

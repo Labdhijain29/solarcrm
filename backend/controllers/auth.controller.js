@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const Office = require('../models/Office');
+const { runGlobal, runOffice } = require('../services/officeContext');
 const User = require('../models/User');
 const { ROLE_STAGE_MAP } = require('../middleware/auth.middleware');
 const { withFreshFileUrl } = require('../services/storage/fileAsset');
@@ -13,6 +15,7 @@ const signDocumentUploadToken = (id) => jwt.sign(
 
 const buildSessionUser = async (user) => ({
   _id: user._id,
+  office: user.office,
   name: user.name,
   email: user.email,
   role: user.role,
@@ -39,15 +42,6 @@ const buildSessionUser = async (user) => ({
   lastLogin: user.lastLogin,
 });
 
-const SERVICE_MANAGER_DEMO = {
-  name: 'Vikram Service',
-  email: 'service@solarcrm.in',
-  password: 'service123',
-  role: 'Service Manager',
-  phone: '9800000011',
-  jobTitle: 'Service Manager'
-};
-
 // @desc    Login user
 // @route   POST /api/auth/login
 // @access  Public
@@ -57,10 +51,7 @@ exports.login = async (req, res) => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
 
     let user = await User.findOne({ email: normalizedEmail }).select('+password');
-    if (!user && normalizedEmail === SERVICE_MANAGER_DEMO.email && password === SERVICE_MANAGER_DEMO.password) {
-      const created = await User.create(SERVICE_MANAGER_DEMO);
-      user = await User.findById(created._id).select('+password');
-    }
+
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials or account deactivated.' });
@@ -83,6 +74,9 @@ exports.login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
+    if (!user.office) return res.status(403).json({ success: false, message: 'Your account needs an office. Please contact Admin.' });
+    const office = await Office.findById(user.office);
+    if (!office || (!office.isActive && user.role !== 'Admin')) return res.status(403).json({ success: false, message: 'Your office is inactive. Please contact Admin.' });
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
@@ -103,10 +97,10 @@ exports.register = async (req, res) => {
     const user = await createUserAccount({ body: req.body, file: req.file });
     const safe = await User.findById(user._id).select('-password');
 
-    await User.updateMany(
+    await runGlobal(() => User.updateMany(
       { role: 'Admin', isActive: true },
-      { $push: { notifications: { message: `New registration pending approval: ${user.name} (${user.role})` } } }
-    );
+      { $push: { notifications: { office: user.office, message: `New registration pending approval: ${user.name} (${user.role})` } } }
+    ));
 
     res.status(201).json({
       success: true,
@@ -139,11 +133,13 @@ exports.uploadRegistrationDocumentFile = async (req, res) => {
 
     const user = await User.findById(decoded.id).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'Registration not found.' });
+    const office = await Office.findById(user.office);
+    if (!office?.isActive) return res.status(403).json({ success: false, message: 'This office is inactive.' });
     if (user.approvalStatus !== 'pending') {
       return res.status(400).json({ success: false, message: 'Document upload is only available while registration is pending.' });
     }
 
-    const uploadedDocument = await uploadUserDocument(user._id, req.file);
+    const uploadedDocument = await runOffice(user.office, () => uploadUserDocument(user._id, req.file));
 
     res.json({
       success: true,

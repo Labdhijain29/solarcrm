@@ -1,0 +1,19 @@
+17-11-2026 ke updates
+
+Name Change
+1. Name change executive add kr diay hai users me or uska dashboard bhi.
+2. Manager lead ko Registration ya Name Change mein bhej sakta hai.
+3. Name change ke baad lead ko Registration Executive ke paas bhej sakte hain. Name Change mein Active aur On Hold bhi hain.
+
+Service Requests
+1. Service requests ka alag system hai. Admin sabhi requests aur Service Manager apni assigned requests dekh sakta hai.
+2. List shuru mein Pending requests dikhati hai. On Hold, Completed aur All filters bhi hain.
+3. List ya popup ke status par click karke status badal sakte hain. Pending par Completed pehle se selected rehta hai. Complete karne ke liye note zaroori hai.
+4. Service request mein notes, photos aur visit date add kar sakte hain. History mein kisne aur kab change kiya, woh dikhta hai. Admin aur assigned Service Manager completed request dobara khol sakte hain.
+
+Pipeline
+1. Search, city, executive aur status filters diye hain.
+2. Lead kitne din se stage mein hai, woh bhi dikhta hai.
+
+Enquiries
+1. Nayi enquiry mein sirf Sales Enquiry option hai aur woh pehle se selected rehta hai.

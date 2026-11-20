@@ -1,3 +1,4 @@
+import useOfficeOptions from '../../hooks/useOfficeOptions'
 import { useEffect, useId, useState } from 'react'
 import toast from 'react-hot-toast'
 import { enquiriesAPI } from '../../services/api'
@@ -12,7 +13,10 @@ const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
 
 export default function EnquiryForm({ compact = false, onSubmitted, onStateChange, formId }) {
+  const { offices, loading: officesLoading, error: officeError } = useOfficeOptions()
+  const defaultOffice = compact ? localStorage.getItem('solar_office') || '' : offices.find(item => item.code === 'RTM')?._id || offices[0]?._id || ''
   const emptyForm = {
+    office: defaultOffice,
     name: '',
     contact: '',
     ivrsNo: '',
@@ -25,6 +29,7 @@ export default function EnquiryForm({ compact = false, onSubmitted, onStateChang
   }
 
   const [form, setForm] = useState(emptyForm)
+  useEffect(() => { setForm(previous => ({ ...previous, office: defaultOffice })) }, [defaultOffice])
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const generatedId = useId()
@@ -45,6 +50,7 @@ export default function EnquiryForm({ compact = false, onSubmitted, onStateChang
     e.preventDefault()
     if (loading) return
     const errors = {}
+    if (!form.office) errors.office = 'Please select an office.'
     if (!form.name.trim()) errors.name = 'Name is required.'
     if (!CONTACT_PHONE_REGEX.test(form.contact)) errors.contact = CONTACT_PHONE_MESSAGE
     if (!form.enquiryType) errors.enquiryType = 'Please select an enquiry type.'
@@ -53,7 +59,7 @@ export default function EnquiryForm({ compact = false, onSubmitted, onStateChang
     feedback.resetErrors()
     setLoading(true)
     try {
-      await enquiriesAPI.create(form)
+      await enquiriesAPI.create(form, !compact)
       onSubmitted?.()
       setSent(true)
       toast.success('Enquiry submitted successfully.')
@@ -90,6 +96,11 @@ export default function EnquiryForm({ compact = false, onSubmitted, onStateChang
       <form id={formId || generatedId} ref={feedback.formRef} noValidate onSubmit={handleSubmit}>
         <fieldset disabled={loading} className="form-fieldset">
         <FormFields kind="enquiry" errors={feedback.errors} clearError={feedback.clearError}>
+          <div>
+            <label className="form-label">Office *</label>
+            <SearchableSelect name="office" value={form.office} onChange={value => setField('office', value)} options={offices.map(item => ({ value:item._id, label:item.name }))} disabled={compact || officesLoading} placeholder="Select office..." searchPlaceholder="Search offices..." required />
+            {officeError && <p role="alert">{officeError}</p>}
+          </div>
           <div>
             <label className="form-label">Name *</label>
             <input className="crm-input" placeholder="Your name" name="name" value={form.name} onChange={e => setField('name', e.target.value)} required />

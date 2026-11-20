@@ -11,6 +11,8 @@ import ProductsPage from './pages/website/ProductsPage'
 import ContactPage from './pages/website/ContactPage'
 import SiteLayout from './components/layout/SiteLayout'
 import LoginPage from './pages/auth/LoginPage'
+import OfficeBoundary from './components/layout/OfficeBoundary'
+import OfficesPage, { OfficeManager } from './pages/dashboard/OfficesPage'
 import DashboardLayout from './components/layout/DashboardLayout'
 import AdminDashboard from './pages/dashboard/AdminDashboard'
 import ManagerDashboard from './pages/dashboard/ManagerDashboard'
@@ -185,7 +187,7 @@ export default function App() {
           path="/dashboard"
           element={(
             <PrivateRoute>
-              <DashboardLayout />
+              <OfficeBoundary><DashboardLayout /></OfficeBoundary>
             </PrivateRoute>
           )}
         >
@@ -207,6 +209,9 @@ export default function App() {
           <Route path="leads" element={<LeadsPage />} />
           <Route path="rejected-leads" element={<RejectedLeadsPage />} />
           <Route path="leads/:id" element={<LeadDetailPage />} />
+          <Route path="offices" element={<AdminOnlyRoute><OfficesPage /></AdminOnlyRoute>} />
+          <Route path="offices/new" element={<AdminOnlyRoute><OfficeManager /></AdminOnlyRoute>} />
+          <Route path="offices/:id/edit" element={<AdminOnlyRoute><OfficeManager /></AdminOnlyRoute>} />
           <Route path="users" element={<UsersPage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />

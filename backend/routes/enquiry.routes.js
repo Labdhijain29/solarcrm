@@ -1,12 +1,13 @@
 // ─── enquiry.routes.js ───────────────────────────────────────
 const express = require('express');
 const router = express.Router();
+const { publicOffice } = require('../middleware/office.middleware');
 const { getEnquiries, getDueFollowUps, addFollowUp, createEnquiry, convertToLead, updateEnquiry, deleteEnquiry } = require('../controllers/enquiry.controller');
 const { protect, optionalProtect, authorize } = require('../middleware/auth.middleware');
 const { validateEnquiry, validateEnquiryUpdate } = require('../middleware/validate.middleware');
 
 // Public: website enquiry form
-router.post('/', optionalProtect, validateEnquiry, createEnquiry);
+router.post('/', optionalProtect, validateEnquiry, publicOffice, createEnquiry);
 
 // Protected
 router.use(protect);

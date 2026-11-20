@@ -26,14 +26,12 @@ export const validateAccountForm = (form, admin = false, editing = false) => {
 export const buildAccountFormData = (form, includeDocument = false) => {
   const data = new FormData()
   for (const key of ['name', 'email', 'password', 'role', 'phone', 'alternateContact', 'permanentAddress',
-    'address', 'state', 'city', 'pincode', 'dateOfJoining', 'franchiseEnabled', 'franchiseName',
-    'franchiseState', 'franchiseCity', 'franchiseSubDistrict']) {
+    'address', 'state', 'city', 'pincode', 'dateOfJoining', 'office']) {
     let value = form[key] ?? ''
     if (key === 'email') value = normalizeAccountEmail(value)
     if (key === 'name') value = value.trim()
     if (['phone', 'alternateContact'].includes(key)) value = normalizeAccountPhone(value)
-    if (key.startsWith('franchise') && key !== 'franchiseEnabled' && !form.franchiseEnabled) value = ''
-    data.append(key, String(value))
+    data.append(key, String(key === 'office' ? value?._id || value : value))
   }
   if (includeDocument && form.documents) data.append('documents', form.documents)
   return data

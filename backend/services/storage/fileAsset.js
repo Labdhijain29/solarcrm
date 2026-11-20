@@ -12,7 +12,9 @@ const createFileAsset = (file, storedFile) => ({
 });
 
 const uploadFileAsset = async (file, options = {}) => {
-  const storedFile = await storageService.upload(file, options);
+  const office = require('../officeContext').officeId();
+  const scopedOptions = office ? { ...options, type:'private', folder: `offices/${office}/${options.folder || 'files'}` } : options;
+  const storedFile = await storageService.upload(file, scopedOptions);
   return createFileAsset(storedFile.uploadedFile || file, storedFile);
 };
 
@@ -24,9 +26,7 @@ const getFileDisplayValue = (asset, legacyValue = '') => {
 const shouldUseSignedDownload = (asset) => (
   asset?.provider === 'cloudinary'
   && asset?.fileKey
-  && asset?.resourceType === 'raw'
   && asset?.deliveryType === 'private'
-  && /(?:application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)/i.test(asset?.mimeType || '')
 );
 
 const withFreshFileUrl = async (asset) => {
@@ -41,6 +41,7 @@ const withFreshFileUrl = async (asset) => {
       signedDownload: true,
       resourceType: plainAsset.resourceType,
       type: plainAsset.deliveryType,
+      format: plainAsset.resourceType === 'raw' ? '' : String(plainAsset.originalName || '').split('.').pop(),
       expiresAt: Math.floor(Date.now() / 1000) + 60 * 60,
     }),
   };

@@ -1,3 +1,4 @@
+import { clearClientSession, isOldSessionRequest, trackSessionRequest } from '../utils/session'
 import axios from 'axios'
 import { getPublicFileUrl } from '../utils/files'
 import { validationMessage } from '../utils/contactValidation'
@@ -23,21 +24,17 @@ export const serviceRequestsAPI = {
   setStatus: (id, data) => api.put(`/service-requests/${id}/status`, data),
 }
 
-const shouldRedirectToLogin = (error) => {
-  if (error.response?.status !== 401) return false
-
-  const requestUrl = String(error.config?.url || '')
-  const isPublicAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register')
-  const isAlreadyOnLoginPage = window.location.pathname === '/login'
-
-  return !isPublicAuthRequest && !isAlreadyOnLoginPage
-}
+const officeIndependentPath = url => /\/(auth\/(me|login|logout|change-password)|users\/me|offices)\/?$/.test(String(url).split('?')[0])
+const oldOfficeRequest = config => config?.officeAtRequest && config.officeAtRequest !== localStorage.getItem('solar_office')
 
 // ─── Request interceptor: attach JWT ───────────────────────
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('solar_token')
-    if (token) config.headers.Authorization = `Bearer ${token}`
+    if (token && !config.publicRequest) config.headers.Authorization = `Bearer ${token}`
+    const selectedOffice = localStorage.getItem('solar_office')
+    if (!config.publicRequest || config.sessionBound) trackSessionRequest(config)
+    if (token && selectedOffice && !config.publicRequest && !officeIndependentPath(config.url)) { config.headers['X-Office-Id'] = selectedOffice; config.officeAtRequest = selectedOffice }
     if (isFormData(config.data)) {
       if (typeof config.headers?.delete === 'function') {
         config.headers.delete('Content-Type')
@@ -53,17 +50,21 @@ api.interceptors.request.use(
 
 // ─── Response interceptor: handle 401 ──────────────────────
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    response.config.releaseSessionRequest?.()
+    if (isOldSessionRequest(response.config) || oldOfficeRequest(response.config)) return Promise.reject(new axios.CanceledError('Session or office changed.'))
+    return response
+  },
   (error) => {
+    error.config?.releaseSessionRequest?.()
+    if (isOldSessionRequest(error.config) || oldOfficeRequest(error.config)) return Promise.reject(new axios.CanceledError('Session or office changed.'))
     const requestUrl = String(error.config?.url || '')
     if (/\/(leads|enquiries)(\/|$)/.test(requestUrl)) {
       const message = validationMessage(error.response?.data)
       if (message) error.response.data.message = message
     }
-    if (shouldRedirectToLogin(error)) {
-      localStorage.removeItem('solar_token')
-      localStorage.removeItem('solar_user')
-      window.location.href = '/login'
+    if (error.response?.status === 401 && !error.config?.publicRequest) {
+      clearClientSession()
     }
     return Promise.reject(error)
   }
@@ -71,11 +72,11 @@ api.interceptors.response.use(
 
 // ─── AUTH ───────────────────────────────────────────────────
 export const authAPI = {
-  login: (data) => api.post('/auth/login', data),
+  login: (data) => api.post('/auth/login', data, { publicRequest:true, sessionBound:true }),
   register: (data) => api.post(
     '/auth/register',
     data,
-    formDataConfig(data)
+    { ...formDataConfig(data), publicRequest: true }
   ),
   uploadRegistrationDocument: (id, data) => api.post(
     `/auth/register/${id}/document`,
@@ -84,7 +85,7 @@ export const authAPI = {
   ),
   getMe: () => api.get('/auth/me'),
   changePassword: (data) => api.put('/auth/change-password', data),
-  logout: () => api.post('/auth/logout'),
+  logout: token => api.post('/auth/logout', {}, { publicRequest:true, headers:token ? { Authorization:`Bearer ${token}` } : {} }),
 }
 
 // ─── LEADS ─────────────────────────────────────────────────
@@ -127,7 +128,7 @@ export const enquiriesAPI = {
   getAll: (params) => api.get('/enquiries', { params }),
   getDueFollowUps: () => api.get('/enquiries/follow-ups/due'),
   addFollowUp: (id, data) => api.post(`/enquiries/${id}/follow-ups`, data),
-  create: (data) => api.post('/enquiries', data),
+  create: (data, publicRequest = false) => api.post('/enquiries', data, { publicRequest }),
   convertToLead: (id) => api.post(`/enquiries/${id}/convert`),
   update: (id, data) => api.put(`/enquiries/${id}`, data),
   delete: async (id) => {
@@ -175,3 +176,11 @@ export const settingsAPI = {
 }
 
 export default api
+
+export const officesAPI = {
+  getPublic: () => api.get('/offices/public', { publicRequest: true }),
+  getAll: () => api.get('/offices'),
+  getOne: id => api.get(`/offices/${id}`),
+  create: data => api.post('/offices', data),
+  update: (id, data) => api.put(`/offices/${id}`, data),
+}

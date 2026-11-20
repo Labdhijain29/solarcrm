@@ -55,6 +55,7 @@ const userSchema = new mongoose.Schema({
   lastLogin: { type: Date },
   profileImage: { type: String, default: '' },
   notifications: [{
+    office: { type: mongoose.Schema.Types.ObjectId, ref: 'Office', default: require('../services/officeContext').officeId },
     message: String,
     read: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
@@ -95,5 +96,7 @@ userSchema.virtual('stageAccess').get(function () {
   };
   return map[this.role];
 });
+
+userSchema.plugin(require('../services/officeScope'));
 
 module.exports = mongoose.model('User', userSchema);

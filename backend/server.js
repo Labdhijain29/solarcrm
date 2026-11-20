@@ -8,6 +8,8 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
+const { storage } = require('./services/officeContext');
+app.use((_req, _res, next) => storage.run({}, next));
 app.set('trust proxy', 1);
 
 // ─── Security Middleware ───────────────────────────────────────
@@ -50,7 +52,7 @@ const corsOptions = {
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Office-Id'],
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -74,7 +76,10 @@ app.options('*', cors(corsOptions));
 // ─── Body Parser ──────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+const { signLocalFiles, protectLocalFile } = require('./middleware/officeFiles.middleware');
+app.use(signLocalFiles);
+app.use('/uploads', protectLocalFile, express.static(path.join(__dirname, 'uploads')));
 
 // ─── Logger ──────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'development') {
@@ -83,7 +88,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // ─── Database Connection ──────────────────────────────────────
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/solarcrm')
-  .then(() => console.log('✅ MongoDB connected', process.env.MONGODB_URI))
+  .then(() => console.log('✅ MongoDB connected'))
   .catch(err => {
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
@@ -98,6 +103,7 @@ app.get('/api', (req, res) => res.json({
 }));
 
 // ─── Routes ──────────────────────────────────────────────────
+app.use('/api/offices', require('./routes/office.routes'));
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/leads', require('./routes/lead.routes'));

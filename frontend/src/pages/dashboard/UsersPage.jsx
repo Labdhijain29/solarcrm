@@ -85,13 +85,6 @@ function UserDetailsModal({ user, onClose }) {
     ['City', user.city || '-'],
     ['Pincode', user.pincode || '-'],
   ])
-  const franchiseItems = detailItems([
-    ['Franchise', user.franchiseEnabled ? 'Enabled' : 'Disabled'],
-    ['Franchise Name', user.franchiseName || '-'],
-    ['Franchise State', user.franchiseState || '-'],
-    ['Franchise City', user.franchiseCity || '-'],
-    ['Franchise Sub-District', user.franchiseSubDistrict || '-'],
-  ])
   const employmentItems = detailItems([
     ['Date of Joining', formatDate(user.dateOfJoining)],
     ['Job Title', user.jobTitle || '-'],
@@ -148,12 +141,6 @@ function UserDetailsModal({ user, onClose }) {
           </div>
         )}
 
-        {franchiseItems.length > 0 && (
-          <div style={{ marginBottom:14 }}>
-            {renderSection('Franchise Details', franchiseItems)}
-          </div>
-        )}
-
         {employmentItems.length > 0 && (
           <div style={{ marginBottom:14 }}>
             {renderSection('Employment Details', employmentItems)}
@@ -205,6 +192,7 @@ function EditUserModal({ user, currentUser, onClose, onSaved }) {
   const submit = async form => {
     const payload = buildAccountFormData(form, true)
     payload.delete('password')
+    payload.delete('office')
     if (user.updatedAt) payload.append('expectedUpdatedAt', user.updatedAt)
     const { data } = await usersAPI.update(user._id, payload)
     toast.success(data.message || 'User updated successfully.')

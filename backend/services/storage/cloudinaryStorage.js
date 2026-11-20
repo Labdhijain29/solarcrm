@@ -107,9 +107,9 @@ const destroy = async (key) => {
   await getConfig();
 
   const attempts = await Promise.allSettled(
-    ['image', 'video', 'raw'].map((resourceType) => (
-      cloudinary.uploader.destroy(key, { resource_type: resourceType })
-    ))
+    ['image', 'video', 'raw'].flatMap((resourceType) => ['private', 'upload'].map(type => (
+      cloudinary.uploader.destroy(key, { resource_type: resourceType, type })
+    )))
   );
 
   const fulfilled = attempts.find((attempt) => attempt.status === 'fulfilled' && attempt.value?.result === 'ok');

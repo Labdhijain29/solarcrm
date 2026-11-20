@@ -62,4 +62,6 @@ const dispatchSchema = new mongoose.Schema({
 
 dispatchSchema.index({ billNo: 'text', customerName: 'text', leadId: 'text', engineerName: 'text', mobile: 'text', salesPersonName: 'text' });
 
+dispatchSchema.plugin(require('../services/officeScope'));
+
 module.exports = mongoose.model('Dispatch', dispatchSchema);

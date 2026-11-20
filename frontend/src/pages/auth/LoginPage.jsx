@@ -49,6 +49,7 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${firstName}!`)
       navigate('/dashboard', { replace: true })
     } catch (err) {
+      if (err.code === 'ERR_CANCELED') return
       toast.error(getApiErrorMessage(err, 'Unable to login. Please try again.'))
     }
   }

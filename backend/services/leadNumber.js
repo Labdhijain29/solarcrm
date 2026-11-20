@@ -1,11 +1,12 @@
+const { runGlobal } = require('./officeContext');
 const Lead = require('../models/Lead');
 const Counter = require('../models/Counter');
 
 const getNextLeadId = async () => {
   const counter = await Counter.findById('leadId');
   if (!counter) {
-    const maxLead = await Lead.findOne({ leadId: { $exists: true, $ne: null } })
-      .sort({ leadId: -1 }).select('leadId').lean();
+    const maxLead = await runGlobal(() => Lead.findOne({ leadId: { $exists: true, $ne: null } })
+      .sort({ leadId: -1 }).select('leadId').lean());
     try {
       await Counter.create({ _id: 'leadId', seq: Math.max(Number(maxLead?.leadId || 999), 999) });
     } catch (error) {
