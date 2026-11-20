@@ -1,3 +1,4 @@
+import { SALES_MANAGER_DASHBOARD_PATHS } from './utils/salesManagerAccess'
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
@@ -193,7 +194,7 @@ export default function App() {
         >
           <Route index element={<DashboardRouter />} />
           <Route path="admin" element={<AdminOnlyRoute><AdminDashboard /></AdminOnlyRoute>} />
-          <Route path="manager" element={<AdminOnlyRoute><ManagerDashboard /></AdminOnlyRoute>} />
+          <Route path="manager" element={<RoleRoute roles={['Admin', 'Sales Manager']}><ManagerDashboard /></RoleRoute>} />
           <Route path="sales" element={<RoleRoute roles={['Admin', 'Sales Manager', 'Sales Executive']}><SalesDashboard /></RoleRoute>} />
           <Route path="service" element={<RoleRoute roles={['Admin', 'Service Manager']}><ServiceManagerDashboard /></RoleRoute>} />
           <Route path="stock-manager" element={<RoleRoute roles={['Admin', 'Stock Manager', 'Dispatch Manager']}><StockManagerDashboard /></RoleRoute>} />
@@ -203,7 +204,7 @@ export default function App() {
             <Route
               key={path}
               path={path}
-              element={<AdminOnlyRoute>{element}</AdminOnlyRoute>}
+              element={<RoleRoute roles={SALES_MANAGER_DASHBOARD_PATHS.includes(`/dashboard/${path}`) ? ['Admin', 'Sales Manager'] : ['Admin']}>{element}</RoleRoute>}
             />
           ))}
           <Route path="leads" element={<LeadsPage />} />

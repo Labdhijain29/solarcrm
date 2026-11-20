@@ -13,15 +13,20 @@ async function main() {
     let user = { _id: '111111111111111111111111', name: 'Test Admin', office:office._id, role: 'Admin', isActive: true };
     const executiveId = '222222222222222222222222';
     const enquiries = [
-      { _id: '333333333333333333333333', name: 'Enquiry Customer', contact: '4567890123', email: 'customer@example.com', ivrsNo: 'IVRS123', address: 'Full customer address, Road 12, Ratlam', city: 'Ratlam', state: 'Madhya Pradesh', pincode: '457001', enquiryType: 'Sales Enquiry', status: 'new', createdBy: executiveId, createdAt: '2026-11-16T10:00:00Z', notes: 'Customer requested a callback.', nextFollowUpDate: '2026-11-17', followUps: [] },
+      { _id: '333333333333333333333333', name: 'Enquiry Customer', contact: '4567890123', email: 'customer@example.com', ivrsNo: 'IVRS123', address: 'Full customer address, Road 12, Ratlam', city: 'Ratlam', state: 'Madhya Pradesh', pincode: '457001', enquiryType: 'Sales Enquiry', status: 'new', createdBy: executiveId, createdAt: '2026-11-16T10:00:00Z', notes: 'Customer requested a callback.', nextFollowUpDate: '2026-11-17', followUps: [{ note:'Latest callback update',createdAt:'2026-11-20T09:10:00Z',createdBy:executiveId,createdByName:'Executive' },{ note:'Older note',createdAt:'2026-11-19T09:10:00Z',createdBy:executiveId,createdByName:'Executive' }] },
       { _id: '444444444444444444444444', name: 'Service Customer', contact: '4567890124', city: 'Ratlam', enquiryType: 'Service Enquiry', status: 'contacted', createdBy: '555555555555555555555555', followUps: [] },
       { _id: '666666666666666666666666', name: 'Converted Customer', contact: '4567890125', enquiryType: 'Sales Enquiry', status: 'converted', convertedTo: '777777777777777777777777', followUps: [] },
     ];
     let largeList = false;
     const requests = [];
+    let conversions = 0;
     await page.addInitScript(user => { localStorage.setItem('solar_user', JSON.stringify(user)); localStorage.setItem('solar_token', 'fixture'); }, user);
     await page.route('**/api/**', async route => {
       const request = route.request(), url = new URL(request.url());
+      if (request.method() === 'POST' && url.pathname.endsWith('/convert')) {
+        conversions++;
+        return route.fulfill({ contentType:'application/json',body:JSON.stringify({ success:true,message:'Lead created from enquiry.' }) });
+      }
       if (request.method() !== 'GET') throw new Error('Unexpected write');
       let body = { success: true, data: [] };
       if (url.pathname.endsWith('/auth/me')) body = { success: true, user };
@@ -51,11 +56,23 @@ async function main() {
     await expect(table.locator('tbody tr')).toHaveCount(2);
     const customer = table.locator('tbody tr').filter({ hasText: 'Enquiry Customer' });
     await expect(customer).toContainText('customer@example.com');
-    await expect(customer).toContainText('IVRS123');
+    await expect(customer).not.toContainText('IVRS123');
+    await expect(customer).toContainText('Latest callback update');
+    await expect(customer).toContainText('20 Nov 2026');
+    await expect(customer).not.toContainText('Older note');
+    await expect(table.locator('tbody tr').filter({ hasText:'Service Customer' })).toContainText('No follow-up yet');
     await expect(customer).toContainText('457001');
     await expect(customer.getByRole('button', { name: 'Create Lead', exact: true })).toBeVisible();
     const service = table.locator('tbody tr').filter({ hasText: 'Service Customer' });
     await expect(service.getByRole('button', { name: 'Create Lead', exact: true })).toHaveCount(0);
+    await customer.getByRole('button',{ name:'Create Lead',exact:true }).click();
+    await expect(page.getByRole('dialog',{ name:'Create lead from this enquiry?' })).toBeVisible();
+    await page.getByRole('button',{ name:'No',exact:true }).click();
+    expect(conversions).toBe(0);
+    await customer.getByRole('button',{ name:'Create Lead',exact:true }).click();
+    await page.getByRole('button',{ name:'Yes, Create Lead',exact:true }).click();
+    await expect.poll(() => conversions).toBe(1);
+    await expect(customer).toBeVisible();
     await customer.getByRole('button', { name: 'More actions for Enquiry Customer', exact: true }).click();
     await expect(page.getByRole('menuitem', { name: 'Delete', exact: true })).toBeVisible();
     await page.getByRole('menuitem', { name: 'View Details', exact: true }).click();
@@ -85,6 +102,8 @@ async function main() {
     await expect(table).toBeHidden();
     const card = page.locator('.crm-mobile-card').filter({ hasText: 'Enquiry Customer' });
     await expect(card).toBeVisible();
+    await expect(card).toContainText('Latest callback update');
+    await expect(card).not.toContainText('IVRS123');
     await expect(card).not.toContainText(enquiries[0].address);
     await card.getByRole('button', { name: 'More actions for Enquiry Customer', exact: true }).click();
     await page.getByRole('menuitem', { name: 'View Details', exact: true }).click();

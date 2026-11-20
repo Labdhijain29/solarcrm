@@ -154,7 +154,7 @@ export default function LeadModal({
     Object.keys(ROLE_STAGE_MAP).filter((role) => ROLE_STAGE_MAP[role] === previousStage)
   ), [previousStage])
   const isSalesManagerHandoff = lead.currentStage === 'Lead'
-    && (currentUser?.role === 'Sales Manager' || lead.assignedTo?.role === 'Sales Manager')
+    && currentUser?.role !== 'Sales Manager' && lead.assignedTo?.role === 'Sales Manager'
   const nextStageRole = useMemo(() => {
     if (isSalesManagerHandoff) return 'Manager'
     return Object.keys(ROLE_STAGE_MAP).find((role) => ROLE_STAGE_MAP[role] === nextStage) || ''
@@ -989,7 +989,7 @@ export default function LeadModal({
         <div className="lead-view-footer">
         <LeadMoveControls
           canApprove={canApprove}
-          canChooseStage={lead.currentStage === 'Lead' && ['Admin', 'Manager'].includes(currentUser?.role) && !isSalesManagerHandoff}
+          canChooseStage={lead.currentStage === 'Lead' && ['Admin', 'Manager', 'Sales Manager'].includes(currentUser?.role) && !isSalesManagerHandoff}
           targetStage={targetStage} onStageChange={stage => { setTargetStage(stage); setNextAssigneeId('') }}
           destination={isSalesManagerHandoff ? 'Manager' : nextStage}
           role={nextStageRole} users={nextStageUsers} loadingUsers={loadingAssignees} assigneeId={nextAssigneeId}

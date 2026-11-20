@@ -1,3 +1,4 @@
+import { SALES_MANAGER_DASHBOARD_PATHS } from '../../utils/salesManagerAccess'
 import { OfficeSelector, useOfficeContext } from './OfficeBoundary'
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, useNavigate, NavLink } from 'react-router-dom'
@@ -96,7 +97,8 @@ export default function DashboardLayout() {
     ? ['/dashboard/enquiries', '/dashboard/profile'].includes(item.to)
     : (!item.roles || item.roles.includes(user?.role)) && !(user?.role === 'Service Manager' && item.to === '/dashboard/stock-manager'))
   const canViewEnquiries = ENQUIRY_ROLES.includes(user?.role)
-  const showAdminDashboards = user?.role === 'Admin'
+  const dashboardItems = ADMIN_DASHBOARD_ITEMS.filter(item => user?.role === 'Admin' || (user?.role === 'Sales Manager' && SALES_MANAGER_DASHBOARD_PATHS.includes(item.to)))
+  const showAdminDashboards = dashboardItems.length > 0
   const ThemeIcon = theme === 'dark' ? FaSun : FaMoon
 
   const handleLogout = async () => {
@@ -208,7 +210,7 @@ export default function DashboardLayout() {
         {showAdminDashboards && (
           <div style={{ padding:'8px 0' }}>
             <div style={{ fontSize:10, fontWeight:600, color:'var(--dim)', textTransform:'uppercase', letterSpacing:.8, padding:'10px 16px 6px' }}>All Dashboards</div>
-            {ADMIN_DASHBOARD_ITEMS.map(item => (
+            {dashboardItems.map(item => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={closeSidebar}>
                 <span style={{ fontSize:13, width:24, textAlign:'center', fontWeight:700, display:'flex', justifyContent:'center' }}><item.icon /></span>
                 <span>{item.label}</span>

@@ -1,3 +1,4 @@
+const { hasStageAdminAccess } = require('../services/salesManagerAccess');
 const Lead = require('../models/Lead');
 const { withUniqueIvrs } = require('../services/ivrsUniqueness');
 const { HOLD_STAGES, protectLeadTransition } = require('../services/leadWorkflow');
@@ -224,14 +225,14 @@ const getDefaultAssigneeForStage = async (stage) => {
 };
 
 const canUserActOnLead = (user, lead) => {
-  if (user.role === 'Admin') return true;
+  if (hasStageAdminAccess(user.role, lead.currentStage)) return true;
   if (user.role === 'Name Change Executive' && String(lead.assignedTo?._id || lead.assignedTo || '') !== String(user._id)) return false;
   const userStage = ROLE_STAGE_MAP[user.role];
   return userStage === lead.currentStage;
 };
 
 const canUserViewLead = (user, lead) => {
-  if (user.role === 'Admin') return true;
+  if (hasStageAdminAccess(user.role, lead.currentStage)) return true;
   if (user.role === 'Name Change Executive') return String(lead.assignedTo?._id || lead.assignedTo || '') === String(user._id);
   if (ROLE_STAGE_MAP[user.role] === lead.currentStage) return true;
   const userId = String(user._id);
@@ -303,7 +304,7 @@ const ensureUniqueMeterNumber = async (meterNumber, excludeId = null) => {
 
 const buildQuery = (query, user) => {
   const q = {};
-  const role = user.role;
+  const role = query.salesExecutiveOnly !== 'true' && hasStageAdminAccess(user.role, query.completedStage || query.stage) ? 'Admin' : user.role;
   if (role === 'Name Change Executive') q.assignedTo = user._id;
   const stageAccess = ROLE_STAGE_MAP[role];
   const isPipelineOwnerRole = ['Manager', 'Sales Manager'].includes(role);
@@ -595,7 +596,7 @@ exports.updateLead = async (req, res) => {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
     const isAssignedUser = String(lead.assignedTo || '') === String(req.user._id);
-    if (req.user.role !== 'Admin' && !isAssignedUser && !canSalesManagerUpdateSalesLead(req.user, lead)) {
+    if (!hasStageAdminAccess(req.user.role, lead.currentStage) && !isAssignedUser && !canSalesManagerUpdateSalesLead(req.user, lead)) {
       return res.status(403).json({ success: false, message: 'You can only update leads assigned to you.' });
     }
 
@@ -698,7 +699,7 @@ exports.approveLead = async (req, res) => {
 
     const leadAssignee = lead.assignedTo ? await User.findById(lead.assignedTo).select('role') : null;
     const isSalesManagerHandoff = lead.currentStage === 'Lead'
-      && (req.user.role === 'Sales Manager' || leadAssignee?.role === 'Sales Manager');
+      && req.user.role !== 'Sales Manager' && leadAssignee?.role === 'Sales Manager';
 
     if (isSalesManagerHandoff) {
       let managerUser = null;
@@ -746,10 +747,10 @@ exports.approveLead = async (req, res) => {
 
     const prevStage = lead.currentStage;
     const targetStage = req.body.targetStage || 'Registration';
-    if (prevStage === 'Lead' && (!['Registration', 'Name Change'].includes(targetStage) || (targetStage === 'Name Change' && !['Admin', 'Manager'].includes(req.user.role)))) {
+    if (prevStage === 'Lead' && (!['Registration', 'Name Change'].includes(targetStage) || (targetStage === 'Name Change' && !['Admin', 'Manager', 'Sales Manager'].includes(req.user.role)))) {
       return res.status(400).json({ success: false, message: 'Select Registration or Name Change.' });
     }
-    if ((prevStage === 'Name Change' || (prevStage === 'Lead' && ['Admin', 'Manager'].includes(req.user.role))) && !req.body.nextAssigneeId) {
+    if ((prevStage === 'Name Change' || (prevStage === 'Lead' && ['Admin', 'Manager', 'Sales Manager'].includes(req.user.role))) && !req.body.nextAssigneeId) {
       return res.status(400).json({ success: false, message: 'Please select the executive who will receive this lead.' });
     }
     lead.approveStage(req.user._id, req.user.name, req.body.note, targetStage);
@@ -1065,7 +1066,7 @@ exports.addNote = async (req, res) => {
   try {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
-    if (req.user.role !== 'Admin' && String(lead.assignedTo || '') !== String(req.user._id)) {
+    if (!hasStageAdminAccess(req.user.role, lead.currentStage) && String(lead.assignedTo || '') !== String(req.user._id)) {
       return res.status(403).json({ success: false, message: 'You can only add notes to leads assigned to you.' });
     }
 
@@ -1104,7 +1105,7 @@ exports.setHoldStatus = async (req, res) => {
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' });
     if (req.body.stage !== lead.currentStage) return res.status(409).json({ success: false, message: 'The lead stage has changed. Refresh the list and try again.' });
     if (!HOLD_STAGES.includes(lead.currentStage)) return res.status(400).json({ success: false, message: 'Hold is available only at Name Change, Registration, Bank, Loan, Dispatch and Installation.' });
-    if (req.user.role !== 'Admin' && (ROLE_STAGE_MAP[req.user.role] !== lead.currentStage || String(lead.assignedTo || '') !== String(req.user._id))) {
+    if (!hasStageAdminAccess(req.user.role, lead.currentStage) && (ROLE_STAGE_MAP[req.user.role] !== lead.currentStage || String(lead.assignedTo || '') !== String(req.user._id))) {
       return res.status(403).json({ success: false, message: 'Only the assigned stage user or Admin can hold or resume this lead.' });
     }
     const status = req.body.status;

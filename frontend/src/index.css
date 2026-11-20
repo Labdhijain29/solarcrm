@@ -3598,3 +3598,5 @@ textarea.crm-input { resize: vertical; }
 .enquiry-page-number { display:inline-flex; align-items:center; gap:6px; }
 .enquiry-list-loading { display:grid; place-items:center; min-height:180px; }
 .enquiries-list-region .compact-table-wrap { scroll-margin-top:80px; }
+.enquiry-last-follow-up { min-width:0; max-width:260px; overflow-wrap:anywhere; }
+.enquiry-last-note { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; font-size:13px; margin-top:3px; }

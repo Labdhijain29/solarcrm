@@ -1,3 +1,4 @@
+const { SALES_MANAGER_STAGES } = require('../services/salesManagerAccess');
 // ─── USER CONTROLLER ──────────────────────────────────────────
 const { runGlobal } = require('../services/officeContext');
 const User = require('../models/User');
@@ -97,6 +98,7 @@ exports.getAssignableUsers = async (req, res) => {
       && requestedStageIndex === userStageIndex + 1
       && nextStageRoles.includes(role);
     const canViewRole = req.user.role === 'Admin'
+      || (req.user.role === 'Sales Manager' && [...SALES_MANAGER_STAGES, 'Dispatch'].includes(requestedStage))
       || req.user.role === role
       || (stage && userStage === stage && roleStage === stage)
       || isPreviousStageLookup

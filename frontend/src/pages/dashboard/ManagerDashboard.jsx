@@ -1,3 +1,4 @@
+import { hasStageAdminAccess } from '../../utils/salesManagerAccess'
 import PipelineBoard from '../../components/dashboard/PipelineBoard'
 import { useState, useEffect, useRef } from 'react'
 import { FaChartLine, FaCheckCircle, FaClipboardList, FaEdit, FaMoneyBillWave, FaRegBuilding, FaSolarPanel, FaTasks, FaUserCheck, FaUsers, FaWrench, FaBell, FaExchangeAlt, FaFileInvoice, FaBriefcase, FaShippingFast } from 'react-icons/fa'
@@ -23,10 +24,10 @@ const CAPACITY_OPTIONS = Array.from({ length: 50 }, (_, index) => `${index + 1}k
 const CAPITALIZED_FIELDS = new Set(['name', 'state', 'city', 'address', 'branch', 'brand', 'generatedThrough', 'other'])
 const LEADS_PAGE_SIZE = 25
 const canEditBeforeApproval = (lead, role) => (
-  lead?.status === 'active' && (
+  (role === 'Sales Manager' && hasStageAdminAccess(role, lead?.currentStage)) || (lead?.status === 'active' && (
     (['Admin', 'Manager', 'Sales Executive', 'Sales Manager'].includes(role) && lead?.currentStage === 'Lead') ||
     (['Admin', 'Registration Executive'].includes(role) && lead?.currentStage === 'Registration')
-  )
+  ))
 )
 const INITIAL_MANAGER_LEAD = {
   name: '',

@@ -1,4 +1,5 @@
 import EnquiryPagination from '../../components/dashboard/EnquiryPagination'
+import Swal from 'sweetalert2'
 import { createPortal } from 'react-dom'
 import EnquiryListActions from '../../components/dashboard/EnquiryListActions'
 import EnquiryDetailsModal from '../../components/dashboard/EnquiryDetailsModal'
@@ -121,6 +122,13 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
     if (convertingId) return
     setConvertingId(id)
     try {
+      const result = await Swal.fire({
+        titleText: 'Create lead from this enquiry?', icon: 'question',
+        showCancelButton: true, confirmButtonText: 'Yes, Create Lead', cancelButtonText: 'No',
+        reverseButtons: true, focusCancel: true, confirmButtonColor: '#059669',
+        background: 'var(--card)', color: 'var(--text)', customClass: { popup: 'lead-status-swal' },
+      })
+      if (!result.isConfirmed) return
       const response = await enquiriesAPI.convertToLead(id)
       toast.success(response.data.message || 'Lead created from enquiry.')
       onConverted?.()
@@ -222,6 +230,15 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   }
 
   const dueCounts = overview
+  const lastFollowUp = enquiry => {
+    const latest = (enquiry.followUps || []).reduce((last, entry) => !last || new Date(entry.createdAt) >= new Date(last.createdAt) ? entry : last, null)
+    if (!latest) return <span className="compact-secondary">No follow-up yet</span>
+    const date = new Date(latest.createdAt)
+    return <div className="enquiry-last-follow-up">
+      <div className="enquiry-last-note" title={latest.note}>{latest.note}</div>
+      <div className="compact-secondary">{Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+    </div>
+  }
   const followUpEnquiry = enquiries.find((enquiry) => enquiry._id === followUpEnquiryId)
 
   const dueLabel = (enquiry) => {
@@ -335,7 +352,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
                 <td><div>{enquiry.city || '-'}</div><div className="compact-secondary">{[enquiry.state, enquiry.pincode].filter(Boolean).join(' / ') || '-'}</div></td>
                 <td>
                   <span className={`badge ${enquiry.enquiryType === 'Service Enquiry' ? 'badge-green' : 'badge-indigo'}`}>{enquiry.enquiryType || '-'}</span>
-                  <div className="compact-secondary">IVRS: {enquiry.ivrsNo || '-'}</div>
+                  <div className="compact-secondary">Last follow-up</div>{lastFollowUp(enquiry)}
                 </td>
                 <td>
                   {enquiryStatus(enquiry)}{dueLabel(enquiry)}
@@ -359,7 +376,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
               {[
                 ['Location', [enquiry.city, enquiry.state, enquiry.pincode].filter(Boolean).join(' / ') || '-'],
                 ['Enquiry', enquiry.enquiryType || '-'],
-                ['IVRS No.', enquiry.ivrsNo || '-'],
+                ['Last follow-up', lastFollowUp(enquiry)],
                 ['Received', receivedDate(enquiry)],
               ].map(([label, value]) => <div key={label} className="crm-mobile-row"><span className="crm-mobile-label">{label}</span><span>{value}</span></div>)}
               {enquiry.enquiryType === 'Service Enquiry' && <div className="compact-secondary">Service Queue</div>}

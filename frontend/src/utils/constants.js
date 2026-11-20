@@ -1,3 +1,4 @@
+import { hasStageAdminAccess } from './salesManagerAccess'
 import { City, State } from 'country-state-city'
 
 export const STAGES = [
@@ -104,7 +105,7 @@ export const STATUS_BADGE = {
 }
 
 export const canActOnStage = (userRole, leadStage) => {
-  if (userRole === 'Admin') return true
+  if (hasStageAdminAccess(userRole, leadStage)) return true
   return ROLE_STAGE_MAP[userRole] === leadStage
 }
 
