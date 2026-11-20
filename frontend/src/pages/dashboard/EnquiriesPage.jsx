@@ -1,7 +1,8 @@
+import EnquiryPagination from '../../components/dashboard/EnquiryPagination'
 import { createPortal } from 'react-dom'
 import EnquiryListActions from '../../components/dashboard/EnquiryListActions'
 import EnquiryDetailsModal from '../../components/dashboard/EnquiryDetailsModal'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { FaBell } from 'react-icons/fa'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -18,6 +19,7 @@ import { CONTACT_PHONE_REGEX, CONTACT_PHONE_MESSAGE, normalizeContactPhone } fro
 
 const ENQUIRY_STATUSES = ['new', 'contacted', 'converted', 'closed']
 const DEFAULT_CONVERSION_FILTER = 'not-converted'
+const EMPTY_PAGINATION = { page:1,pages:1,total:0,limit:50 }
 const toOptions = (items) => items.map((item) => ({ value: item, label: item }))
 const CAPITALIZED_FIELDS = new Set(['name', 'address', 'state', 'city', 'notes'])
 const capitalizeFirstLetter = (value) => String(value || '').replace(/^(\s*)([a-z])/, (_, spaces, letter) => `${spaces}${letter.toUpperCase()}`)
@@ -50,10 +52,17 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   const feedback = useFormFeedback()
   const requestExit = useFormExit(Boolean(editing) && hasFormChanges(editForm, editBaseline.current), saving)
   const [search, setSearch] = useState('')
-  const [conversionFilter, setConversionFilter] = useState(DEFAULT_CONVERSION_FILTER)
-  const [followUpFilter, setFollowUpFilter] = useState(searchParams.get('followUp') === 'due' ? 'due' : 'all')
+  const [query, setQuery] = useState({ page:1,search:'',conversion:DEFAULT_CONVERSION_FILTER,followUp:searchParams.get('followUp') === 'due' ? 'due' : 'all',sort:'latest' })
+  const conversionFilter = query.conversion, followUpFilter = query.followUp, sortBy = query.sort
+  const setConversionFilter = value => setQuery(previous => ({ ...previous,conversion:value,page:1 }))
+  const setFollowUpFilter = value => setQuery(previous => ({ ...previous,followUp:value,page:1 }))
+  const setSortBy = value => setQuery(previous => ({ ...previous,sort:value,page:1 }))
+  const [pagination,setPagination] = useState(EMPTY_PAGINATION)
+  const [overview,setOverview] = useState({ total:0,today:0,overdue:0,upcoming:0 })
+  const [revision,setRevision] = useState(0)
+  const requestId = useRef(0)
+  const resultsRef = useRef(null)
   const [today, setToday] = useState(indiaToday)
-  const [sortBy, setSortBy] = useState('latest')
   const [showEnquiryForm, setShowEnquiryForm] = useState(false)
   const [convertingId, setConvertingId] = useState('')
   const [followUpEnquiryId, setFollowUpEnquiryId] = useState('')
@@ -68,24 +77,34 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   const canConvertEnquiry = (enquiry) => canConvert && enquiry.enquiryType?.trim().toLowerCase() !== 'service enquiry'
     && !enquiry.convertedTo && enquiry.status !== 'converted'
 
-  const fetchData = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await enquiriesAPI.getAll()
-      setEnquiries(response.data.data || [])
-    } catch (err) {
-      const message = err.response?.data?.message || 'Unable to load enquiries'
-      setError(message)
-      toast.error(message)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetchData = useCallback(() => setRevision(value => value + 1), [])
+  useEffect(() => {
+    const timeout = setTimeout(() => setQuery(previous => previous.search === search.trim() ? previous : { ...previous,search:search.trim(),page:1 }),300)
+    return () => clearTimeout(timeout)
+  }, [search])
 
   useEffect(() => {
-    fetchData()
-  }, [refreshKey])
+    const id = ++requestId.current
+    const controller = new AbortController()
+    setLoading(true)
+    setError('')
+    enquiriesAPI.getAll({ ...query,limit:50 },{ signal:controller.signal })
+      .then(({ data }) => {
+        if (id !== requestId.current || controller.signal.aborted) return
+        setEnquiries(data.data || [])
+        setPagination(data.pagination || EMPTY_PAGINATION)
+        setOverview(data.overview || { total:0,today:0,overdue:0,upcoming:0 })
+        if (data.pagination && data.pagination.page !== query.page) setQuery(previous => previous === query ? { ...previous,page:data.pagination.page } : previous)
+      })
+      .catch(err => {
+        if (id !== requestId.current || controller.signal.aborted || err.code === 'ERR_CANCELED') return
+        const message = err.response?.data?.message || 'Unable to load enquiries'
+        setError(message); setEnquiries([]); setPagination(EMPTY_PAGINATION)
+        toast.error(message)
+      })
+      .finally(() => { if (id === requestId.current && !controller.signal.aborted) setLoading(false) })
+    return () => { controller.abort(); requestId.current++ }
+  }, [query,refreshKey,revision,today])
 
   useEffect(() => {
     if (searchParams.get('followUp') === 'due') setFollowUpFilter('due')
@@ -190,6 +209,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
     try {
       const response = await enquiriesAPI.addFollowUp(followUpEnquiryId, data)
       setEnquiries((items) => items.map((item) => item._id === followUpEnquiryId ? response.data.data : item))
+      fetchData()
       toast.success(response.data.message || 'Follow-up saved.')
       window.dispatchEvent(new Event('enquiry-follow-ups-changed'))
       return true
@@ -201,11 +221,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
     }
   }
 
-  const dueCounts = enquiries.reduce((counts, enquiry) => {
-    const state = followUpState(enquiry, today)
-    if (state === 'today' || state === 'overdue' || state === 'upcoming') counts[state] += 1
-    return counts
-  }, { today: 0, overdue: 0, upcoming: 0 })
+  const dueCounts = overview
   const followUpEnquiry = enquiries.find((enquiry) => enquiry._id === followUpEnquiryId)
 
   const dueLabel = (enquiry) => {
@@ -230,27 +246,6 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   )
   const detailEnquiry = enquiries.find(enquiry => enquiry._id === detailsId)
 
-  const filteredEnquiries = enquiries
-    .filter((enquiry) => {
-      if (conversionFilter === 'not-converted' && isConvertedEnquiry(enquiry)) return false
-      if (conversionFilter === 'converted' && !isConvertedEnquiry(enquiry)) return false
-      const dueState = followUpState(enquiry, today)
-      if (followUpFilter === 'due' && !['today', 'overdue'].includes(dueState)) return false
-      if (followUpFilter !== 'all' && followUpFilter !== 'due' && dueState !== followUpFilter) return false
-      const q = search.toLowerCase()
-      if (!q) return true
-      return enquiry.name?.toLowerCase().includes(q) || String(enquiry.contact || enquiry.phone || '').includes(q) || enquiry.ivrsNo?.toLowerCase().includes(q)
-    })
-    .sort((a, b) => {
-      if (sortBy === 'due') return (a.nextFollowUpDate || '9999-12-31').localeCompare(b.nextFollowUpDate || '9999-12-31')
-      if (sortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '')
-      if (sortBy === 'name-desc') return (b.name || '').localeCompare(a.name || '')
-      if (sortBy === 'number-asc') return String(a.contact || a.phone || '').localeCompare(String(b.contact || b.phone || ''))
-      if (sortBy === 'number-desc') return String(b.contact || b.phone || '').localeCompare(String(a.contact || a.phone || ''))
-      if (sortBy === 'oldest') return new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-    })
-
   const hasActiveFilters = search.trim() !== '' || sortBy !== 'latest' || conversionFilter !== DEFAULT_CONVERSION_FILTER || followUpFilter !== 'all'
 
   const resetFilters = () => {
@@ -258,13 +253,17 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
     setConversionFilter(DEFAULT_CONVERSION_FILTER)
     setFollowUpFilter('all')
     setSortBy('latest')
+    setQuery({ page:1,search:'',conversion:DEFAULT_CONVERSION_FILTER,followUp:'all',sort:'latest' })
   }
 
-  if (loading) return <Spinner />
+  const changePage = page => {
+    setQuery(previous => ({ ...previous,page }))
+    resultsRef.current?.scrollIntoView({ block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  }
 
   return (
     <div className={embedded ? 'compact-list-region enquiries-list-region' : 'dashboard-page compact-list-region enquiries-list-region'}>
-      <PageHeader icon={<FaBell />} title={isExecutive ? 'Enquiries' : 'Website Enquiries'} subtitle={`${filteredEnquiries.length} enquiries visible for ${user?.role || 'your role'}`}
+      <PageHeader icon={<FaBell />} title={isExecutive ? 'Enquiries' : 'Website Enquiries'} subtitle={`${pagination.total} enquiries visible for ${user?.role || 'your role'}`}
         action={!embedded ? <button type="button" className="btn btn-primary" onClick={() => setShowEnquiryForm(true)}>Enquiry Form</button> : undefined} />
 
       <div className="enquiry-due-overview" aria-label="Enquiry follow-ups">
@@ -308,7 +307,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
           <option value="number-asc">Number 0-9</option>
           <option value="number-desc">Number 9-0</option>
         </select>
-        <span style={{ fontSize:12, color:'var(--muted)' }}>{filteredEnquiries.length} enquiries</span>
+        <span style={{ fontSize:12, color:'var(--muted)' }}>{pagination.total} enquiries</span>
         {hasActiveFilters && (
           <button className="btn btn-ghost btn-sm" type="button" onClick={resetFilters}>Reset filters</button>
         )}
@@ -316,15 +315,16 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
 
       {error && (
         <div className="crm-card" style={{ marginBottom:16, borderColor:'var(--red)', color:'var(--red)' }}>
-          {error}
+          {error}<button type="button" className="btn btn-ghost btn-sm" onClick={fetchData}>Retry</button>
         </div>
       )}
 
-      <div className="crm-table-wrap compact-table-wrap">
+      <div className="crm-table-wrap compact-table-wrap" ref={resultsRef} aria-busy={loading}>
+        {loading ? <div className="enquiry-list-loading"><Spinner /></div> : <>
         <table className="crm-table compact-dashboard-table compact-enquiries-table">
           <thead><tr>{['Customer', 'Location', 'Enquiry', 'Status', 'Received', 'Actions'].map(label => <th key={label}>{label}</th>)}</tr></thead>
           <tbody>
-            {filteredEnquiries.map(enquiry => (
+            {enquiries.map(enquiry => (
               <tr key={enquiry._id}>
                 <td>
                   <div className="compact-cell-text"><strong>{enquiry.name}</strong>
@@ -349,7 +349,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         </table>
 
         <div className="crm-mobile-cards">
-          {filteredEnquiries.map(enquiry => (
+          {enquiries.map(enquiry => (
             <div key={enquiry._id} className="crm-mobile-card">
               <div className="dashboard-split-row" style={{ marginBottom: 10 }}>
                 <div><strong>{enquiry.name}</strong><div className="compact-secondary">{enquiry.contact || enquiry.phone || '-'}</div>{enquiry.email && <div className="compact-secondary">{enquiry.email}</div>}</div>
@@ -368,14 +368,16 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
           ))}
         </div>
 
-        {!error && filteredEnquiries.length === 0 && (
+        {!error && enquiries.length === 0 && (
           <EmptyState
             icon={<FaBell />}
-            title={enquiries.length === 0 ? 'No enquiries yet' : followUpFilter !== 'all' ? 'No enquiries for this follow-up date' : conversionFilter === DEFAULT_CONVERSION_FILTER && !search.trim() ? 'No enquiries without a lead' : 'No enquiries found'}
-            subtitle={enquiries.length === 0 ? 'New enquiries will appear here after someone fills out the form.' : 'Choose another filter or change your search to see more enquiries.'}
+            title={overview.total === 0 ? 'No enquiries yet' : followUpFilter !== 'all' ? 'No enquiries for this follow-up date' : conversionFilter === DEFAULT_CONVERSION_FILTER && !search.trim() ? 'No enquiries without a lead' : 'No enquiries found'}
+            subtitle={overview.total === 0 ? 'New enquiries will appear here after someone fills out the form.' : 'Choose another filter or change your search to see more enquiries.'}
           />
         )}
+        </>}
       </div>
+      {!error && <EnquiryPagination pagination={pagination} disabled={loading} onChange={changePage} />}
 
       {detailEnquiry && <EnquiryDetailsModal enquiry={detailEnquiry} onClose={() => setDetailsId('')} />}
 

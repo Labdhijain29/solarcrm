@@ -6,6 +6,7 @@ const { getNextLeadId } = require('../services/leadNumber');
 const { indiaToday, isValidFollowUpDate } = require('../services/enquiryFollowUp');
 const { normalizeIvrs, withUniqueIvrs } = require('../services/ivrsUniqueness');
 const { normalizeContactPhone } = require('../services/contactPhone');
+const { PAGE_SIZE,listingQuery,followUpQuery,sortedStages } = require('../services/enquiryListing');
 
 const isServiceEnquiryType = (value = '') => value.trim().toLowerCase() === 'service enquiry';
 
@@ -22,11 +23,30 @@ const buildEnquiryQueryForRole = (user) => {
 
 exports.getEnquiries = async (req, res) => {
   try {
-    const q = buildEnquiryQueryForRole(req.user);
-    if (req.query.status) q.status = req.query.status;
-    const enquiries = await Enquiry.find(q).populate('assignedTo', 'name').sort({ createdAt: -1 });
-    res.json({ success: true, data: enquiries });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    const today = indiaToday();
+    const { page:requestedPage,sort,base,query } = listingQuery(req.query,buildEnquiryQueryForRole(req.user),today);
+    const [total,overviewRows] = await Promise.all([
+      Enquiry.countDocuments(query),
+      Enquiry.aggregate([{ $match:base },{ $facet:{
+        total:[{ $count:'count' }],
+        today:[{ $match:followUpQuery('today',today) },{ $count:'count' }],
+        overdue:[{ $match:followUpQuery('overdue',today) },{ $count:'count' }],
+        upcoming:[{ $match:followUpQuery('upcoming',today) },{ $count:'count' }],
+      } }]),
+    ]);
+    const pages = Math.max(1,Math.ceil(total / PAGE_SIZE));
+    const page = Math.min(requestedPage,pages);
+    const listing = Enquiry.aggregate([
+      { $match:query },...sortedStages(sort),{ $skip:(page - 1) * PAGE_SIZE },{ $limit:PAGE_SIZE },
+      { $project:{ pendingConversion:0,__enquiryOrder:0 } },
+    ]);
+    if (sort.startsWith('name-')) listing.collation({ locale:'en',strength:2 });
+    const enquiries = await listing;
+    await Enquiry.populate(enquiries,{ path:'assignedTo',select:'name' });
+    const counts = overviewRows[0] || {};
+    const overview = Object.fromEntries(['total','today','overdue','upcoming'].map(key => [key,counts[key]?.[0]?.count || 0]));
+    res.json({ success:true,data:enquiries,pagination:{ page,limit:PAGE_SIZE,total,pages },overview,today });
+  } catch (err) { res.status(err.statusCode || 500).json({ success:false,message:err.message }); }
 };
 
 exports.getDueFollowUps = async (req, res) => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState, LeadAvatar, StageBadge, StatusBadge } from '../common'
-import { SOURCES, STAGES } from '../../utils/constants'
+import { SOURCES, STAGES, formatDate } from '../../utils/constants'
 import LeadStatusToggle, { HOLD_STATUS_OPTIONS } from './LeadStatusToggle'
 
 const compareIvrs = (a, b, direction = 'asc') => {
@@ -15,6 +15,7 @@ const compareIvrs = (a, b, direction = 'asc') => {
 }
 
 const getLeadDisplayId = (lead) => lead.leadId || lead._id?.slice(-6) || lead.id || '-'
+const getCreatedDate = lead => lead.createdAt && Number.isFinite(new Date(lead.createdAt).getTime()) ? formatDate(lead.createdAt) : '-'
 
 const getPaginationItems = (page = 1, pages = 1) => {
   const currentPage = Number(page) || 1
@@ -259,6 +260,7 @@ export default function LeadsTable({
                           <strong>{lead.name}</strong>
                           <div className="compact-secondary">{lead.phone || '-'}</div>
                           <div className="compact-secondary">ID: {getLeadDisplayId(lead)}</div>
+                          <div className="compact-secondary">Created: {getCreatedDate(lead)}</div>
                         </div>
                       </div>
                     </td>
@@ -300,6 +302,7 @@ export default function LeadsTable({
 
                   {[
                     ['ID', getLeadDisplayId(lead)],
+                    ['Created', getCreatedDate(lead)],
                     ['Location', `${lead.city || '-'} / ${lead.branch || lead.salesExecutiveData?.branch || '-'}`],
                     ['IVRS / kW', `${lead.ivrsNo || '-'} / ${lead.capacity || '-'}`],
                   ].map(([label, value]) => (

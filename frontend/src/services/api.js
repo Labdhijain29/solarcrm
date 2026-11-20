@@ -125,7 +125,7 @@ export const usersAPI = {
 
 // ─── ENQUIRIES ─────────────────────────────────────────────
 export const enquiriesAPI = {
-  getAll: (params) => api.get('/enquiries', { params }),
+  getAll: (params, config = {}) => api.get('/enquiries', { ...config, params }),
   getDueFollowUps: () => api.get('/enquiries/follow-ups/due'),
   addFollowUp: (id, data) => api.post(`/enquiries/${id}/follow-ups`, data),
   create: (data, publicRequest = false) => api.post('/enquiries', data, { publicRequest }),

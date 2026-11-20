@@ -32,6 +32,7 @@ const enquirySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 enquirySchema.index({ nextFollowUpDate: 1, status: 1, convertedTo: 1 });
+enquirySchema.index({ office:1,createdAt:-1,_id:-1 });
 enquirySchema.index({ ivrsNo: 1 }, ivrsIndexOptions);
 
 enquirySchema.plugin(require('../services/officeScope'));
