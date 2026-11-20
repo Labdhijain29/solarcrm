@@ -265,8 +265,8 @@ export default function DashboardLayout() {
 
           <span style={{ fontFamily:'Syne,sans-serif', fontWeight:400, fontSize:14, flex:1 }}>Mahaveer Multi Engineering</span>
 
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <OfficeSelector />
+          <div className="topbar-actions">
+            <div className="topbar-office"><OfficeSelector /></div>
             <div ref={notificationsRef} style={{ position:'relative' }}>
               <button className="btn btn-ghost btn-icon" onClick={toggleNotifications} title="Notifications" style={{ position:'relative' }}>
                 <FaBell />

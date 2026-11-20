@@ -41,6 +41,19 @@ async function main() {
     console.log('Opening offices'); await page.goto('http://127.0.0.1:5188/dashboard/offices', { waitUntil:'domcontentloaded' });
     console.log('Loaded page'); await expect(page.getByRole('heading',{ name:'Offices',exact:true })).toBeVisible();
     await expect(page.locator('.office-selector')).toContainText('Ratlam Office');
+    await expect(page.locator('.office-selector .office-switch-trigger')).toContainText('Current office');
+    await page.locator('.app-topbar').screenshot({ path:path.join(output,'header-desktop.png'),animations:'disabled' });
+    await page.locator('.office-selector button').click();
+    await page.getByPlaceholder('Search offices...', { exact:true }).fill('Indore');
+    await expect(page.getByRole('option')).toHaveText(['Indore Office']);
+    await page.getByRole('option',{ name:'Indore Office',exact:true }).click();
+    await page.getByRole('button',{ name:'Stay Here',exact:true }).click();
+    await expect(page.locator('.office-selector')).toContainText('Ratlam Office');
+    await page.locator('.office-selector button').focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('listbox')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('listbox')).toHaveCount(0);
     await expect(page.getByRole('button',{ name:'Add Office',exact:true })).toHaveCount(0);
     await page.screenshot({ path:path.join(output,'listing.png'),animations:'disabled' });
     await page.locator('.office-selector button').click();
@@ -119,6 +132,7 @@ async function main() {
     await page.setViewportSize({ width:390,height:844 });
     await page.goto('http://127.0.0.1:5188/dashboard/offices');
     await expect(page.locator('.office-selector')).toBeVisible();
+    await page.locator('.app-topbar').screenshot({ path:path.join(output,'header-mobile.png'),animations:'disabled' });
     await page.screenshot({ path:path.join(output,'mobile.png'),animations:'disabled' });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
     await page.goto('http://127.0.0.1:5188/dashboard/offices/new');
@@ -140,7 +154,7 @@ async function main() {
     user = { ...user,role:'Manager',office:a._id };
     await page.goto('http://127.0.0.1:5188/dashboard/offices');
     await expect(page.locator('.office-selector')).toHaveCount(0);
-    await expect(page.locator('.office-name')).toHaveText('Ratlam Office');
+    await expect(page.locator('.office-name-value')).toHaveText('Ratlam Office');
     expect(errors).toEqual([]);
     console.log('Passed: office listing, switch, user form, direct create/edit, public routing, mobile and role checks.');
   } finally { await browser.close(); }

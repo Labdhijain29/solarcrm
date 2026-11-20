@@ -1,10 +1,12 @@
 import EnquiryPagination from '../../components/dashboard/EnquiryPagination'
+import EnquiryDailySummary, { claimDailyEnquirySummary } from '../../components/dashboard/EnquiryDailySummary'
+import { useOfficeContext } from '../../components/layout/OfficeBoundary'
 import Swal from 'sweetalert2'
 import { createPortal } from 'react-dom'
 import EnquiryListActions from '../../components/dashboard/EnquiryListActions'
 import EnquiryDetailsModal from '../../components/dashboard/EnquiryDetailsModal'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FaBell } from 'react-icons/fa'
+import { FaBell, FaChartBar } from 'react-icons/fa'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { EmptyState, PageHeader, SearchableSelect, Spinner } from '../../components/common'
@@ -42,6 +44,10 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
   const [searchParams] = useSearchParams()
   const location = useLocation()
   const { user } = useAuthStore()
+  const { selected:officeId, offices } = useOfficeContext()
+  const officeName = offices.find(office => office._id === officeId)?.name || 'Your office'
+  const [summaryData,setSummaryData] = useState(null)
+  const [summaryOpen,setSummaryOpen] = useState(false)
   const [enquiries, setEnquiries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -95,6 +101,7 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
         setEnquiries(data.data || [])
         setPagination(data.pagination || EMPTY_PAGINATION)
         setOverview(data.overview || { total:0,today:0,overdue:0,upcoming:0 })
+        if (data.overview) setSummaryData({ userId:user?._id,officeId,day:data.today || today,overview:data.overview })
         if (data.pagination && data.pagination.page !== query.page) setQuery(previous => previous === query ? { ...previous,page:data.pagination.page } : previous)
       })
       .catch(err => {
@@ -105,7 +112,12 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
       })
       .finally(() => { if (id === requestId.current && !controller.signal.aborted) setLoading(false) })
     return () => { controller.abort(); requestId.current++ }
-  }, [query,refreshKey,revision,today])
+  }, [query,refreshKey,revision,today,officeId,user?._id])
+
+  useEffect(() => {
+    if (loading || error || !summaryData || editing || detailsId || showEnquiryForm || followUpEnquiryId || convertingId) return
+    if (claimDailyEnquirySummary(summaryData.userId,summaryData.officeId,summaryData.day)) setSummaryOpen(true)
+  }, [loading,error,summaryData,editing,detailsId,showEnquiryForm,followUpEnquiryId,convertingId])
 
   useEffect(() => {
     if (searchParams.get('followUp') === 'due') setFollowUpFilter('due')
@@ -278,10 +290,19 @@ export default function EnquiriesPage({ embedded = false, refreshKey = 0, onConv
     resultsRef.current?.scrollIntoView({ block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
 
+  const viewSummaryFollowUps = followUp => {
+    setSummaryOpen(false)
+    setSearch('')
+    setQuery({ page:1,search:'',conversion:DEFAULT_CONVERSION_FILTER,followUp,sort:followUp === 'all' ? 'latest' : 'due' })
+    resultsRef.current?.scrollIntoView({ block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  }
+
   return (
     <div className={embedded ? 'compact-list-region enquiries-list-region' : 'dashboard-page compact-list-region enquiries-list-region'}>
       <PageHeader icon={<FaBell />} title={isExecutive ? 'Enquiries' : 'Website Enquiries'} subtitle={`${pagination.total} enquiries visible for ${user?.role || 'your role'}`}
-        action={!embedded ? <button type="button" className="btn btn-primary" onClick={() => setShowEnquiryForm(true)}>Enquiry Form</button> : undefined} />
+        action={<div className="enquiry-page-actions"><button type="button" className="btn btn-ghost" disabled={!summaryData || loading || Boolean(error)} onClick={() => setSummaryOpen(true)}><FaChartBar aria-hidden="true" />Summary</button>{!embedded && <button type="button" className="btn btn-primary" onClick={() => setShowEnquiryForm(true)}>Enquiry Form</button>}</div>} />
+
+      {summaryOpen && summaryData && <EnquiryDailySummary overview={summaryData.overview} day={summaryData.day} officeName={officeName} onClose={() => setSummaryOpen(false)} onSelect={viewSummaryFollowUps} />}
 
       <div className="enquiry-due-overview" aria-label="Enquiry follow-ups">
         <button type="button" className={`enquiry-due-card follow-up-overdue ${followUpFilter === 'overdue' ? 'active' : ''}`}

@@ -50,6 +50,7 @@ async function main() {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto('http://127.0.0.1:5188/dashboard/enquiries');
+    await page.getByRole('button',{ name:'Close daily summary',exact:true }).click();
     const table = page.locator('.compact-enquiries-table');
     await expect(table).toBeVisible();
     await expect(table.locator('th')).toHaveText(['Customer', 'Location', 'Enquiry', 'Status', 'Received', 'Actions']);
@@ -113,6 +114,7 @@ async function main() {
     await page.screenshot({ path: path.join(output, 'mobile.png'), fullPage: true });
     user = { ...user, _id: executiveId, role: 'Enquiry Executive' };
     await page.reload();
+    await page.getByRole('button',{ name:'Close daily summary',exact:true }).click();
     const other = page.locator('.crm-mobile-card').filter({ hasText: 'Service Customer' });
     await other.getByRole('button', { name: 'More actions for Service Customer', exact: true }).click();
     await expect(page.getByRole('menuitem', { name: 'View Details', exact: true })).toBeVisible();

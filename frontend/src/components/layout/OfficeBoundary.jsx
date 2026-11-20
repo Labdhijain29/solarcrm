@@ -3,14 +3,25 @@ import { officesAPI } from '../../services/api'
 import { useAuthStore } from '../../store'
 import { SearchableSelect } from '../common'
 import Swal from 'sweetalert2'
+import { FaChevronDown, FaRegBuilding } from 'react-icons/fa'
 
 const OfficeContext = createContext({ offices:[], selected:'' })
 export const useOfficeContext = () => useContext(OfficeContext)
 
+function OfficeCardContent({ name }) {
+  return <>
+    <span className="office-name-icon" aria-hidden="true"><FaRegBuilding /></span>
+    <span className="office-name-text"><span className="office-name-label">Current office</span><strong className="office-name-value" title={name}>{name}</strong></span>
+  </>
+}
+
 export function OfficeSelector() {
   const { offices, selected } = useOfficeContext()
   const user = useAuthStore(state => state.user)
-  if (user.role !== 'Admin') return <span className="office-name" title="Office">{offices.find(item => item._id === selected)?.name || 'Office'}</span>
+  const officeName = offices.find(item => item._id === selected)?.name || 'Office'
+  if (user.role !== 'Admin') return <div className="office-name" role="group" aria-label="Current office" title={officeName}>
+    <OfficeCardContent name={officeName} />
+  </div>
   const change = async value => {
     if (!value || value === selected) return
     const answer = await Swal.fire({ title: 'Switch office?', text: 'Change to the selected office and continue?', icon: 'question', showCancelButton: true, confirmButtonText: 'Switch Office', cancelButtonText: 'Stay Here', background: 'var(--card)', color: 'var(--text)', confirmButtonColor: '#059669' })
@@ -20,7 +31,7 @@ export function OfficeSelector() {
     // A new document clears every dashboard cache, portal, modal and old request.
     window.location.assign('/dashboard')
   }
-  return <div className="office-selector"><SearchableSelect name="selectedOffice" value={selected} options={offices.map(item => ({ value: item._id, label: `${item.name}${item.isActive === false ? ' (Inactive)' : ''}` }))} onChange={change} placeholder="Select office" searchPlaceholder="Search offices..." required /></div>
+  return <div className="office-selector"><SearchableSelect name="selectedOffice" value={selected} options={offices.map(item => ({ value: item._id, label: `${item.name}${item.isActive === false ? ' (Inactive)' : ''}` }))} onChange={change} placeholder="Select office" searchPlaceholder="Search offices..." triggerClassName="office-name office-switch-trigger" renderValue={option => <OfficeCardContent name={option?.label || officeName} />} caret={<FaChevronDown />} required /></div>
 }
 
 export default function OfficeBoundary({ children }) {

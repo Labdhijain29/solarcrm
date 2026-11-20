@@ -117,6 +117,9 @@ export function SearchableSelect({
   onChange,
   placeholder = 'Select option...',
   searchPlaceholder = 'Search...',
+  renderValue,
+  triggerClassName = '',
+  caret = 'v',
   noOptionsText = 'No options available',
   disabled = false,
   required = false,
@@ -269,7 +272,7 @@ export function SearchableSelect({
         id={id}
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}
-        className={`crm-input searchable-select-trigger ${open ? 'is-open' : ''}`}
+        className={`crm-input searchable-select-trigger ${triggerClassName} ${open ? 'is-open' : ''}`}
         onClick={() => (open ? setOpen(false) : openDropdown())}
         disabled={disabled}
         aria-haspopup="listbox"
@@ -277,9 +280,9 @@ export function SearchableSelect({
         aria-controls={listId}
       >
         <span className={`searchable-select-trigger-label ${selectedOption ? '' : 'is-placeholder'}`}>
-          {selectedOption?.label || placeholder}
+          {renderValue ? renderValue(selectedOption) : selectedOption?.label || placeholder}
         </span>
-        <span className="searchable-select-caret">v</span>
+        <span className="searchable-select-caret" aria-hidden="true">{caret}</span>
       </button>
 
       {open && menuStyle && createPortal(
